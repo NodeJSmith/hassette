@@ -408,15 +408,15 @@ async def handle_fk_violation(
         dropped = await executor.hassette.database_service.submit(
             executor.repository.persist_execution_batch_with_fk_fallback(records)
         )
-        if dropped > 0:
-            executor._dropped_exhausted += dropped
+        if dropped:
+            executor._dropped_exhausted += len(dropped)
             executor.logger.error(
                 "FK violation fallback: %d record(s) dropped even with null FK (total exhausted: %d)",
-                dropped,
+                len(dropped),
                 executor._dropped_exhausted,
             )
-        else:
-            await emit_completion_events(executor, records)
+        dropped_ids = {id(r) for r in dropped}
+        await emit_completion_events(executor, [r for r in records if id(r) not in dropped_ids])
     except TimeoutError as exc:
         await retry_or_drop(executor, records, retry_count, exc, shutdown=shutdown)
     except Exception as exc:  # broad: the row-by-row fallback is the last resort; count the drop rather than raise

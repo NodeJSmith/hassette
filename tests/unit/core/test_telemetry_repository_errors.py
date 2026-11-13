@@ -84,7 +84,7 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([handler_rec, job_rec])
 
-    assert dropped == 0
+    assert dropped == []
 
     cursor = await telemetry_db.execute(
         "SELECT listener_id, kind FROM executions WHERE listener_id = ?", (listener_id,)
@@ -121,12 +121,35 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1
+    assert dropped == [record]
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
+
+
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
+async def test_persist_execution_batch_with_fk_fallback_mixed_batch_returns_only_dropped(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+    telemetry_session_id: int,
+) -> None:
+    """In a batch with one valid and one FK-violating record, the valid row commits and only the bad one is returned."""
+    # dup-ignore-end
+    listener_id = await telemetry_repo.register_listener(make_listener_registration())
+    now = time.time()
+    kept = make_execution_record(listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now)
+    bad = make_execution_record(listener_id=NONEXISTENT_FK_ID, session_id=telemetry_session_id, execution_start_ts=now)
+
+    dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([kept, bad])
+
+    assert dropped == [bad]
+
+    cursor = await telemetry_db.execute("SELECT listener_id FROM executions")
+    rows = await cursor.fetchall()
+    assert [r[0] for r in rows] == [listener_id]
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
@@ -154,7 +177,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1
+    assert dropped == [record]
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
@@ -169,7 +192,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() counts dropped when null-FK retry also fails."""
+    """persist_execution_batch_with_fk_fallback() returns the record when null-FK retry also fails."""
     # dup-ignore-end
     now = time.time()
     record = make_execution_record(
@@ -192,7 +215,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     with patch.object(telemetry_db, "execute", side_effect=patched_execute):
         dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
+    assert dropped == [record], "Row that fails even with null FK should be counted as dropped"
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
@@ -202,7 +225,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() counts dropped for job rows when null-FK retry fails."""
+    """persist_execution_batch_with_fk_fallback() returns job rows when null-FK retry fails."""
     # dup-ignore-end
     now = time.time()
     record = ExecutionRecord(
@@ -230,15 +253,15 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
     with patch.object(telemetry_db, "execute", side_effect=patched_execute):
         dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1, "Job row that fails even with null FK should be counted as dropped"
+    assert dropped == [record], "Job row that fails even with null FK should be counted as dropped"
 
 
 async def test_persist_execution_batch_with_fk_fallback_empty_list(
     telemetry_repo: TelemetryRepository,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() with empty list returns 0 dropped."""
+    """persist_execution_batch_with_fk_fallback() with empty list returns no dropped records."""
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([])
-    assert dropped == 0
+    assert dropped == []
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function

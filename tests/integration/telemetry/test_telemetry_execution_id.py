@@ -122,7 +122,7 @@ class TestHandlerInvocationExecutionId:
         )
 
         dropped = await repo.persist_execution_batch_with_fk_fallback([record])
-        assert dropped == 1  # CHECK prevents a null-FK orphan; the row is dropped
+        assert dropped == [record]  # CHECK prevents a null-FK orphan; the row is dropped
 
         async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
             count_row = await cursor.fetchone()

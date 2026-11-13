@@ -596,7 +596,7 @@ class TelemetryRepository:
             await db.rollback()
             raise
 
-    async def persist_execution_batch_with_fk_fallback(self, records: list[ExecutionRecord]) -> int:
+    async def persist_execution_batch_with_fk_fallback(self, records: list[ExecutionRecord]) -> list[ExecutionRecord]:
         """Insert execution records row-by-row with FK violation fallback (best-effort per record).
 
         Called by ``execution_pipeline.handle_fk_violation`` after a batch INSERT already
@@ -607,13 +607,14 @@ class TelemetryRepository:
         Atomicity is best-effort per record: if an individual record fails even after FK
         nulling, it is silently dropped and remaining records are still committed.
 
-        Returns the number of records that were dropped (failed even with null FK).
+        Returns the records that were dropped (failed even with null FK); every other record
+        was committed.
         """
         db = self._db_service.db
-        dropped = 0
+        dropped: list[ExecutionRecord] = []
 
         if not records:
-            return 0
+            return dropped
 
         try:
             await db.execute("BEGIN")
@@ -622,7 +623,7 @@ class TelemetryRepository:
                 params = execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
                 if await insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
-                    dropped += 1
+                    dropped.append(record)
 
             await db.commit()
         except Exception:  # any failure rolls back, then re-raises to the caller

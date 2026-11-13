@@ -280,13 +280,13 @@ async def test_integrity_error_row_by_row_fallback():
     inv_bad = make_invocation(listener_id=999, session_id=1)  # FK violation
     records = [inv_good, inv_bad]
 
-    # Simulate: batch call raises IntegrityError; FK fallback returns 1 dropped record
+    # Simulate: batch call raises IntegrityError; FK fallback drops the bad record
     async def fake_persist_batch(recs):
         if len(recs) > 1:
             raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
 
     async def fake_fk_fallback(_recs):
-        return 1  # 1 record dropped
+        return [inv_bad]
 
     executor.repository.persist_execution_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
     executor.repository.persist_execution_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
@@ -468,7 +468,7 @@ async def test_handle_fk_violation_all_persisted_emits_completion_events():
     executor.hassette.send_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
     async def fake_fk_fallback(_recs):
-        return 0  # nothing dropped
+        return []
 
     executor.repository.persist_execution_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
@@ -477,6 +477,27 @@ async def test_handle_fk_violation_all_persisted_emits_completion_events():
 
     executor.hassette.send_event.assert_awaited_once()
     assert executor._dropped_exhausted == 0
+
+
+async def test_handle_fk_violation_partial_drop_emits_completion_events_for_persisted_records():
+    """When the FK fallback drops one record, completion events still fire for the ones it persisted."""
+    executor = init_executor()
+    inv_kept = make_invocation(listener_id=1, session_id=1)
+    inv_dropped = make_invocation(listener_id=999, session_id=1)
+    executor.hassette.send_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    async def fake_fk_fallback(_recs):
+        return [inv_dropped]
+
+    executor.repository.persist_execution_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
+    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.handle_fk_violation(executor, [inv_kept, inv_dropped])
+
+    executor.hassette.send_event.assert_awaited_once()
+    event = executor.hassette.send_event.await_args_list[0].args[0]
+    assert event.payload.data.listener_id == 1
+    assert executor._dropped_exhausted == 1
 
 
 async def test_handle_fk_violation_submit_failure_drops_all_records():
