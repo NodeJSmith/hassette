@@ -188,7 +188,7 @@ class TestAppApiFactory:
             model_config: ClassVar[dict[str, str]] = {"env_prefix": "test_wp01_default_"}
 
         class _TestApp(App[_TestConfig]):
-            app_config_cls = _TestConfig
+            pass
 
         hassette = build_mock_hassette()
         config = _TestConfig(instance_name="test")
@@ -219,7 +219,7 @@ class TestAppApiFactory:
                 mark_ready(self, reason="FakeApi initialized")
 
         class _TestApp(App[_TestConfig]):
-            app_config_cls = _TestConfig
+            pass
 
         hassette = build_mock_hassette()
         config = _TestConfig(instance_name="test")
