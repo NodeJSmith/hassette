@@ -84,7 +84,7 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([handler_rec, job_rec])
 
-    assert dropped == 0
+    assert dropped == []
 
     cursor = await telemetry_db.execute(
         "SELECT listener_id, kind FROM executions WHERE listener_id = ?", (listener_id,)
@@ -121,7 +121,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1
+    assert dropped == [record]
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
@@ -154,7 +154,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1
+    assert dropped == [record]
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
@@ -169,7 +169,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() counts dropped when null-FK retry also fails."""
+    """persist_execution_batch_with_fk_fallback() returns the record when null-FK retry also fails."""
     # dup-ignore-end
     now = time.time()
     record = make_execution_record(
@@ -192,7 +192,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     with patch.object(telemetry_db, "execute", side_effect=patched_execute):
         dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
+    assert dropped == [record], "Row that fails even with null FK should be counted as dropped"
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
@@ -202,7 +202,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() counts dropped for job rows when null-FK retry fails."""
+    """persist_execution_batch_with_fk_fallback() returns job rows when null-FK retry fails."""
     # dup-ignore-end
     now = time.time()
     record = ExecutionRecord(
@@ -230,15 +230,15 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
     with patch.object(telemetry_db, "execute", side_effect=patched_execute):
         dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 1, "Job row that fails even with null FK should be counted as dropped"
+    assert dropped == [record], "Job row that fails even with null FK should be counted as dropped"
 
 
 async def test_persist_execution_batch_with_fk_fallback_empty_list(
     telemetry_repo: TelemetryRepository,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() with empty list returns 0 dropped."""
+    """persist_execution_batch_with_fk_fallback() with empty list returns no dropped records."""
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([])
-    assert dropped == 0
+    assert dropped == []
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
