@@ -1,3 +1,8 @@
+"""Home Assistant WebSocket connection service: the connection's lifecycle, handshake and retry loop.
+
+The D-numbers cited here refer to ``design/specs/131-ha-restart-reconnect/design.md``.
+"""
+
 import asyncio
 import time
 import traceback
@@ -569,12 +574,10 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
         self._send_ready_event.clear()
 
-        # Stop the recv loop
         if (recv_task := self._recv_task) is not None:
             self._recv_task = None  # detach first: the done-callback ignores a task we cancel
             await cancel_and_drain(recv_task)
 
-        # Close the WebSocket
         if self._ws and not self._ws.closed:
             await self._ws.close(
                 code=aiohttp.WSCloseCode.GOING_AWAY,
@@ -608,7 +611,6 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             await self._ws.send_json({"type": "auth", "access_token": token})
             msg = await self._ws.receive_json()
 
-            # happy path
             if msg["type"] == "auth_ok":
                 self.logger.debug("Authenticated successfully with Home Assistant at %s", ws_url)
                 return
