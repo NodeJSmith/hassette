@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, get_args, get_origin
 
@@ -129,7 +129,8 @@ def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, t
         A new container of the annotation's origin type with every element converted.
 
     Raises:
-        UnableToConvertValueError: If the origin is unsupported or the value cannot be coerced into it.
+        UnableToConvertValueError: If the origin is unsupported, the value is a string, bytes or mapping,
+            or the value cannot be coerced into it.
     """
     origin = get_origin(tp)
     args = get_args(tp)
@@ -138,6 +139,10 @@ def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, t
 
     if origin not in (list, set, frozenset):
         raise UnableToConvertValueError(f"Unsupported iterable origin {origin!r}")
+
+    # Strings and mappings are iterable, but coercing them yields characters or keys, never the intended items.
+    if isinstance(value, str | bytes | Mapping):
+        raise UnableToConvertValueError(f"Expected {origin.__name__}, got {type(value).__name__}")
 
     if not isinstance(value, origin):
         try:
@@ -166,13 +171,11 @@ def convert_dict(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
         A new dict with converted keys and values; untyped dicts convert entries as ``Any``.
 
     Raises:
-        UnableToConvertValueError: If the value cannot be coerced into a dict.
+        UnableToConvertValueError: If the value is not a mapping.
     """
-    if not isinstance(value, dict):
-        try:
-            value = dict(value)
-        except Exception:
-            raise UnableToConvertValueError(f"Expected dict, got {type(value).__name__}") from None
+    # Only mappings convert: building a dict from a sequence of pairs would guess at the shape of list data.
+    if not isinstance(value, Mapping):
+        raise UnableToConvertValueError(f"Expected dict, got {type(value).__name__}")
 
     args = get_args(tp)
     key_tp, val_tp = args if len(args) == 2 else (Any, Any)
