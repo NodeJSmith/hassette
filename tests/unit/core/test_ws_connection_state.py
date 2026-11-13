@@ -368,14 +368,18 @@ def record_states(websocket_service: WebsocketService) -> list[ConnectionState]:
 
 
 class TestCleanShutdownDisconnects:
-    async def test_clean_shutdown_disconnects(self, websocket_service: WebsocketService) -> None:
-        """cleanup() sets DISCONNECTED at the start (clean shutdown path)."""
-        # First put service into CONNECTED state
-        websocket_service._connection_state = ConnectionState.CONNECTED
+    @pytest.mark.parametrize("start", [ConnectionState.CONNECTED, ConnectionState.WAITING_FOR_CORE])
+    async def test_clean_shutdown_disconnects(
+        self, websocket_service: WebsocketService, start: ConnectionState
+    ) -> None:
+        """cleanup() sets DISCONNECTED at the start (clean shutdown path), through a ratified edge."""
+        websocket_service._connection_state = start
+        websocket_service.logger = Mock()
 
         await cleanup_disconnected(websocket_service)
 
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
+        websocket_service.logger.warning.assert_not_called()
 
 
 class TestPartialCleanupNoStateChange:

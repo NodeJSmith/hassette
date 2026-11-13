@@ -66,8 +66,9 @@ CLEANUP_TIMEOUT_SECONDS = 2.0
 """Seconds to wait for the receive task to finish cancelling during partial cleanup."""
 
 
-# Valid WebSocket connection state transitions. Failed attempts and their backoffs stay in
-# CONNECTING with no transition, so an outage produces no per-attempt state changes.
+# Valid WebSocket connection state transitions. A failed attempt that never reads a non-RUNNING
+# core stays in CONNECTING through its backoff, apart from the DISCONNECTED step when the recv task
+# dies. An attempt that waits for the core and then fails leaves WAITING_FOR_CORE each time.
 # DISCONNECTED → CONNECTING: serve() starts an attempt (first, or after the recv task died)
 # CONNECTING → CONNECTED: Home Assistant's core state was RUNNING on the first read
 # CONNECTING → WAITING_FOR_CORE: the first get_config read reported a core state short of RUNNING

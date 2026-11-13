@@ -91,8 +91,9 @@ def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int =
 def mark_websocket_service_connected(websocket_service: "WebsocketService", *, reason: str) -> None:
     """Mark a WebsocketService externally ready for tests.
 
-    Expects a fresh service, in DISCONNECTED or CONNECTING. From any other state the setter's
-    invalid-transition warning reports the misuse.
+    Expects a fresh service, in DISCONNECTED or CONNECTING. From AUTH_FAILED the setter's
+    invalid-transition warning fires; from WAITING_FOR_CORE (a valid edge) or CONNECTED (a
+    same-state no-op) nothing reports the misuse.
 
     For a heavier-weight alternative that fires a real event through the bus, see
     ``AppTestHarness.simulate_websocket_connected()`` in ``hassette.testing._simulation``.

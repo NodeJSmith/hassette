@@ -86,6 +86,21 @@ def record_plans(websocket_service: WebsocketService) -> list[RetryPlan]:
     return plans
 
 
+def record_transitions(websocket_service: WebsocketService) -> list[tuple[ConnectionState, ConnectionState]]:
+    """Collect every real connection-state change as ``(old, new)``, in order; same-state calls are skipped."""
+    transitions: list[tuple[ConnectionState, ConnectionState]] = []
+    original = websocket_service.set_connection_state
+
+    def recording(new: ConnectionState) -> None:
+        old = websocket_service.connection_state
+        original(new)
+        if old != new:
+            transitions.append((old, new))
+
+    websocket_service.set_connection_state = recording  # pyright: ignore[reportAttributeAccessIssue]
+    return transitions
+
+
 async def wait_connected(websocket_service: WebsocketService) -> int:
     generation = await websocket_service.wait_connected_generation(timeout=WAIT_SECONDS)
     assert generation is not None, f"never reached CONNECTED (state {websocket_service.connection_state})"
@@ -363,19 +378,54 @@ async def test_shutting_down_core_state_backs_off_and_reconnects(
 
 
 @pytest.mark.usefixtures("fast_reconnect")
+async def test_core_shutting_down_mid_wait_leaves_waiting_for_core_for_connecting(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """A recheck that reads STOPPING fails a live-socket attempt: WAITING_FOR_CORE goes straight to CONNECTING."""
+    fake_ha.core_states = ["STARTING", "STOPPING"]
+    plans = record_plans(websocket_service)
+    transitions = record_transitions(websocket_service)
+
+    async with serving(websocket_service, fake_ha):
+        await wait_for(lambda: len(plans) >= 1, timeout=WAIT_SECONDS, desc="STOPPING recheck handled")
+        assert transitions[:3] == [
+            (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
+            (ConnectionState.CONNECTING, ConnectionState.WAITING_FOR_CORE),
+            (ConnectionState.WAITING_FOR_CORE, ConnectionState.CONNECTING),
+        ]
+
+        fake_ha.core_states = ["RUNNING"]
+        await wait_connected(websocket_service)
+
+
+@pytest.mark.usefixtures("fast_reconnect")
 async def test_drop_during_running_wait_retries_and_replaces_the_waiting_reason(
     websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
-    """A socket lost while waiting for RUNNING retries in place, and the stale waiting reason is replaced."""
+    """A socket lost while waiting for RUNNING retries in place, and the stale waiting reason is replaced.
+
+    The recv task's done-callback leaves WAITING_FOR_CORE for DISCONNECTED; serve() then retries from CONNECTING.
+    """
     fake_ha.core_states = ["STARTING"]
     plans = record_plans(websocket_service)
+    transitions = record_transitions(websocket_service)
 
     async with serving(websocket_service, fake_ha) as task:
-        await wait_for(lambda: fake_ha.get_config_calls >= 1, timeout=WAIT_SECONDS, desc="core state read")
+        await wait_for(
+            lambda: websocket_service.connection_state == ConnectionState.WAITING_FOR_CORE,
+            timeout=WAIT_SECONDS,
+            desc="waiting for core",
+        )
         await fake_ha.stop()
 
         await wait_for(lambda: len(plans) >= 1, timeout=WAIT_SECONDS, desc="drop handled")
         assert websocket_service._ready_reason == NOT_CONNECTED_REASON
+        assert transitions == [
+            (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
+            (ConnectionState.CONNECTING, ConnectionState.WAITING_FOR_CORE),
+            (ConnectionState.WAITING_FOR_CORE, ConnectionState.DISCONNECTED),
+            (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
+        ]
         assert not task.done()
 
         fake_ha.core_states = ["RUNNING"]

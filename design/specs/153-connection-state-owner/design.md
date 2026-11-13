@@ -1,7 +1,7 @@
 # Design: One owner for the websocket connection state
 
 **Date:** 2026-11-13
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4091
 **Prior art:** `design/specs/153-connection-state-owner/peer-check.md` (observer mechanics); `design/research/2026-11-13-framework-timeline/structural-gaps.md` Gap 2 (state model; on branch `3678`, read with `git show 3678:<path>`)
@@ -245,7 +245,7 @@ Auth happens before the gate, so a token rejection can't happen while waiting.
 **Pick B instead if** harness connections shouldn't emit the first-connect log line or go through transition validation.
 **Reversibility:** easy
 **Ratified:** Chose routing `mark_websocket_service_connected` through `set_connection_state` (stepping via CONNECTING from DISCONNECTED) over keeping its direct write, so the single-writer rule holds for all of `src/` and harness connections set the ever-connected latch through the setter as in production, accepting the first-connect INFO line in those tests.
-**Order and scope:** the setter calls come before `_configure_websocket_external_readiness_primitives`, because leaving any state for CONNECTING clears `_connected_event` and `_connected_generation`. The helper is called only on a fresh service, in DISCONNECTED or CONNECTING; any other starting state is a test bug, and the setter's invalid-transition warning reports it.
+**Order and scope:** the setter calls come before `_configure_websocket_external_readiness_primitives`, because leaving any state for CONNECTING clears `_connected_event` and `_connected_generation`. The helper is called only on a fresh service, in DISCONNECTED or CONNECTING; any other starting state is a test bug. Only AUTH_FAILED makes the setter warn; WAITING_FOR_CORE → CONNECTED is a valid edge and CONNECTED is a same-state no-op, so neither reports the misuse.
 
 ### D10: Are transition observers built here, or with their first consumer?
 
@@ -269,7 +269,7 @@ Auth happens before the gate, so a token rejection can't happen while waiting.
 ## Assumed
 
 - `serve()` runs once per process: "Nothing restarts a service in-process" (`src/hassette/resources/service.py`, the `Service` docstring). So `serve()`'s first transition is always DISCONNECTED → CONNECTING. Evidence: `websocket_service.py`, `serve()`.
-- Retries stay in CONNECTING with no per-attempt transition, and `is_connected` stays `== CONNECTED`. Evidence: issue #4091 body; spec 131 D10 (`tests/unit/core/test_ws_connection_state.py`, `ALLOWED_TRANSITIONS` docstring).
+- A failed attempt that never reads a non-RUNNING core stays in CONNECTING with no per-attempt transition (apart from DISCONNECTED on recv death), and `is_connected` stays `== CONNECTED`. Evidence: issue #4091 body; spec 131 D10 (`tests/unit/core/test_ws_connection_state.py`, `ALLOWED_TRANSITIONS` docstring).
 - `dispatch_hass_event` gates on `!= CONNECTED` (`src/hassette/core/websocket_io.py`), so WAITING_FOR_CORE keeps holding and dropping events exactly as CONNECTING does during the gate.
 - `ReconnectPolicy.on_connection_ended(connected_for)` still needs `connected_for` in `handle_connection_failure`, so `WebsocketService._connected_at` stays for the policy. `is_stable_connection` remains the one stability test both use. Evidence: `websocket_reconnect.py`, `is_stable_connection` docstring.
 - The first-ever CONNECTED INFO line ("Connected to Home Assistant at …") stays in `set_connection_state`; reconnect lines stay in `OutageLog`. Evidence: `set_connection_state` docstring.
@@ -281,8 +281,9 @@ Auth happens before the gate, so a token rejection can't happen while waiting.
 
 - [x] Implementation and tests committed
 - [x] Docs (`.claude/rules/core-startup.md`, the `ConnectionState`/`wait_for_core_running`/harness docstrings and the `WS_VALID_TRANSITIONS` comment; no docs pages, per Posture)
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `wait_for_core_running` sets WAITING_FOR_CORE before awaiting `report_connection_status`: the state is synchronous bookkeeping, so it reads correctly to anything the readiness event wakes.
+- For the #3678 re-sketch: an attempt that waits for the core and then fails transitions out of WAITING_FOR_CORE each time (WAITING_FOR_CORE → CONNECTING, or WAITING_FOR_CORE → DISCONNECTED → CONNECTING on recv death), as gRPC, HA `ConfigEntry` and NetDaemon also do per retry (peer-check §3). A row writer sees these per attempt. The core state being waited on (NOT_RUNNING vs STARTING) lives only in the ready reason and `OutageLog.record_core_wait` (D6, D8); the re-sketch should give it a typed source rather than parse the reason text.
 - `test_dispatch_drops_events_before_connected` gains WAITING_FOR_CORE: it pins the Assumed claim that the dispatch gate holds events in the new state as it does in CONNECTING.
