@@ -1,12 +1,17 @@
 import enum
 from typing import Literal
 
-# Root of every logger Hassette names; framework loggers and app loggers both live under it.
 HASSETTE_LOGGER_NAME = "hassette"
+"""Root of every logger Hassette names; framework loggers and app loggers both live under it."""
 
 SECONDS_PER_DAY = 86400
+"""Number of seconds in a day."""
+
 SECONDS_PER_HOUR = 3600
+"""Number of seconds in an hour."""
+
 SECONDS_PER_MINUTE = 60
+"""Number of seconds in a minute."""
 
 
 class FalseySentinel(enum.Enum):
