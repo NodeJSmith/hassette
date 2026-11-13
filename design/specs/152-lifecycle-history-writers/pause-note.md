@@ -19,6 +19,15 @@ D3, D5's schema shape, D6 and D7 hold either way. D1, D2, D4 and most open findi
 - `rechallenge-findings.md`: the re-challenge's 13 findings, all `disposition: pending`. Finding 4 (startup outage length) was classified Auto-apply but was **not** applied. The walkthrough stopped at Finding 1, the convergence on the writers' last-row memory, which depends on gap 1.
 - Research: `design/research/2026-11-13-framework-timeline/research.md` and `peer-check.md`.
 
+## Decided (2026-11-13)
+
+Researched in `design/research/2026-11-13-framework-timeline/structural-gaps.md`. Gaps 1 and 2 land first as their own PRs, and #3678's **After:** line now names them:
+
+- #4091: connection state gets one owner and a `WAITING_FOR_CORE` state; `OutageLog` becomes a transition observer (gap 2, do first)
+- #4092: `AppRegistry.set_status` owns app transitions; the site-198 re-sync becomes a snapshot push (gap 1)
+- #4093: bus shutdown drain (gap 3). Not a prerequisite, since rows go through the `SessionManager` writer once #4092 lands
+- #4094: the App resource and the registry both still hold status after #4092 (debt)
+
 ## To resume
 
-Decide first how to handle gaps 1 and 2: scope the prerequisites (a registry-owned app-transition slice of #1446 and a `WAITING_FOR_CORE` connection state), fold only the connection fix into this sketch, or ship the workarounds and file the gaps. Then re-sketch or revise D1, D2 and D4, re-run the sketch challenge, and continue at `/mine-sketch design/specs/152-lifecycle-history-writers/`.
+After #4091 and #4092 merge, revise D1, D2, D4 and D6 against them: the row writer becomes an observer of connection transitions and a consumer of `StatusChange`, and the dedupe map and inferred last state go away. Re-triage `rechallenge-findings.md`, expecting most findings to be moot. Then re-run the sketch challenge and continue at `/mine-sketch design/specs/152-lifecycle-history-writers/`.
