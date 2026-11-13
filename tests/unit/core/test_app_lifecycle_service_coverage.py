@@ -299,15 +299,20 @@ class TestHandleChangeEventBranches:
         """An app the --app filter blocked, then disabled in config, comes back "unblocked" but
         must not be started -- nor may an unblocked key the ChangeSet is stopping as an orphan.
         """
-        lifecycle_service.reconcile_blocked_apps = Mock(return_value={"disabled_app", "orphaned_app"})
-        mock_registry.enabled_manifests = {"orphaned_app": Mock()}
+        # The real reconcile_blocked_apps runs: the --app filter is gone, so every key blocked
+        # before comes back unblocked, including disabled_app, which is no longer an enabled manifest.
+        mock_registry.only_apps = set()
+        mock_registry.unblock_apps = Mock(return_value={"disabled_app", "orphaned_app", "enabled_app"})
+        mock_registry.enabled_manifests = {"orphaned_app": Mock(), "enabled_app": Mock()}
         set_registry_apps(mock_registry, {})
-        changes = make_change_set(orphans={"disabled_app", "orphaned_app"})
+        # disabled_app is in no ChangeSet bucket, so only the enabled-manifest check excludes it;
+        # orphaned_app is still enabled, so only the orphan check excludes it.
+        changes = make_change_set(orphans={"orphaned_app"})
 
         folded = lifecycle_service._fold_unblocked_apps_into_changes(changes)
 
-        assert folded.new_apps == frozenset()
-        assert folded.orphans == frozenset({"disabled_app", "orphaned_app"})
+        assert folded.new_apps == frozenset({"enabled_app"})
+        assert folded.orphans == frozenset({"orphaned_app"})
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
     # signature between separate test functions (see .claude/rules/tests-unit-core.md).
