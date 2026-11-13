@@ -101,6 +101,10 @@ def record_transitions(websocket_service: WebsocketService) -> list[tuple[Connec
     return transitions
 
 
+async def wait_for_state(websocket_service: WebsocketService, state: ConnectionState, desc: str) -> None:
+    await wait_for(lambda: websocket_service.connection_state == state, timeout=WAIT_SECONDS, desc=desc)
+
+
 async def wait_connected(websocket_service: WebsocketService) -> int:
     generation = await websocket_service.wait_connected_generation(timeout=WAIT_SECONDS)
     assert generation is not None, f"never reached CONNECTED (state {websocket_service.connection_state})"
@@ -229,11 +233,7 @@ async def test_auth_rejected_before_any_connection_retries_three_times_then_park
     await websocket_service.on_initialize()
 
     async with serving(websocket_service, fake_ha) as task:
-        await wait_for(
-            lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED,
-            timeout=WAIT_SECONDS,
-            desc="parked on auth_invalid",
-        )
+        await wait_for_state(websocket_service, ConnectionState.AUTH_FAILED, "parked on auth_invalid")
         await asyncio.sleep(0.1)  # ample time for further attempts at the shrunk pace, were any made
 
         assert fake_ha.auth_attempts == 4
@@ -252,11 +252,7 @@ async def test_shutdown_while_parked_ends_serve_and_keeps_the_park_reason(
     await websocket_service.on_initialize()
 
     async with serving(websocket_service, fake_ha) as task:
-        await wait_for(
-            lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED,
-            timeout=WAIT_SECONDS,
-            desc="parked",
-        )
+        await wait_for_state(websocket_service, ConnectionState.AUTH_FAILED, "parked")
         websocket_service.shutdown_event.set()
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
@@ -278,11 +274,7 @@ async def test_auth_rejected_after_prior_success_retries_three_times_then_parks(
         fake_ha.auth_valid = False
         await fake_ha.drop_all()
 
-        await wait_for(
-            lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED,
-            timeout=WAIT_SECONDS,
-            desc="parked after auth retries",
-        )
+        await wait_for_state(websocket_service, ConnectionState.AUTH_FAILED, "parked after auth retries")
         await asyncio.sleep(0.1)
 
         assert fake_ha.auth_attempts == 1 + 4
@@ -411,11 +403,7 @@ async def test_drop_during_running_wait_retries_and_replaces_the_waiting_reason(
     transitions = record_transitions(websocket_service)
 
     async with serving(websocket_service, fake_ha) as task:
-        await wait_for(
-            lambda: websocket_service.connection_state == ConnectionState.WAITING_FOR_CORE,
-            timeout=WAIT_SECONDS,
-            desc="waiting for core",
-        )
+        await wait_for_state(websocket_service, ConnectionState.WAITING_FOR_CORE, "waiting for core")
         await fake_ha.stop()
 
         await wait_for(lambda: len(plans) >= 1, timeout=WAIT_SECONDS, desc="drop handled")
