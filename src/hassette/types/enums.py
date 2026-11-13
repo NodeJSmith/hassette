@@ -170,6 +170,13 @@ class ConnectionState(StrEnum):
     CONNECTING = auto()
     """The WebSocket connection is being established."""
 
+    WAITING_FOR_CORE = auto()
+    """The socket is authenticated, but Home Assistant's core is still starting.
+
+    Hassette stays on the socket and waits for the core to reach RUNNING before announcing the
+    connection. Events from Home Assistant are dropped until then, as in CONNECTING.
+    """
+
     CONNECTED = auto()
     """The WebSocket connection is established and active."""
 

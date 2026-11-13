@@ -46,14 +46,17 @@ from ._fixtures_telemetry import (
     telemetry_session_id,
 )
 from ._fixtures_websocket import (
+    HA_CONFIG,
     cleanup_disconnected,
     last_sent_msg_id,
     run_cleanup,
+    run_core_running_gate,
     stub_refused_attempts,
     websocket_service,
 )
 
 __all__ = [
+    "HA_CONFIG",
     "ONCE_LISTENER_NAME",
     "TELEMETRY_TEST_DDL",
     "app_handler",
@@ -88,6 +91,7 @@ __all__ = [
     "mock_registry",
     "real_registry_service",
     "run_cleanup",
+    "run_core_running_gate",
     "set_registry_apps",
     "stub_detected_changes",
     "stub_refused_attempts",

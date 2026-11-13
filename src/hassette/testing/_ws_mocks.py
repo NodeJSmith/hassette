@@ -91,12 +91,20 @@ def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int =
 def mark_websocket_service_connected(websocket_service: "WebsocketService", *, reason: str) -> None:
     """Mark a WebsocketService externally ready for tests.
 
+    Expects a fresh service, in DISCONNECTED or CONNECTING. From AUTH_FAILED the setter's
+    invalid-transition warning fires; from WAITING_FOR_CORE (a valid edge) or CONNECTED (a
+    same-state no-op) nothing reports the misuse.
+
     For a heavier-weight alternative that fires a real event through the bus, see
     ``AppTestHarness.simulate_websocket_connected()`` in ``hassette.testing._simulation``.
     """
     mark_ready(websocket_service, reason=reason)
-    websocket_service._connection_state = ConnectionState.CONNECTED
-    websocket_service._ever_connected = True
+    # Through the setter, so the ever-connected latch and transition checks run as in production.
+    # DISCONNECTED → CONNECTED isn't a valid edge, so step through CONNECTING. Entering CONNECTING
+    # clears the connected event and generation, so the readiness primitives are configured after.
+    if websocket_service.connection_state == ConnectionState.DISCONNECTED:
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
+    websocket_service.set_connection_state(ConnectionState.CONNECTED)
     _configure_websocket_external_readiness_primitives(websocket_service)
 
 

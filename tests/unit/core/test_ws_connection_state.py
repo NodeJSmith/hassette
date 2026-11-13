@@ -1,37 +1,55 @@
 """Unit tests for WebsocketService connection state machine.
 
-Tests for the ConnectionState enum (DISCONNECTED, CONNECTING, CONNECTED, AUTH_FAILED),
+Tests for the ConnectionState enum (DISCONNECTED, CONNECTING, WAITING_FOR_CORE, CONNECTED, AUTH_FAILED),
 set_connection_state() validation, and the transitions serve() and cleanup() write.
 """
 
 import asyncio
+from dataclasses import dataclass, field
 from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
+import hassette.core.websocket_service as service_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, WebsocketClosedError
 from hassette.testing import wait_for
+from hassette.testing._ws_mocks import mark_websocket_service_connected
 from hassette.testing.config import TEST_WS_URL
 from hassette.types.enums import ConnectionState
 
-from .conftest import cleanup_disconnected, stub_refused_attempts
+from .conftest import HA_CONFIG, cleanup_disconnected, run_core_running_gate, stub_refused_attempts
 
 ALLOWED_TRANSITIONS = {
     (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
     (ConnectionState.CONNECTING, ConnectionState.CONNECTED),
     (ConnectionState.CONNECTING, ConnectionState.AUTH_FAILED),
     (ConnectionState.CONNECTING, ConnectionState.DISCONNECTED),
+    (ConnectionState.CONNECTING, ConnectionState.WAITING_FOR_CORE),
+    (ConnectionState.WAITING_FOR_CORE, ConnectionState.CONNECTED),
+    (ConnectionState.WAITING_FOR_CORE, ConnectionState.CONNECTING),
+    (ConnectionState.WAITING_FOR_CORE, ConnectionState.DISCONNECTED),
     (ConnectionState.CONNECTED, ConnectionState.CONNECTING),
     (ConnectionState.CONNECTED, ConnectionState.DISCONNECTED),
     (ConnectionState.AUTH_FAILED, ConnectionState.DISCONNECTED),
 }
-"""The transition table ratified in design/specs/131-ha-restart-reconnect (D10). AUTH_FAILED has
-no edge back to CONNECTING: leaving it takes a process restart."""
+"""The transition table ratified in design/specs/131-ha-restart-reconnect (D10), plus the
+WAITING_FOR_CORE edges from design/specs/153-connection-state-owner (D6). AUTH_FAILED has no edge
+back to CONNECTING: leaving it takes a process restart."""
 
 ALL_STATE_PAIRS = [(old, new) for old in ConnectionState for new in ConnectionState if old != new]
+
+
+@dataclass
+class GateRun:
+    """What one run of the RUNNING gate observed."""
+
+    read_states: list[ConnectionState] = field(default_factory=list)
+    """The connection state at each get_config read."""
+    event_states: list[ConnectionState] = field(default_factory=list)
+    """The connection state each time an event left for the bus."""
 
 
 class TestInitialState:
@@ -110,6 +128,94 @@ class TestTransitionTable:
 
         assert websocket_service.connection_state == new
         assert websocket_service.logger.warning.called is ((old, new) not in ALLOWED_TRANSITIONS)
+
+
+class TestRunningGateState:
+    """The RUNNING gate enters WAITING_FOR_CORE only when it actually waits (spec 153 D6)."""
+
+    @staticmethod
+    async def run_gate(websocket_service: WebsocketService, *core_states: str) -> GateRun:
+        """Run the gate from CONNECTING, answering each get_config read with the next core state.
+
+        Only the HA reads and the outgoing event bus are stubbed; the status report and the config
+        store run for real.
+        """
+        run = GateRun()
+        replies = iter(core_states)
+
+        async def read_config(**_: object) -> dict[str, object]:
+            run.read_states.append(websocket_service.connection_state)
+            return {**HA_CONFIG, "state": next(replies)}
+
+        async def record_event(_event: object) -> None:
+            run.event_states.append(websocket_service.connection_state)
+
+        websocket_service.send_and_wait = AsyncMock(side_effect=read_config)  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.hassette.send_event = AsyncMock(side_effect=record_event)  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
+        await run_core_running_gate(websocket_service)
+        return run
+
+    async def test_core_running_on_first_read_stays_in_connecting(self, websocket_service: WebsocketService) -> None:
+        await self.run_gate(websocket_service, "RUNNING")
+
+        assert websocket_service.connection_state == ConnectionState.CONNECTING
+
+    async def test_core_not_running_waits_in_waiting_for_core(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The core state can change mid-wait without a transition; the connection stays WAITING_FOR_CORE."""
+        monkeypatch.setattr(service_module, "CORE_RUNNING_RECHECK_SECONDS", 0.01)
+        websocket_service.logger = Mock()
+
+        run = await self.run_gate(websocket_service, "NOT_RUNNING", "STARTING", "RUNNING")
+
+        # The STARTING read is the second WAITING_FOR_CORE entry: no transition for the core-state change.
+        assert run.read_states == [
+            ConnectionState.CONNECTING,
+            ConnectionState.WAITING_FOR_CORE,
+            ConnectionState.WAITING_FOR_CORE,
+        ]
+        assert websocket_service.connection_state == ConnectionState.WAITING_FOR_CORE
+        websocket_service.logger.warning.assert_not_called()
+
+    async def test_status_report_sees_waiting_for_core(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The state is set before the status report, so whatever the readiness event wakes reads WAITING_FOR_CORE."""
+        monkeypatch.setattr(service_module, "CORE_RUNNING_RECHECK_SECONDS", 0.01)
+
+        run = await self.run_gate(websocket_service, "NOT_RUNNING", "RUNNING")
+
+        assert run.event_states == [ConnectionState.WAITING_FOR_CORE]
+        assert websocket_service.ha_core_config is not None
+
+    async def test_shutting_down_core_on_first_read_stays_in_connecting(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        with pytest.raises(reconnect_module.CoreShuttingDownError):
+            await self.run_gate(websocket_service, "STOPPING")
+
+        assert websocket_service.connection_state == ConnectionState.CONNECTING
+
+
+class TestHarnessMarkConnected:
+    """The harness's mark-connected helper goes through set_connection_state (spec 153 D9)."""
+
+    @pytest.mark.parametrize("start", [ConnectionState.DISCONNECTED, ConnectionState.CONNECTING])
+    async def test_reaches_connected_through_the_setter(
+        self, websocket_service: WebsocketService, start: ConnectionState
+    ) -> None:
+        websocket_service._connection_state = start
+        websocket_service.logger = Mock()
+
+        mark_websocket_service_connected(websocket_service, reason="test")
+
+        assert websocket_service.connection_state == ConnectionState.CONNECTED
+        assert websocket_service.has_ever_connected is True
+        assert websocket_service.get_connected_generation() is not None
+        websocket_service.logger.warning.assert_not_called()
+        websocket_service.logger.info.assert_any_call("Connected to Home Assistant at %s", websocket_service.url)
 
 
 class TestConnectionStateLogging:
@@ -282,14 +388,18 @@ def record_states(websocket_service: WebsocketService) -> list[ConnectionState]:
 
 
 class TestCleanShutdownDisconnects:
-    async def test_clean_shutdown_disconnects(self, websocket_service: WebsocketService) -> None:
-        """cleanup() sets DISCONNECTED at the start (clean shutdown path)."""
-        # First put service into CONNECTED state
-        websocket_service._connection_state = ConnectionState.CONNECTED
+    @pytest.mark.parametrize("start", [ConnectionState.CONNECTED, ConnectionState.WAITING_FOR_CORE])
+    async def test_clean_shutdown_disconnects(
+        self, websocket_service: WebsocketService, start: ConnectionState
+    ) -> None:
+        """cleanup() sets DISCONNECTED at the start (clean shutdown path), through a ratified edge."""
+        websocket_service._connection_state = start
+        websocket_service.logger = Mock()
 
         await cleanup_disconnected(websocket_service)
 
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
+        websocket_service.logger.warning.assert_not_called()
 
 
 class TestPartialCleanupNoStateChange:
