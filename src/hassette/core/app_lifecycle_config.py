@@ -118,7 +118,15 @@ class AppConfigStateMixin:
         registry before applying detected changes.
         """
         unblocked = self.reconcile_blocked_apps()
-        to_start = unblocked - set(self.registry.app_keys()) - changes.new_apps - changes.reimport_apps
+        # An app disabled in config since it was blocked comes back unblocked too; only start
+        # keys still enabled, and never one this ChangeSet is stopping as an orphan.
+        to_start = (
+            (unblocked & self.registry.enabled_manifests.keys())
+            - set(self.registry.app_keys())
+            - changes.new_apps
+            - changes.reimport_apps
+            - changes.orphans
+        )
         if not to_start:
             return changes
         self.logger.debug("Starting previously-blocked apps: %s", to_start)
