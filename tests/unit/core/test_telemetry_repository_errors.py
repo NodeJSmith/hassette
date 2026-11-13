@@ -131,6 +131,29 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
 # signature between separate test functions (see .claude/rules/tests-unit-core.md).
+async def test_persist_execution_batch_with_fk_fallback_mixed_batch_returns_only_dropped(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+    telemetry_session_id: int,
+) -> None:
+    """In a batch with one valid and one FK-violating record, the valid row commits and only the bad one is returned."""
+    # dup-ignore-end
+    listener_id = await telemetry_repo.register_listener(make_listener_registration())
+    now = time.time()
+    kept = make_execution_record(listener_id=listener_id, session_id=telemetry_session_id, execution_start_ts=now)
+    bad = make_execution_record(listener_id=NONEXISTENT_FK_ID, session_id=telemetry_session_id, execution_start_ts=now)
+
+    dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([kept, bad])
+
+    assert dropped == [bad]
+
+    cursor = await telemetry_db.execute("SELECT listener_id FROM executions")
+    rows = await cursor.fetchall()
+    assert [r[0] for r in rows] == [listener_id]
+
+
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
