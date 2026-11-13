@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, get_args, get_origin
+from typing import Any, Literal, TypeAlias, get_args, get_origin
 
 from hassette.utils.type_utils import (
     NoneType,
@@ -12,43 +11,22 @@ from hassette.utils.type_utils import (
     safe_isinstance,
 )
 
+MatchFn: TypeAlias = Callable[["TypeMatcher", Any, Any], bool]
+"""Deeply matches a runtime value against a parameterized ``origin[T, ...]`` annotation."""
 
-@dataclass(frozen=True)
-class TypeMatcherEntry:
-    """How to deeply match a runtime value against a parameterized origin[T,...]."""
-
-    origin: Any
-    match_fn: Callable[["TypeMatcher", Any, Any], bool]
-    name: str | None = None
-
-
-class TypeMatcherRegistry:
-    """Registry mapping generic origins (list/dict/tuple/...) to deep match functions."""
-
-    map: ClassVar[dict[Any, TypeMatcherEntry]] = {}
-
-    @classmethod
-    def register(cls, entry: TypeMatcherEntry) -> None:
-        """Register ``entry`` under its origin, replacing any matcher already registered for it."""
-        cls.map[entry.origin] = entry
-
-    @classmethod
-    def get(cls, origin: Any) -> TypeMatcherEntry | None:
-        """Return the deep matcher registered for ``origin``, or None if there is none."""
-        return cls.map.get(origin)
+TYPE_MATCHERS: dict[Any, MatchFn] = {}
+"""Generic origins (list/dict/tuple/...) mapped to their deep match functions."""
 
 
 def register_type_matcher(*origins: Any):
     """Decorator to register deep-matching for one or more generic origins."""
 
-    def deco(fn: Callable[["TypeMatcher", Any, Any], bool]) -> Callable[["TypeMatcher", Any, Any], bool]:
+    def decorator(fn: MatchFn) -> MatchFn:
         for origin in origins:
-            TypeMatcherRegistry.register(
-                TypeMatcherEntry(origin=origin, match_fn=fn, name=getattr(fn, "__name__", None))
-            )
+            TYPE_MATCHERS[origin] = fn
         return fn
 
-    return deco
+    return decorator
 
 
 class TypeMatcher:
@@ -57,7 +35,7 @@ class TypeMatcher:
     def matches(self, value: Any, tp: Any) -> bool:
         """Check whether ``value`` already satisfies annotation ``tp`` without any conversion.
 
-        Containers registered in ``TypeMatcherRegistry`` are checked element by element. A plain
+        Containers registered in ``TYPE_MATCHERS`` are checked element by element. A plain
         union matches only its first member type, so a value that fits a later member still
         reports False and gets converted. An unregistered generic is checked on its outer type only.
 
@@ -100,9 +78,9 @@ class TypeMatcher:
             return False
 
         # Deep match for known container origins
-        entry = TypeMatcherRegistry.get(origin)
-        if entry is not None:
-            return entry.match_fn(self, value, tp)
+        match_fn = TYPE_MATCHERS.get(origin)
+        if match_fn is not None:
+            return match_fn(self, value, tp)
 
         # Unknown generic: outer match is the best we can do
         return True
