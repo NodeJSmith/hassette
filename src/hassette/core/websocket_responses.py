@@ -14,7 +14,6 @@ exactly once, and the entry leaves the table at the same moment.
 import logging
 import time
 import typing
-from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -264,8 +263,8 @@ class PendingResponses:
         ``close_code`` is the dropped socket's close code, carried onto each failure so the caller's
         ``ResponseLostError`` reports why the connection closed.
 
-        Suppresses exceptions from ``set_exception`` (and logs callback failures) so this never blocks
-        the caller's own cleanup, whether that caller is a reconnect-time partial cleanup or a full teardown.
+        Callback failures are logged so this never blocks the caller's own cleanup, whether that caller
+        is a reconnect-time partial cleanup or a full teardown.
         """
         entries = list(self.entries.values())
         self.entries.clear()
@@ -274,8 +273,7 @@ class PendingResponses:
             # A background entry's future has no awaiter left; failing it would only leave an
             # unretrieved exception behind.
             if entry.awaited and entry.future is not None and not entry.future.done():
-                with suppress(Exception):
-                    entry.future.set_exception(WebsocketClosedError("WebSocket disconnected", close_code=close_code))
+                entry.future.set_exception(WebsocketClosedError("WebSocket disconnected", close_code=close_code))
             self.run_callback(entry, "connection_lost")
 
 
