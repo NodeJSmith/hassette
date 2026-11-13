@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
+from hassette.const import HASSETTE_LOGGER_NAME
+
 if typing.TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
@@ -238,7 +240,7 @@ async def wait_for_ready(
         )
         if shutdown_task in done:
             if wait_task in done:
-                logging.getLogger("hassette").warning(
+                logging.getLogger(HASSETTE_LOGGER_NAME).warning(
                     "Dependencies became ready simultaneously with shutdown — startup aborted"
                 )
             return False
