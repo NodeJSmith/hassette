@@ -26,7 +26,7 @@ def get_app_config_class(cls: type["App"]) -> type[AppConfig]:
         could disagree with it.
     """
     # house-lint: ignore-next[HSL002] - cycle: app.app -> config -> config.config -> utils.app_utils -> app.utils
-    from hassette.app import App  # noqa: PLC0415
+    from hassette.app.app import App  # noqa: PLC0415
 
     for base in getattr(cls, "__orig_bases__", ()):
         origin = typing.get_origin(base)
@@ -77,7 +77,7 @@ def validate_init_method(cls: type["App"]) -> None:
         `App.__init__`, which `AppHandler` can't handle.
     """
     # house-lint: ignore-next[HSL002] - cycle: app.app -> config -> config.config -> utils.app_utils -> app.utils
-    from hassette.app import App  # noqa: PLC0415
+    from hassette.app.app import App  # noqa: PLC0415
 
     if cls.__module__.startswith("hassette."):
         return

@@ -18,6 +18,7 @@ from hassette.types.enums import ResourceRole
 from hassette.utils import date_utils
 
 from .app_config import AppConfig
+from .utils import get_app_config_class
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -104,7 +105,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     app_config_cls: ClassVar[type[AppConfig]]
     """Config class to use for instances of the created app. Configuration from hassette.toml or
-    other sources will be validated by this class."""
+    other sources will be validated by this class.
+
+    Set when the subclass is defined, from its generic parameter (`App[MyConfig]` gives `MyConfig`;
+    no parameter gives `AppConfig`), so it is available on any imported app class, loaded or not."""
 
     logger: Logger
     """Logger for the instance."""
@@ -137,6 +141,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     cache: CacheProtocol
     """Cache instance for storing arbitrary data, scoped to this app instance."""
+
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        cls.app_config_cls = get_app_config_class(cls)
 
     def __init__(
         self,
