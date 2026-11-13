@@ -151,7 +151,10 @@ Color = Literal[
     "yellowgreen",
     "homeassistant",
 ]
-"""Literal type for supported color names."""
+"""Color names Home Assistant accepts for ``color_name``.
+
+Mirrors HA's list: the CSS named colors plus HA's own ``navyblue`` and ``homeassistant``.
+"""
 
 COLORS = sorted(set(get_args(Color)))
 """List of supported color names."""
