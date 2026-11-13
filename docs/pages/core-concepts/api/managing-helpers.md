@@ -9,6 +9,9 @@ shortcuts (`increment`, `decrement`, `reset`). Each CRUD method dispatches to th
 domain from its argument — a domain string for `list`/`delete`, a typed params model for
 `create`/`update` — and returns the domain-specific record type.
 
+The record and params models import from `hassette.models.helpers`, and the exceptions
+on this page import from `hassette.exceptions`.
+
 ## Creating a Helper on Startup
 
 The most common pattern provisions a helper once during [`on_initialize`](../apps/lifecycle.md) (the app startup hook), then holds the
@@ -16,9 +19,10 @@ returned record — a Pydantic model with the helper's `id`, `name`, and configu
 idempotent approach checks for an existing record before creating:
 
 ```python
---8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:bootstrap"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/bootstrap_helper.py"
 ```
 
+`on_initialize` calls `ensure_vacation_mode()` and stores the record on `self.vacation_mode`.
 `helpers.list("input_boolean")` fetches all `input_boolean` records from Home Assistant. The loop exits early if a matching id is found, so `helpers.create(...)` only runs on first startup.
 
 !!! warning "Concurrent provisioning"
@@ -99,7 +103,8 @@ Hassette, so it is safe to send again once the connection is back.
 The create, list, update, and delete pattern is identical across all 8 domains. The
 examples below use `input_boolean`; the same `helpers.*` methods apply to every domain in
 the [reference table](#all-supported-domains) — only the domain string or params model
-type changes.
+type changes. Each fragment runs inside an `async` method of an `App`, such as
+`on_initialize`.
 
 ### Create
 

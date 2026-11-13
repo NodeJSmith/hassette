@@ -1,6 +1,5 @@
 from hassette import App, AppConfig
 from hassette.models.helpers import (
-    CreateInputBooleanParams,
     InputBooleanRecord,
     UpdateInputBooleanParams,
 )
@@ -24,13 +23,3 @@ class HelperCrudApp(App[AppConfig]):
         # --8<-- [start:delete]
         await self.api.helpers.delete("input_boolean", "vacation_mode")
         # --8<-- [end:delete]
-
-    # --8<-- [start:bootstrap]
-    async def ensure_vacation_mode(self) -> InputBooleanRecord:
-        for record in await self.api.helpers.list("input_boolean"):
-            if record.id == "vacation_mode":
-                return record
-        return await self.api.helpers.create(
-            CreateInputBooleanParams(name="vacation_mode", initial=False)
-        )
-    # --8<-- [end:bootstrap]
