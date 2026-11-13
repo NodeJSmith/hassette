@@ -281,10 +281,10 @@ async def test_auth_rejected_after_prior_success_retries_three_times_then_parks(
 
 
 @pytest.mark.usefixtures("fast_reconnect")
-async def test_running_gate_holds_connecting_and_drops_events_until_ha_started(
+async def test_running_gate_waits_for_core_and_drops_events_until_ha_started(
     websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
-    """While HA is STARTING the connection stays CONNECTING, drops events, and connects on homeassistant_started."""
+    """While HA is STARTING it waits in WAITING_FOR_CORE, drops events, and connects on homeassistant_started."""
     fake_ha.core_states = ["STARTING"]
     capture = EventCapture()
     capture.install(websocket_service.hassette)
@@ -296,7 +296,7 @@ async def test_running_gate_holds_connecting_and_drops_events_until_ha_started(
             timeout=WAIT_SECONDS,
             desc="waiting reason recorded",
         )
-        assert websocket_service.connection_state == ConnectionState.CONNECTING
+        assert websocket_service.connection_state == ConnectionState.WAITING_FOR_CORE
 
         await fake_ha.send_event("state_changed", {"entity_id": "light.kitchen", "new_state": None})
         await fake_ha.send_event("homeassistant_started")

@@ -69,16 +69,28 @@ CLEANUP_TIMEOUT_SECONDS = 2.0
 # Valid WebSocket connection state transitions. Failed attempts and their backoffs stay in
 # CONNECTING with no transition, so an outage produces no per-attempt state changes.
 # DISCONNECTED → CONNECTING: serve() starts an attempt (first, or after the recv task died)
-# CONNECTING → CONNECTED: Home Assistant's core state reached RUNNING
+# CONNECTING → CONNECTED: Home Assistant's core state was RUNNING on the first read
+# CONNECTING → WAITING_FOR_CORE: the first get_config read reported a core state short of RUNNING
 # CONNECTING → AUTH_FAILED: the token was rejected and serve() parked
-# CONNECTING → DISCONNECTED: the recv task died during the RUNNING wait, or shutdown
+# CONNECTING → DISCONNECTED: the recv task died during the first get_config read, or shutdown
+# WAITING_FOR_CORE → CONNECTED: Home Assistant's core state reached RUNNING
+# WAITING_FOR_CORE → CONNECTING: serve() handles a failure on the waiting socket
+# WAITING_FOR_CORE → DISCONNECTED: the recv task died during the wait or a recheck read, or shutdown
 # CONNECTED → CONNECTING: serve() handles the drop of an established connection
 # CONNECTED → DISCONNECTED: the recv task died, or shutdown
 # AUTH_FAILED → DISCONNECTED: shutdown (leaving AUTH_FAILED otherwise takes a process restart)
 WS_VALID_TRANSITIONS: dict[ConnectionState, frozenset[ConnectionState]] = {
     ConnectionState.DISCONNECTED: frozenset({ConnectionState.CONNECTING}),
     ConnectionState.CONNECTING: frozenset(
-        {ConnectionState.CONNECTED, ConnectionState.AUTH_FAILED, ConnectionState.DISCONNECTED}
+        {
+            ConnectionState.CONNECTED,
+            ConnectionState.WAITING_FOR_CORE,
+            ConnectionState.AUTH_FAILED,
+            ConnectionState.DISCONNECTED,
+        }
+    ),
+    ConnectionState.WAITING_FOR_CORE: frozenset(
+        {ConnectionState.CONNECTED, ConnectionState.CONNECTING, ConnectionState.DISCONNECTED}
     ),
     ConnectionState.CONNECTED: frozenset({ConnectionState.CONNECTING, ConnectionState.DISCONNECTED}),
     ConnectionState.AUTH_FAILED: frozenset({ConnectionState.DISCONNECTED}),
@@ -432,7 +444,12 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         return recv_task
 
     async def wait_for_core_running(self, recv_task: asyncio.Task) -> None:
-        """Hold the connection in CONNECTING until Home Assistant's core state is RUNNING (D12).
+        """Hold the connection short of CONNECTED until Home Assistant's core state is RUNNING (D12).
+
+        A read that reports a core state short of RUNNING moves the connection to WAITING_FOR_CORE,
+        where it stays across rechecks, even if the core state changes, until it is RUNNING. A core
+        that is RUNNING on the first read never enters it, so a healthy connect goes straight from
+        CONNECTING to CONNECTED.
 
         Reads ``get_config`` over the auth-level send gate (``Api.get_config`` refuses anything
         short of CONNECTED). While HA is starting, waits for ``homeassistant_started`` (caught by
@@ -452,13 +469,14 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             if core_state in CORE_STATES_SHUTTING_DOWN:
                 raise CoreShuttingDownError(core_state)
 
+            self.set_connection_state(ConnectionState.WAITING_FOR_CORE)  # a no-op on later rechecks
             await self.report_connection_status(CORE_NOT_RUNNING_REASON.format(core_state))
             self._outage_log.record_core_wait(
                 core_state, now=time.monotonic(), has_ever_connected=self.has_ever_connected
             )
             # homeassistant_started means RUNNING, so it ends the wait without re-checking the core state.
             # One more get_config read still refreshes ha_core_config: dispatch_hass_event drops any
-            # core_config_updated that arrived while CONNECTING, and nothing else would replay it.
+            # core_config_updated that arrived before CONNECTED, and nothing else would replay it.
             if await race_recv_task(
                 event_set_within(self._core_started_event, CORE_RUNNING_RECHECK_SECONDS), recv_task
             ):

@@ -282,7 +282,9 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
     send_event_mock.assert_awaited_once_with(dummy_event)
 
 
-@pytest.mark.parametrize("state", [ConnectionState.CONNECTING, ConnectionState.DISCONNECTED])
+@pytest.mark.parametrize(
+    "state", [ConnectionState.CONNECTING, ConnectionState.WAITING_FOR_CORE, ConnectionState.DISCONNECTED]
+)
 async def test_dispatch_drops_events_before_connected(
     websocket_service: WebsocketService, state: ConnectionState
 ) -> None:

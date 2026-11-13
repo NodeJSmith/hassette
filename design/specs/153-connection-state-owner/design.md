@@ -279,8 +279,10 @@ Auth happens before the gate, so a token rejection can't happen while waiting.
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs (`.claude/rules/core-startup.md`, the `ConnectionState`/`wait_for_core_running`/harness docstrings and the `WS_VALID_TRANSITIONS` comment; no docs pages, per Posture)
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- `wait_for_core_running` sets WAITING_FOR_CORE before awaiting `report_connection_status`: the state is synchronous bookkeeping, so it reads correctly to anything the readiness event wakes.
+- `test_dispatch_drops_events_before_connected` gains WAITING_FOR_CORE: it pins the Assumed claim that the dispatch gate holds events in the new state as it does in CONNECTING.
