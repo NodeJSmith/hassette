@@ -34,8 +34,14 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+NOT_INITIALIZED_MSG = "AsyncCache is not initialized -- call initialize() first"
+
 _CORRUPTION_INDICATORS = ("file is not a database", "database disk image is malformed", "integrity check failed")
-"""Best-effort match on SQLite's error text — not a stable API, but these messages have been unchanged for 15+ years."""
+"""Best-effort match on SQLite's error text -- not a stable API, but these messages have been unchanged for 15+ years.
+
+The ``"integrity check failed"`` entry matches ``AsyncCache._check_integrity()``'s own error, so the two strings change
+together.
+"""
 
 
 def _is_corruption(exc: sqlite3.Error) -> bool:
@@ -63,19 +69,25 @@ class AsyncCache:
         self.default_ttl = default_ttl
         self._write: aiosqlite.Connection | None = None
         self._read: aiosqlite.Connection | None = None
-        self.sync: SyncCache | None = None
+        self._sync: SyncCache | None = None
+
+    @property
+    def sync(self) -> SyncCache:
         """Synchronous facade pointing at the same database file. Set by ``initialize()``."""
+        if self._sync is None:
+            raise RuntimeError(NOT_INITIALIZED_MSG)
+        return self._sync
 
     @property
     def _write_conn(self) -> aiosqlite.Connection:
         if self._write is None:
-            raise RuntimeError("AsyncCache is not initialized -- call initialize() first")
+            raise RuntimeError(NOT_INITIALIZED_MSG)
         return self._write
 
     @property
     def _read_conn(self) -> aiosqlite.Connection:
         if self._read is None:
-            raise RuntimeError("AsyncCache is not initialized -- call initialize() first")
+            raise RuntimeError(NOT_INITIALIZED_MSG)
         return self._read
 
     async def initialize(self) -> None:
@@ -88,37 +100,37 @@ class AsyncCache:
         exception propagates -- a second failure on a freshly-created database indicates
         a filesystem or permissions problem, not recoverable corruption.
 
-        Both cleanup calls to ``_close_connections()`` here suppress its own exception --
-        it now raises on a failed close (see its docstring), but a connection already known
-        to be broken or corrupt failing to close cleanly is not itself actionable here, and
-        letting it propagate would replace the ``sqlite3.Error`` being handled (bare ``raise``
-        never runs) or abort the corruption retry before it starts. ``_close_connections()``
-        already logs the close failure internally, so nothing is silently lost.
+        ``_close_connections()`` raises on a failed close. Both cleanup calls here suppress
+        that, because a connection already known to be broken failing to close is not
+        actionable, and letting it propagate would replace the ``sqlite3.Error`` being handled
+        or abort the retry. ``_close_connections()`` logs the failure itself.
         """
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            await self._open_connections()
-            await self._run_schema()
-            await self._check_integrity()
+            await self._setup()
         except sqlite3.Error as exc:
             if not _is_corruption(exc):
                 with contextlib.suppress(Exception):
                     await self._close_connections()
                 raise
 
-            # Corruption confirmed — delete and retry once.
+            # Corruption confirmed -- delete and retry once.
             logger.warning(
                 "Cache database at %s failed to initialize; deleting and recreating", self.db_path, exc_info=True
             )
             with contextlib.suppress(Exception):
                 await self._close_connections()
             delete_db_files(self.db_path)
-            await self._open_connections()
-            await self._run_schema()
-            await self._check_integrity()
+            await self._setup()
 
-        self.sync = SyncCache(self.db_path, self.default_ttl)
+        self._sync = SyncCache(self.db_path, self.default_ttl)
+
+    async def _setup(self) -> None:
+        """Open connections, create the schema, and check integrity (steps 1-3 of ``initialize()``)."""
+        await self._open_connections()
+        await self._run_schema()
+        await self._check_integrity()
 
     async def _open_connections(self) -> None:
         self._write = await connect_daemon(self.db_path, isolation_level=None, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
@@ -159,7 +171,6 @@ class AsyncCache:
         reader observes a stale or corrupt entry.
         """
         await self._write_conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
-        await self._write_conn.commit()
 
     # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class
     @overload
@@ -215,13 +226,11 @@ class AsyncCache:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
             (key, blob, expires_at),
         )
-        await self._write_conn.commit()
 
     async def delete(self, key: str) -> None:
         """Delete the entry at *key*, if any."""
         validate_key(key)
         await self._write_conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
-        await self._write_conn.commit()
 
     async def get_or_set(self, key: str, creator: Callable[[], Awaitable[T]], ttl: int | None = None) -> T:
         """Return the cached value for *key*, computing and storing it via *creator* on miss."""
@@ -239,7 +248,6 @@ class AsyncCache:
         a blocked or failed checkpoint is logged, not raised, since the entries are already gone.
         """
         await self._write_conn.execute("DELETE FROM cache_entries")
-        await self._write_conn.commit()
         await self._write_conn.execute("VACUUM")  # needs autocommit: cannot run inside a transaction
         try:
             async with self._write_conn.execute(CHECKPOINT_TRUNCATE_SQL) as cursor:
@@ -258,7 +266,6 @@ class AsyncCache:
         placeholders = ",".join("?" for _ in keys)
         # placeholders is a fixed count of literal "?" characters, not user input -- not an injection vector.
         await self._write_conn.execute(f"DELETE FROM cache_entries WHERE key IN ({placeholders})", keys)  # noqa: S608
-        await self._write_conn.commit()
 
     async def close(self) -> None:
         """Close both ``aiosqlite`` connections.
