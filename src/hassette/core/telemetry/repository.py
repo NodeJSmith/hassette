@@ -131,6 +131,7 @@ class TelemetryRepository:
                 throttle = excluded.throttle,
                 priority = excluded.priority,
                 predicate_description = excluded.predicate_description,
+                human_description = excluded.human_description,
                 source_location = excluded.source_location,
                 registration_source = excluded.registration_source,
                 source_tier = excluded.source_tier,

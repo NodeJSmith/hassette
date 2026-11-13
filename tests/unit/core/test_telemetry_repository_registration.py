@@ -315,20 +315,20 @@ async def test_once_true_upserts_by_name_topic(
     assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
 
 
-async def test_upsert_does_not_update_human_description(
+async def test_upsert_updates_human_description(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """human_description is NOT updated on upsert (not in the DO UPDATE SET list)."""
+    """Re-registering a listener refreshes human_description on the same row."""
     reg = make_listener_registration(human_description="entity light.kitchen")
     listener_id = await telemetry_repo.register_listener(reg)
 
-    reg2 = make_listener_registration(human_description="entity light.kitchen")
+    reg2 = make_listener_registration(human_description="entity light.kitchen -> off")
     new_id = await telemetry_repo.register_listener(reg2)
     assert new_id == listener_id
 
     human_description = await fetch_listener_field(telemetry_db, listener_id, "human_description")
-    assert human_description == "entity light.kitchen"
+    assert human_description == "entity light.kitchen -> off"
 
 
 async def test_upsert_with_name_overrides_key(
