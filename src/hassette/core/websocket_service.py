@@ -79,9 +79,9 @@ WS_VALID_TRANSITIONS: dict[ConnectionState, frozenset[ConnectionState]] = {
     ConnectionState.AUTH_FAILED: frozenset({ConnectionState.DISCONNECTED}),
 }
 
-# Number of stack frames to keep when logging an invalid connection-state transition.
-# 3 is enough to show the caller that triggered the transition without dumping the
-# full call stack down into asyncio internals.
+# Stack-frame limit when logging an invalid connection-state transition. The limit includes
+# set_connection_state's own frame, which the [:-1] slice drops, leaving the 2 caller frames:
+# enough to show what triggered the transition without dumping the stack into asyncio internals.
 INVALID_TRANSITION_TRACE_LIMIT = 3
 
 
@@ -101,7 +101,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
     """WebSocket connection."""
 
     _pending: PendingResponses
-    """Owns response-future correlation and timed-out-write tracking for this connection."""
+    """Correlates sent requests with their replies, including background entries for writes nobody waits on."""
 
     _recv_task: asyncio.Task | None
     """Task for receiving messages from the WebSocket."""
@@ -286,8 +286,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
     async def wait_connected_generation(self, *, timeout: float | None = None) -> int | None:
         """Wait for an externally ready connection and return its active generation."""
-        if self.get_connected_generation() is not None and self._connected_event.is_set():
-            return self._connected_generation
+        if (generation := self.get_connected_generation()) is not None:
+            return generation
         connected = await self.wait_connected(timeout=timeout)
         if not connected:
             return None
@@ -634,7 +634,11 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             await self.hassette.send_event(event)
 
     async def send_connection_established_event(self) -> None:
-        """Send a connection established event to the event bus."""
+        """Send a connection established event to the event bus.
+
+        Marks the connected event as announced (withdrawn if the send fails) so ``send_connection_lost_event``
+        emits exactly one matching disconnect.
+        """
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         # Owed before the send: a drop handled while it is in flight must still pair with it.
         # Withdrawn if the event never gets out, cancellation by shutdown included.
