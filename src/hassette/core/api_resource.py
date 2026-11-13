@@ -11,8 +11,8 @@ from typing import Any, ClassVar
 import aiohttp
 from hassette_wire import LogLevel
 from tenacity import (
+    AsyncRetrying,
     before_sleep_log,
-    retry,
     retry_if_exception,
     stop_after_attempt,
     wait_exponential_jitter,
@@ -146,84 +146,83 @@ class ApiResource(Resource):
             EntityNotFoundError: If Home Assistant answered 404.
             HttpRequestError: If Home Assistant answered with any other error status.
         """
-
-        # inner function to allow retry decorator to use `self`
-        @retry(
+        async for attempt in AsyncRetrying(
             retry=retry_if_exception(lambda exc: is_retryable_rest_failure(exc, method)),
             wait=wait_exponential_jitter(),
             stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,
-        )
-        async def inner_request(
-            method: str,
-            url: str,
-            params: dict[str, Any] | None = None,
-            data: dict[str, Any] | None = None,
-            suppress_error_message: bool = False,
-            **kwargs,
-        ) -> aiohttp.ClientResponse:
-            if self._session is None or self._session.closed:
-                raise CommandNotSentError(f"{method} {url}: not sent, the REST client session is not connected")
+        ):
+            with attempt:
+                return await self.send_rest_request_once(method, url, params, data, suppress_error_message, **kwargs)
+        raise AssertionError("unreachable: AsyncRetrying either returns or re-raises")
 
-            params = clean_kwargs(**(params or {}))
-            # HA gets SecretStr plaintext; the DEBUG line below serializes the original payload, which masks it.
-            str_data = orjson_dump(unwrap_secrets(data or {}))
+    async def send_rest_request_once(
+        self,
+        method: str,
+        url: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        suppress_error_message: bool = False,
+        **kwargs,
+    ) -> aiohttp.ClientResponse:
+        """Make a single attempt at a REST request; ``rest_request`` wraps this in its retry loop."""
+        if self._session is None or self._session.closed:
+            raise CommandNotSentError(f"{method} {url}: not sent, the REST client session is not connected")
 
-            request_kwargs = {}
+        params = clean_kwargs(**(params or {}))
+        # HA gets SecretStr plaintext; the DEBUG line below serializes the original payload, which masks it.
+        str_data = orjson_dump(unwrap_secrets(data or {}))
 
-            if str_data:
-                request_kwargs["data"] = str_data
-                request_kwargs["headers"] = {"Content-Type": "application/json"}
+        request_kwargs = {}
 
-            if params:
-                request_kwargs["params"] = params
+        if str_data:
+            request_kwargs["data"] = str_data
+            request_kwargs["headers"] = {"Content-Type": "application/json"}
 
-            if "timeout" in kwargs:
-                deadline = "the caller's timeout"
-            else:
-                total = self.hassette.config.rest_request_timeout_seconds
-                deadline = f"{total}s (rest_request_timeout_seconds)"
-                request_kwargs["timeout"] = aiohttp.ClientTimeout(total=total)
+        if params:
+            request_kwargs["params"] = params
 
-            try:
-                response = await self._session.request(
-                    method,
-                    resolve_rest_path(self._session_rest_url, url),
-                    ssl=self.hassette.config.verify_ssl,
-                    **request_kwargs,
-                    **kwargs,
+        if "timeout" in kwargs:
+            deadline = "the caller's timeout"
+        else:
+            total = self.hassette.config.rest_request_timeout_seconds
+            deadline = f"{total}s (rest_request_timeout_seconds)"
+            request_kwargs["timeout"] = aiohttp.ClientTimeout(total=total)
+
+        try:
+            response = await self._session.request(
+                method,
+                resolve_rest_path(self._session_rest_url, url),
+                ssl=self.hassette.config.verify_ssl,
+                **request_kwargs,
+                **kwargs,
+            )
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(
+                    "Making %s request to %s with data %s", method, response.real_url, orjson_dump(data or {})
                 )
-                if self.logger.isEnabledFor(logging.DEBUG):
-                    self.logger.debug(
-                        "Making %s request to %s with data %s", method, response.real_url, orjson_dump(data or {})
-                    )
-                response.raise_for_status()
+            response.raise_for_status()
 
-                return response
-            except aiohttp.ClientResponseError as exc:
-                if exc.status == HTTPStatus.NOT_FOUND:
-                    if not suppress_error_message:
-                        self.logger.error(
-                            "Error occurred while making %s request to %s: %s", method, url, exc, stacklevel=2
-                        )
-
-                    raise EntityNotFoundError(f"Entity not found: {url}") from None
-                raise HttpRequestError(exc.status, exc.message, method=method, url=url) from exc
-
-            except (aiohttp.ClientError, TimeoutError) as exc:
+            return response
+        except aiohttp.ClientResponseError as exc:
+            if exc.status == HTTPStatus.NOT_FOUND:
                 if not suppress_error_message:
-                    self.logger.error(
-                        "Error occurred while making %s request to %s: %s", method, url, exc, stacklevel=2
-                    )
-                mapped = delivery_state_error(exc, method=method, url=url, deadline=deadline)
-                if mapped is None:
-                    raise
-                raise mapped from exc
+                    self.log_request_error(method, url, exc)
+                raise EntityNotFoundError(f"Entity not found: {url}") from None
+            raise HttpRequestError(exc.status, exc.message, method=method, url=url) from exc
 
-        return await inner_request(
-            method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
-        )
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            if not suppress_error_message:
+                self.log_request_error(method, url, exc)
+            mapped = delivery_state_error(exc, method=method, url=url, deadline=deadline)
+            if mapped is None:
+                raise
+            raise mapped from exc
+
+    def log_request_error(self, method: str, url: str, exc: BaseException) -> None:
+        """Log a failed REST attempt, attributed to the method that sent it."""
+        self.logger.error("Error occurred while making %s request to %s: %s", method, url, exc, stacklevel=3)
 
     async def get_history_raw(
         self,
