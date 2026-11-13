@@ -44,7 +44,6 @@ class TypeMatcher:
         """
         tp = normalize_annotation(tp)
 
-        # Any matches everything
         if tp is Any:
             return True
 

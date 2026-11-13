@@ -18,6 +18,12 @@ T = TypeVar("T")
 ALLOWED_FORMAT_FIELDS = {"value", "from_type", "to_type"}
 """Allowed fields for formatting error messages in type converters."""
 
+TRUE_STRINGS = frozenset({"on", "true", "yes", "1"})
+"""Lowercased strings ``from_string_to_bool`` parses as ``True``."""
+
+FALSE_STRINGS = frozenset({"off", "false", "no", "0"})
+"""Lowercased strings ``from_string_to_bool`` parses as ``False``."""
+
 LOGGER = getLogger(__name__)
 
 
@@ -189,15 +195,12 @@ class TypeRegistry:
         from_type = type(value)
         key = (from_type, to_type)
 
-        # handle Any type
         if to_type is type(Any):
             return value
 
-        # handle exact type match
         if to_type is from_type:
             return value
 
-        # handle None value
         if value is None:
             return value
 
@@ -353,13 +356,11 @@ def from_string_to_bool(value: str) -> bool:
         ValueError: If the string is not one of the recognized values.
     """
     lower_val = value.lower()
-    match lower_val:
-        case "on" | "true" | "yes" | "1":
-            return True
-        case "off" | "false" | "no" | "0":
-            return False
-        case _:
-            raise ValueError
+    if lower_val in TRUE_STRINGS:
+        return True
+    if lower_val in FALSE_STRINGS:
+        return False
+    raise ValueError
 
 
 TYPE_REGISTRY = TypeRegistry()
