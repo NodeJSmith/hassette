@@ -37,7 +37,10 @@ An entry whose caller is still waiting never counts toward the cap and is never 
 
 
 class ResolveCallback(Protocol):
-    """Resolves the API write record an entry was registered for. Called once, on the receive task."""
+    """Resolves the API write record an entry was registered for.
+
+    Called once, synchronously on the event loop: by the reply, ``fail_all``, or eviction.
+    """
 
     # dup-ignore-start: ResolveCallback protocol signature restated by its implementation and its caller
     def __call__(
