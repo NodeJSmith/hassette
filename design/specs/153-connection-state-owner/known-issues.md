@@ -4,7 +4,7 @@ Real issues found while building this feature and intentionally left unfixed.
 
 ## KI-001: The set-before-report order in the RUNNING gate is unpinned
 
-Status: open
+Status: resolved (2026-11-13, PR #4102 review: `test_status_report_sees_waiting_for_core` records the state when the readiness event leaves for the bus)
 Recorded: 2026-11-13 (4091)
 Source: ship-challenge
 Reason not fixed now: accepted-limitation

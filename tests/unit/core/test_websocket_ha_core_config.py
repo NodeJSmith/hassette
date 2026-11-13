@@ -1,6 +1,5 @@
 """WebsocketService keeps its own copy of Home Assistant's location and time zone (``ha_core_config``)."""
 
-import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -12,14 +11,7 @@ from hassette.exceptions import ResponseTimeoutError
 from hassette.testing._ws_mocks import make_task_bucket_spawn_stub
 from hassette.types.enums import ConnectionState
 
-HA_CONFIG: dict[str, Any] = {
-    "state": "RUNNING",
-    "latitude": 52.37,
-    "longitude": 4.89,
-    "elevation": 12,
-    "time_zone": "Europe/Amsterdam",
-    "unit_system": {"length": "km"},
-}
+from .conftest import HA_CONFIG, run_core_running_gate
 
 MOVED_CONFIG: dict[str, Any] = {**HA_CONFIG, "latitude": 40.71, "longitude": -74.0, "time_zone": "America/New_York"}
 
@@ -40,15 +32,6 @@ def stub_get_config(service: WebsocketService, *responses: dict[str, Any] | Exce
     send_and_wait = AsyncMock(side_effect=list(responses))
     service.send_and_wait = send_and_wait  # pyright: ignore[reportAttributeAccessIssue]
     return send_and_wait
-
-
-async def run_core_running_gate(service: WebsocketService) -> None:
-    recv_task = asyncio.create_task(asyncio.sleep(10))
-    try:
-        await service.wait_for_core_running(recv_task)
-    finally:
-        recv_task.cancel()
-        await asyncio.gather(recv_task, return_exceptions=True)
 
 
 def expected(config: dict[str, Any]) -> HaCoreConfig:

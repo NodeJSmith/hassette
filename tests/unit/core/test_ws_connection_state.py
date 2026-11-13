@@ -5,6 +5,7 @@ set_connection_state() validation, and the transitions serve() and cleanup() wri
 """
 
 import asyncio
+from dataclasses import dataclass, field
 from typing import cast
 from unittest.mock import AsyncMock, Mock
 
@@ -19,7 +20,7 @@ from hassette.testing._ws_mocks import mark_websocket_service_connected
 from hassette.testing.config import TEST_WS_URL
 from hassette.types.enums import ConnectionState
 
-from .conftest import cleanup_disconnected, stub_refused_attempts
+from .conftest import HA_CONFIG, cleanup_disconnected, run_core_running_gate, stub_refused_attempts
 
 ALLOWED_TRANSITIONS = {
     (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
@@ -38,10 +39,17 @@ ALLOWED_TRANSITIONS = {
 WAITING_FOR_CORE edges from design/specs/153-connection-state-owner (D6). AUTH_FAILED has no edge
 back to CONNECTING: leaving it takes a process restart."""
 
-RECV_TASK_STAND_IN_SECONDS = 10
-"""How long the sleep standing in for a live recv task runs; far longer than any gate test takes."""
-
 ALL_STATE_PAIRS = [(old, new) for old in ConnectionState for new in ConnectionState if old != new]
+
+
+@dataclass
+class GateRun:
+    """What one run of the RUNNING gate observed."""
+
+    read_states: list[ConnectionState] = field(default_factory=list)
+    """The connection state at each get_config read."""
+    event_states: list[ConnectionState] = field(default_factory=list)
+    """The connection state each time an event left for the bus."""
 
 
 class TestInitialState:
@@ -126,28 +134,27 @@ class TestRunningGateState:
     """The RUNNING gate enters WAITING_FOR_CORE only when it actually waits (spec 153 D6)."""
 
     @staticmethod
-    async def run_gate(websocket_service: WebsocketService, *core_states: str) -> list[ConnectionState]:
+    async def run_gate(websocket_service: WebsocketService, *core_states: str) -> GateRun:
         """Run the gate from CONNECTING, answering each get_config read with the next core state.
 
-        Returns the connection state seen at each read. A live sleep stands in for the recv task.
+        Only the HA reads and the outgoing event bus are stubbed; the status report and the config
+        store run for real.
         """
-        seen: list[ConnectionState] = []
+        run = GateRun()
         replies = iter(core_states)
 
-        async def read_config(**_: object) -> dict[str, str]:
-            seen.append(websocket_service.connection_state)
-            return {"state": next(replies)}
+        async def read_config(**_: object) -> dict[str, object]:
+            run.read_states.append(websocket_service.connection_state)
+            return {**HA_CONFIG, "state": next(replies)}
+
+        async def record_event(_event: object) -> None:
+            run.event_states.append(websocket_service.connection_state)
 
         websocket_service.send_and_wait = AsyncMock(side_effect=read_config)  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.report_connection_status = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.store_ha_core_config = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.hassette.send_event = AsyncMock(side_effect=record_event)  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
-        recv_task = asyncio.create_task(asyncio.sleep(RECV_TASK_STAND_IN_SECONDS))
-        try:
-            await websocket_service.wait_for_core_running(recv_task)
-        finally:
-            recv_task.cancel()
-        return seen
+        await run_core_running_gate(websocket_service)
+        return run
 
     async def test_core_running_on_first_read_stays_in_connecting(self, websocket_service: WebsocketService) -> None:
         await self.run_gate(websocket_service, "RUNNING")
@@ -161,12 +168,27 @@ class TestRunningGateState:
         monkeypatch.setattr(service_module, "CORE_RUNNING_RECHECK_SECONDS", 0.01)
         websocket_service.logger = Mock()
 
-        seen = await self.run_gate(websocket_service, "NOT_RUNNING", "STARTING", "RUNNING")
+        run = await self.run_gate(websocket_service, "NOT_RUNNING", "STARTING", "RUNNING")
 
         # The STARTING read is the second WAITING_FOR_CORE entry: no transition for the core-state change.
-        assert seen == [ConnectionState.CONNECTING, ConnectionState.WAITING_FOR_CORE, ConnectionState.WAITING_FOR_CORE]
+        assert run.read_states == [
+            ConnectionState.CONNECTING,
+            ConnectionState.WAITING_FOR_CORE,
+            ConnectionState.WAITING_FOR_CORE,
+        ]
         assert websocket_service.connection_state == ConnectionState.WAITING_FOR_CORE
         websocket_service.logger.warning.assert_not_called()
+
+    async def test_status_report_sees_waiting_for_core(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The state is set before the status report, so whatever the readiness event wakes reads WAITING_FOR_CORE."""
+        monkeypatch.setattr(service_module, "CORE_RUNNING_RECHECK_SECONDS", 0.01)
+
+        run = await self.run_gate(websocket_service, "NOT_RUNNING", "RUNNING")
+
+        assert run.event_states == [ConnectionState.WAITING_FOR_CORE]
+        assert websocket_service.ha_core_config is not None
 
     async def test_shutting_down_core_on_first_read_stays_in_connecting(
         self, websocket_service: WebsocketService
