@@ -152,6 +152,7 @@ class TestShutdownInstance:
 
         assert order == ["teardown", ResourceStatus.FAILED]
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_emits_stopped_event(
         self,
         real_registry_service: AppLifecycleService,
@@ -159,6 +160,7 @@ class TestShutdownInstance:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with STOPPED status, and the instance leaves the registry."""
         event_capture.install(mock_hassette)
         seed_running(real_registry_service.registry, "test_app", mock_app_instance)
@@ -478,6 +480,7 @@ class TestShutdownInstances:
         app1.shutdown.assert_awaited_once()
         app2.shutdown.assert_awaited_once()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_emits_stopping_event(
         self,
         real_registry_service: AppLifecycleService,
@@ -485,6 +488,7 @@ class TestShutdownInstances:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """Emits STOPPING event for each instance before shutting down."""
         event_capture.install(mock_hassette)
         seed_running(real_registry_service.registry, "test_app", mock_app_instance)
