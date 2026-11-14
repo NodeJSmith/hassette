@@ -186,7 +186,7 @@ pages/core-concepts/states/snippets/sensor_shapes.py:lookup
 --8<--
 ```
 
-`.get()` returns `None` for an entity that exists but isn't a shape-view member — `EntityNotInViewError` subclasses `KeyError`, and `Mapping.get()` is implemented by catching `KeyError`. Direct `[]` access raises `EntityNotInViewError` instead, naming the entity, its actual `device_class`, and the shape the accessor expected. Iteration skips non-members silently; a conversion failure — metadata matches the shape but the value fails to parse — is additionally logged at `debug`.
+`.get()` returns `None` for an entity that exists but isn't a shape-view member — `EntityNotInViewError` subclasses `KeyError`, and `Mapping.get()` is implemented by catching `KeyError`. Direct `[]` access raises `EntityNotInViewError` instead, naming the entity, its actual `device_class`, and the shape the accessor expected. Iteration skips non-members silently. Iteration also skips an entity whose metadata matches the shape but whose value fails to parse. The conversion layer logs that failure at ERROR, and the view adds a `debug` line.
 
 !!! note "`self.states[NumericSensorState]` is unsupported"
     The four shape classes deliberately don't declare their own `domain` — doing so would register them in place of `SensorState` process-wide. That means generic indexing (`self.states[NumericSensorState]`) raises `NoDomainAnnotationError` rather than working. The supported path is the dedicated accessor (`self.states.numeric_sensor`); the error message names it.
