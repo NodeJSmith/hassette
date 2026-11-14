@@ -329,7 +329,7 @@ class AppChangeReconcilerMixin:
                 # A pre-release change is still queued. Fold it into this diff's baseline so the
                 # comparison spans everything since before release, then clear the queue — otherwise
                 # bootstrap's later replay would apply that stale snapshot on top of a config it no
-                # longer matches (see integration review finding on stale pre-release replay).
+                # longer matches.
                 self.logger.debug("Merging queued pre-release reconciliation into post-release change")
                 pending_original, _, pending_paths = self._take_pre_release_reconciliation()
                 if pending_original is not None:

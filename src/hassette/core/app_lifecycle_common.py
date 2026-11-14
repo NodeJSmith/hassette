@@ -15,7 +15,7 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
 
-# Shorten enum references (from AppLifecycleManager)
+# Short aliases for ResourceStatus members.
 FAILED = ResourceStatus.FAILED
 STARTING = ResourceStatus.STARTING
 RUNNING = ResourceStatus.RUNNING
@@ -45,10 +45,16 @@ CLEARED_FAILURE_REASON = "was not running; cleared its failure"
 """A stop's success reason for a target that held only a failure entry."""
 
 NO_OUTCOME_REASON = "no outcome was recorded"
-NOT_IN_CONFIG_REASON = "the instance is no longer in the app's config"
-CLASS_LOAD_FAILED_PREFIX = "the app class failed to load: "
-BAD_CONFIGURATION_PREFIX = "bad configuration: "
 """A target's failure reason when nothing recorded an outcome for it and nothing raised."""
+
+NOT_IN_CONFIG_REASON = "the instance is no longer in the app's config"
+"""A target's failure reason when its instance was removed from the app's config."""
+
+CLASS_LOAD_FAILED_PREFIX = "the app class failed to load: "
+"""Leads a target's failure reason when its app class could not be loaded."""
+
+BAD_CONFIGURATION_PREFIX = "bad configuration: "
+"""Leads a target's failure reason when its app's configuration is invalid."""
 
 STOP_FAILED_PREFIX = "the stop before it failed: "
 """Leads the stop half's failure in the reason of a reload that recreated the instance anyway."""

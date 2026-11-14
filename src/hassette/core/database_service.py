@@ -75,9 +75,9 @@ LOG_RECORD_COLUMNS = (
     "execution_id",
     "author",
 )
-# dup-ignore-end
 """log_records table columns (excluding the autoincrement id). Public so `scripts/seed_db.py`
 can import the single source of truth instead of hand-keeping a duplicate tuple."""
+# dup-ignore-end
 
 _LOG_INSERT_SQL = (
     f"INSERT INTO log_records ({', '.join(LOG_RECORD_COLUMNS)}) "
@@ -484,17 +484,16 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             )
             return
 
-        if current_version == 0:
-            self.logger.warning(
-                "Database has no schema version (expected %d) — recreating database (no production data to preserve).",
-                expected_head,
-            )
-            try:
-                await asyncio.to_thread(delete_db_files, db_path)
-            except PermissionError as exc:
-                raise RuntimeError(
-                    f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
-                ) from exc
+        self.logger.warning(
+            "Database has no schema version (expected %d) — recreating database (no production data to preserve).",
+            expected_head,
+        )
+        try:
+            await asyncio.to_thread(delete_db_files, db_path)
+        except PermissionError as exc:
+            raise RuntimeError(
+                f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
+            ) from exc
 
     def run_migrations(self) -> None:
         """Run PRAGMA user_version migrations to the latest version (synchronous, called via to_thread).
@@ -547,9 +546,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         await db.execute("PRAGMA synchronous = NORMAL")
         await db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
         await db.execute("PRAGMA foreign_keys = ON")
-        # Intentionally a no-op — auto_vacuum is set by the migration runner before table creation.
-        # This line documents intent only.
-        await db.execute("PRAGMA auto_vacuum = INCREMENTAL")
+        # auto_vacuum is set by the migration runner before table creation.
 
     async def update_heartbeat(self) -> None:
         """Await a heartbeat update for the current session.

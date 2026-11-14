@@ -450,8 +450,7 @@ class CommandExecutor(Service):
     def unbind_execution_context(self, token: Token[str | None]) -> None:
         """Clear the execution marker and reset the ContextVar/structlog binding on exit.
 
-        Paired with ``bind_execution_context``. Was a ``@staticmethod``; it takes ``self`` now
-        so it can clear ``current_execution``. Clearing the marker first (to ``None`` = idle) is
+        Paired with ``bind_execution_context``. Clearing the marker first (to ``None`` = idle) is
         deliberate: the off-loop watchdog reads only ``current_execution``, so a clear-first order
         means it can never attribute a stale execution once this returns. ``CURRENT_EXECUTION_ID``
         is thread-local, so its reset order relative to the marker is invisible to other threads.
