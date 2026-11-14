@@ -240,11 +240,11 @@ class Regex:
 
     Examples:
     ```python
-    ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen"))
+    ValueIs(source=get_entity_id, condition=Regex(r"light\..*kitchen"))
 
     # Multiple patterns (wrap with AnyOf)
-    AnyOf((ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen")),
-           ValueIs(source=get_entity_id, condition=Regex(r"switch\\..*living_room"))))
+    AnyOf((ValueIs(source=get_entity_id, condition=Regex(r"light\..*kitchen")),
+           ValueIs(source=get_entity_id, condition=Regex(r"switch\..*living_room"))))
     ```
     """
 

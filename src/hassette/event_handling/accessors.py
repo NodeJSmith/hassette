@@ -52,8 +52,7 @@ from typing import Any, cast
 
 from glom import PathAccessError, glom
 
-from hassette.const import MISSING_VALUE
-from hassette.const.misc import FalseySentinel
+from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.events import CallServiceEvent, RawStateChangeEvent
 
 if typing.TYPE_CHECKING:

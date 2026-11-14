@@ -11,7 +11,7 @@ async def handle_state_change(event: RawStateChangeEvent):
     # do something with new_state
 ```
 
-You can use the `NewState` dependency:
+You can use the `StateNew` dependency:
 ```python
 from hassette import D, states
 
@@ -66,10 +66,11 @@ from typing import Annotated, TypeAlias, TypeVar
 
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.di import AnnotationDetails, identity
-from hassette.events import Event, HassContext
-from hassette.events.hass.hass import TypedStateChangeEvent as ActualTypedStateChangeEvent
+from hassette.events import HassContext
+from hassette.events import TypedStateChangeEvent as ActualTypedStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.types import StateT
+from hassette.utils.func_utils import callable_stable_name
 
 from . import accessors as A
 
@@ -78,11 +79,12 @@ if typing.TYPE_CHECKING:
         RawStateChangeEvent,  # noqa: F401  # used as forward ref in AnnotationDetails["RawStateChangeEvent"]
     )
 
-S = TypeVar("S")
-R = TypeVar("R")
+EventT = TypeVar("EventT")
+ReturnT = TypeVar("ReturnT")
+EventDataT = TypeVar("EventDataT")
 
 
-def ensure_present(accessor: Callable[[S], R]) -> Callable[[S], R]:
+def ensure_present(accessor: Callable[[EventT], ReturnT]) -> Callable[[EventT], ReturnT]:
     """Wrap an accessor to raise if it returns None or MISSING_VALUE.
 
     Args:
@@ -91,25 +93,23 @@ def ensure_present(accessor: Callable[[S], R]) -> Callable[[S], R]:
     Returns:
         Wrapped accessor that validates the return value
     """
+    accessor_name = callable_stable_name(accessor)
 
-    def wrapper(event: S) -> R:
+    def wrapper(event: EventT) -> ReturnT:
         result = accessor(event)
 
-        # Check if the result is None or MISSING_VALUE
         if result is None or result is MISSING_VALUE:
-            raise DependencyResolutionError(f"Required dependency returned {type(result).__name__}, expected a value")
+            raise DependencyResolutionError(
+                f"Required dependency {accessor_name} returned {type(result).__name__}, expected a value"
+            )
 
         return result
 
     return wrapper
 
 
-# This annotation converts a RawStateChangeEvent into a TypedStateChangeEvent
-# with typed state objects using the StateRegistry.
-
-# Extractor: identity (full event)
-# Returns: TypedStateChangeEvent with typed state
 TypedStateChangeEvent: TypeAlias = Annotated[
+    # The AnnotationDetails subscript is static-only: it types identity's argument for pyright.
     ActualTypedStateChangeEvent[StateT], AnnotationDetails["RawStateChangeEvent"](identity)
 ]
 """Convert a RawStateChangeEvent into a TypedStateChangeEvent with typed state objects.
@@ -157,8 +157,7 @@ StateOld: TypeAlias = Annotated[
 Example:
 ```python
 async def handler(old_state: D.StateOld[states.LightState]):
-    if old_state:
-        previous_brightness = old_state.attributes.brightness
+    previous_brightness = old_state.attributes.brightness
 ```
 """
 
@@ -198,7 +197,6 @@ Returns the domain string (e.g., "light", "sensor") from the event payload or en
 
 Example:
 ```python
-
 async def handler(domain: D.Domain):
     if domain == "light":
         self.logger.info("Light entity event")
@@ -208,7 +206,7 @@ async def handler(domain: D.Domain):
 MaybeDomain: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails(A.get_domain)]
 """Extract the domain from a HassEvent, returning MISSING_VALUE sentinel if not present."""
 
-EventContext: TypeAlias = Annotated[HassContext, AnnotationDetails[Event](A.get_context)]
+EventContext: TypeAlias = Annotated[HassContext, AnnotationDetails(A.get_context)]
 """Extract the context object from a HassEvent.
 
 Returns the Home Assistant context object containing metadata about the event
@@ -221,8 +219,6 @@ async def handler(context: D.EventContext):
         self.logger.info("Triggered by user: %s", context.user_id)
 ```
 """
-
-EventDataT = TypeVar("EventDataT")
 
 EventData: TypeAlias = Annotated[
     EventDataT,
