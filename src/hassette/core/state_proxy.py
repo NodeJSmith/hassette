@@ -21,7 +21,6 @@ from hassette.core.state_proxy_sync import (
     handle_synchronization_failure,
 )
 from hassette.events import RawStateChangeEvent
-from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
@@ -322,7 +321,7 @@ class StateProxy(Resource):
         entity_id = event.payload.data.entity_id
         old_state_dict = event.payload.data.old_state
         new_state_dict = event.payload.data.new_state
-        event_generation = get_websocket_generation(event)
+        event_generation = event.websocket_generation
         current_generation = self.hassette.websocket_service.get_connected_generation()
         if event_generation is None:
             event_generation = current_generation

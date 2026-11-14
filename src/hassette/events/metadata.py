@@ -16,15 +16,3 @@ def stamp_websocket_generation(event: "AnyEvent", generation: int | None) -> Non
             connected generation (e.g. the event was produced while disconnected).
     """
     object.__setattr__(event, "websocket_generation", generation)
-
-
-def get_websocket_generation(event: "AnyEvent") -> int | None:
-    """Return the WebSocket connection generation an event was stamped with, if any.
-
-    Args:
-        event: The event to read the generation from.
-
-    Returns:
-        The stamped generation, or None if the event was never stamped.
-    """
-    return event.websocket_generation
