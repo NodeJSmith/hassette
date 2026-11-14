@@ -66,8 +66,8 @@ async def handle_synchronization_failure(proxy: "StateProxy", generation: int) -
     """React to a failed synchronization: downgrade freshness and, with no poll job, retry.
 
     A no-op if ``generation`` is no longer the currently connected generation (a reconnect
-    has already superseded this failure). Otherwise downgrades the cache freshness the same
-    way ``on_disconnect`` does (STALE if the initial-state capability has already been
+    has already superseded this failure). Otherwise downgrades the cache freshness via
+    ``StateProxy.downgrade_cache_freshness`` (STALE if the initial-state capability has already been
     reached, else UNAVAILABLE). If the poll job is installed, the next poll tick is left to
     converge the cache and no retry is scheduled; otherwise schedules a backoff retry.
     """
@@ -75,10 +75,7 @@ async def handle_synchronization_failure(proxy: "StateProxy", generation: int) -
     if current_generation != generation:
         return
 
-    if proxy.has_initial_state_capability():
-        proxy._cache_freshness = StateCacheFreshness.STALE
-    else:
-        proxy._cache_freshness = StateCacheFreshness.UNAVAILABLE
+    proxy.downgrade_cache_freshness()
 
     if proxy.poll_job is not None:
         return

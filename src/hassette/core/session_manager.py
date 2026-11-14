@@ -227,31 +227,17 @@ class SessionManager(Resource):
         overflow, exhausted, shutdown = drop_counters
         try:
             now = time.time()
-            if self.hassette.fatal_shutdown_reason is not None:
-                # The fatal reason is recorded in memory at the decision site, before any teardown, so
-                # it is already set by the time the foundation stage gets here.
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
-                    " error_message = ?, dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
-                    " WHERE id = ?",
-                    (
-                        SESSION_STATUS_FAILURE,
-                        now,
-                        now,
-                        self.hassette.fatal_shutdown_reason,
-                        overflow,
-                        exhausted,
-                        shutdown,
-                        self._session_id,
-                    ),
-                )
-            else:
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
-                    " WHERE id = ?",
-                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, shutdown, self._session_id),
-                )
+            # The fatal reason is recorded in memory at the decision site, before any teardown, so
+            # it is already set by the time the foundation stage gets here. It is None on a clean
+            # shutdown, which leaves error_message NULL as the session INSERT wrote it.
+            fatal_reason = self.hassette.fatal_shutdown_reason
+            status = SESSION_STATUS_FAILURE if fatal_reason is not None else SESSION_STATUS_SUCCESS
+            await self._database_service.db.execute(
+                "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
+                " error_message = ?, dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
+                " WHERE id = ?",
+                (status, now, now, fatal_reason, overflow, exhausted, shutdown, self._session_id),
+            )
             await self._database_service.db.commit()
         except Exception:
             self.logger.exception("Failed to finalize session on shutdown")

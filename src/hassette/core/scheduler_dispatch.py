@@ -351,9 +351,7 @@ class SchedulerDispatchMixin:
         )
         self._executor.enqueue_record(record)
 
-        app_level_error_handler = (
-            job.app_error_handler_resolver() if job.app_error_handler_resolver is not None else None
-        )
+        app_level_error_handler = job.resolve_app_error_handler()
         error_handler = job.error_handler or app_level_error_handler
         if error_handler is not None:
             ctx = SchedulerErrorContext(
@@ -481,9 +479,7 @@ class SchedulerDispatchMixin:
 
         # Resolve the app-level error handler at dispatch time via the closure set by
         # Scheduler.add_job(). This avoids coupling the dispatch path to Scheduler internals.
-        app_level_error_handler = (
-            job.app_error_handler_resolver() if job.app_error_handler_resolver is not None else None
-        )
+        app_level_error_handler = job.resolve_app_error_handler()
 
         cmd = ExecuteJob(
             job=job,

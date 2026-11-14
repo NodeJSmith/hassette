@@ -357,13 +357,12 @@ class WebsocketMessageIOMixin:
             self.logger.warning("Received unexpected binary message (%d bytes)", len(raw))
             return
 
+        close_code = getattr(self._ws, "close_code", None)
         if (message := CLOSE_MSG_TYPE_MESSAGES.get(msg_type)) is not None:
-            close_code = getattr(self._ws, "close_code", None)
             raise WebsocketClosedError(f"{message} ({msg_type!r})", close_code=close_code)
 
         if msg_type == WSMsgType.ERROR:
             exc = msg.data if isinstance(msg.data, BaseException) else None
-            close_code = getattr(self._ws, "close_code", None)
             raise WebsocketClosedError(f"WebSocket error frame received: {msg.data!r}", close_code=close_code) from exc
 
         self.logger.warning("Received unexpected message type: %r", msg_type)

@@ -390,6 +390,10 @@ class StateProxy(Resource):
             sync_task.cancel()
             await asyncio.gather(sync_task, return_exceptions=True)
 
+        self.downgrade_cache_freshness()
+
+    def downgrade_cache_freshness(self) -> None:
+        """Mark the cache STALE if the initial-state capability was reached, else UNAVAILABLE."""
         if self.has_initial_state_capability():
             self._cache_freshness = StateCacheFreshness.STALE
         else:
