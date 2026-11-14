@@ -28,13 +28,36 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
     return tuple(uniq)
 
 
+def unwrap_type_alias(tp: Any) -> Any:
+    """Resolve a PEP 695 type alias (`type Foo = ...`), including alias chains, to the type it names.
+
+    A subscripted generic alias (`Foo[int]` for `type Foo[T] = ...`) resolves to the alias's value
+    with the alias's type parameters replaced by the subscript's arguments. Anything that is not an
+    alias is returned unchanged.
+    """
+    seen: set[int] = set()  # stops a cyclic alias pair from looping forever
+    while id(tp) not in seen:
+        seen.add(id(tp))
+        origin = get_origin(tp)
+        if origin is not None and hasattr(origin, "__value__") and hasattr(origin, "__type_params__"):
+            # `getattr(Foo[int], "__value__")` forwards to the bare alias and loses the arguments,
+            # so substitute them into the value explicitly.
+            mapping = dict(zip(origin.__type_params__, get_args(tp), strict=False))
+            value = origin.__value__
+            params = getattr(value, "__parameters__", ())
+            tp = value[tuple(mapping.get(p, p) for p in params)] if params else value
+            continue
+        value = getattr(tp, "__value__", None)
+        if value is None:
+            break
+        tp = value
+    return tp
+
+
 @lru_cache(maxsize=256)
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     """Normalize a type annotation to something usable in isinstance()."""
-    # Unwrap type aliases (`type Foo = ...`)
-    value = getattr(tp, "__value__", None)
-    if value is not None:
-        return normalize_for_isinstance(value)
+    tp = unwrap_type_alias(tp)
 
     # Unwrap Annotated[T, ...]
     if get_origin(tp) is Annotated:
@@ -184,8 +207,8 @@ def normalize_annotation(tp: Any, *, constructible: bool = True) -> Any:
     tp = unwrap_annotated(tp)
 
     while True:
-        alias_value = getattr(tp, "__value__", None)
-        if alias_value is not None:
+        alias_value = unwrap_type_alias(tp)
+        if alias_value is not tp:
             tp = unwrap_annotated(alias_value)
             continue
 
@@ -210,11 +233,7 @@ def get_type_and_details(annotation: Any) -> tuple[Any, Any] | None:
     Returns:
         A ``(type, metadata)`` tuple, or None if the annotation is not ``Annotated`` with metadata.
     """
-    # Unwrap type alias: `type Foo = ...`
-    alias_value = getattr(annotation, "__value__", None)
-    if alias_value is not None:
-        return get_type_and_details(alias_value)
-
+    annotation = unwrap_type_alias(annotation)
     if not is_annotated_type(annotation):
         return None
 
@@ -227,11 +246,7 @@ def get_type_and_details(annotation: Any) -> tuple[Any, Any] | None:
 
 def is_annotated_type(annotation: Any) -> bool:
     """True if this annotation is Annotated[...] or an alias whose value is Annotated[...]."""
-    value = getattr(annotation, "__value__", None)
-    if value is not None:
-        return is_annotated_type(value)
-
-    return get_origin(annotation) is Annotated
+    return get_origin(unwrap_type_alias(annotation)) is Annotated
 
 
 def make_union(types: set[Any]) -> Any:

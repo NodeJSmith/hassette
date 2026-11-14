@@ -3,7 +3,7 @@
 """Unit tests for TypeMatcher and AnnotatedMatcher."""
 
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 import pytest
 from typing_extensions import TypeAliasType
@@ -16,6 +16,21 @@ from hassette.utils.type_utils import get_typed_signature
 MyEvent = TypeAliasType("MyEvent", Event)
 MyOptionalStateEvent = TypeAliasType("MyOptionalStateEvent", RawStateChangeEvent | None)
 MyChainedEvent = TypeAliasType("MyChainedEvent", MyEvent)
+
+T = TypeVar("T")
+U = TypeVar("U")
+
+
+def payload_extractor(_source: AnyEvent) -> str:
+    return "extracted"
+
+
+# Equivalent to `type Extracted[T] = Annotated[T, AnnotationDetails(...)]` (PEP 695, 3.12+).
+Extracted = TypeAliasType("Extracted", Annotated[T, AnnotationDetails(extractor=payload_extractor)], type_params=(T,))
+# Value's free parameters are in a different order than the alias's: `type Swapped[T, U] = Annotated[dict[U, T], ...]`.
+Swapped = TypeAliasType(
+    "Swapped", Annotated[dict[U, T], AnnotationDetails(extractor=payload_extractor)], type_params=(T, U)
+)
 
 
 def match_param(
@@ -238,6 +253,23 @@ class TestAnnotatedMatcher:
 
         assert result is not None
         assert result.source_type is OtherSource
+
+    @pytest.mark.parametrize(
+        ("alias", "expected"),
+        [(Extracted[int], int), (Swapped[int, str], dict[str, int])],
+        ids=["single_param", "reordered_params"],
+    )
+    def test_subscripted_type_alias_substitutes_type_params(self, alias: Any, expected: Any):
+        def handler(value):
+            pass
+
+        handler.__annotations__["value"] = alias
+
+        result = match_param(AnnotatedMatcher(source_type=Event), handler, "value")
+
+        assert result is not None
+        assert result.extractor is payload_extractor
+        assert result.target_type == expected
 
     def test_non_annotated_type_returns_none(self):
         def handler(value: str):
