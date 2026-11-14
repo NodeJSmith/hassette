@@ -1,13 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
-from hassette_wire import ExecutionStatus, ResourceStatus
+from hassette_wire import ExecutionKind, ExecutionStatus, ResourceStatus
 
 from hassette.events.base import Event, HassettePayload
 from hassette.schemas.app_snapshots import AppInstanceInfo
-from hassette.types import Topic
-from hassette.types.enums import ResourceRole
+from hassette.types import ResourceRole, Topic
 from hassette.utils import get_traceback_string
 
 if TYPE_CHECKING:
@@ -15,7 +14,7 @@ if TYPE_CHECKING:
 
 
 def extract_exception_fields(
-    exception: Exception | BaseException | None,
+    exception: BaseException | None,
 ) -> tuple[str | None, str | None, str | None]:
     """Extract (message, type_name, traceback) from an exception, or (None, None, None)."""
     if exception is None:
@@ -30,7 +29,10 @@ class HassetteEmptyPayload:
 
 @dataclass(slots=True, frozen=True)
 class ServiceStatusPayload:
-    """Payload for service events."""
+    """Payload for service events.
+
+    Exceptions are flattened to strings so the payload stays serialisable for WebSocket clients.
+    """
 
     resource_name: str
     role: ResourceRole
@@ -53,7 +55,7 @@ class FileWatcherEventPayload:
 
 
 class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
-    """Alias for service status events."""
+    """Event carrying service status changes."""
 
     @classmethod
     def from_service_status(
@@ -62,7 +64,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
         role: ResourceRole,
         status: ResourceStatus,
         previous_status: ResourceStatus | None = None,
-        exception: Exception | BaseException | None = None,
+        exception: BaseException | None = None,
         ready: bool = False,
         ready_phase: str | None = None,
     ) -> "HassetteServiceEvent":
@@ -99,7 +101,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
 
 
 class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
-    """Alias for simple events with empty payload."""
+    """Event with an empty payload, published on a caller-chosen topic."""
 
     @classmethod
     def from_topic(cls, topic: Topic) -> "HassetteSimpleEvent":
@@ -119,7 +121,7 @@ class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
 
 
 class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
-    """Alias for file watcher events."""
+    """Event carrying the set of changed file paths."""
 
     @classmethod
     def from_paths(cls, *, changed_file_paths: set[Path]) -> "HassetteFileWatcherEvent":
@@ -140,7 +142,10 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
 
 @dataclass(slots=True, frozen=True)
 class AppStateChangePayload:
-    """Payload for app instance state change events."""
+    """Payload for app instance state change events.
+
+    Exceptions are flattened to strings so the payload stays serialisable for WebSocket clients.
+    """
 
     app_key: str
     instance_name: str
@@ -161,7 +166,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         app: "App",
         status: ResourceStatus,
         previous_status: ResourceStatus | None = None,
-        exception: Exception | BaseException | None = None,
+        exception: BaseException | None = None,
     ) -> "HassetteAppStateEvent":
         """Build an app state-change event from a live ``App`` instance.
 
@@ -199,26 +204,23 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         status: ResourceStatus | None = None,
         previous_status: ResourceStatus | None = None,
     ) -> "HassetteAppStateEvent":
-        """Build a state-change event from a registry snapshot entry.
+        """Build a state-change event from a registry snapshot entry, for paths where no ``App`` object exists.
 
-        For paths where no ``App`` object exists to build the event from — e.g.
-        ``AppFactory.create_instances()`` failing before instantiation (invalid config, class
-        load error), or a failed entry being discarded by ``unregister_app()`` on stop — so
-        those transitions still reach the WebSocket clients that key off ``app_status_changed``,
-        the same as every other transition does via ``from_app``.
+        Exception fields are populated only when the resolved status is FAILED, so a STOPPED event for a
+        removed failed entry doesn't look like a failed stop.
 
-        ``status`` defaults to ``info.status`` (the registry's own recorded status, which is
-        authoritative right after a failure is resolved into an ``AppInstanceInfo``). Pass it
-        explicitly when the event being emitted isn't what the entry is recorded as — e.g. a
-        failed entry being emitted as STOPPED because it's being removed from the registry, not
-        because it just failed again. Exception fields are only populated when the resolved
-        status is FAILED — every other status-change event in this file carries no exception
-        data, and a STOPPED event with a populated traceback would misleadingly suggest the stop
-        itself failed rather than that the entry had failed before being removed.
+        Args:
+            info: The registry entry for the app instance.
+            status: The status to emit. Defaults to ``info.status``; pass it explicitly when the emitted
+                status differs from the recorded one.
+            previous_status: The status before this change, if known.
+
+        Returns:
+            The event, ready to send on the bus.
         """
         resolved_status = status if status is not None else info.status
         include_exception = resolved_status == ResourceStatus.FAILED
-        exc_str, exc_type, exc_tb = extract_exception_fields(info.error) if include_exception else (None, None, None)
+        exc_str, exc_type, exc_tb = extract_exception_fields(info.error if include_exception else None)
         payload = AppStateChangePayload(
             app_key=info.app_key,
             instance_name=info.instance_name,
@@ -243,7 +245,7 @@ class ExecutionCompletedPayload:
     ``job_id`` when ``kind == "job"``.
     """
 
-    kind: Literal["handler", "job"]
+    kind: ExecutionKind
     status: ExecutionStatus
     duration_ms: float
     listener_id: int | None = None
@@ -254,12 +256,12 @@ class ExecutionCompletedPayload:
 
 
 class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPayload]]):
-    """Event emitted after a scheduled job execution is persisted to telemetry."""
+    """Event emitted after a handler invocation or scheduled job execution is persisted to telemetry."""
 
     @classmethod
     def from_record(
         cls,
-        kind: Literal["handler", "job"],
+        kind: ExecutionKind,
         status: ExecutionStatus,
         duration_ms: float,
         listener_id: int | None = None,

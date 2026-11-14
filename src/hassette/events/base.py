@@ -1,13 +1,12 @@
-import typing
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeAlias, TypeVar
 
 from whenever import ZonedDateTime
 
 from hassette.types import PayloadT
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette.types import Topic
 
 DataT = TypeVar("DataT", covariant=True)
@@ -22,10 +21,16 @@ class EventPayload(Generic[DataT]):
     """The actual event data."""
 
     event_id: str = field(default="", kw_only=True)
-    """Unique identifier for this event. Subclasses override with a more specific default."""
+    """Unique identifier for this event.
+
+    Subclasses set this: HassPayload from the HA context, HassettePayload per instance.
+    """
 
     origin: str = field(default="UNKNOWN", kw_only=True)
-    """Origin of the event. Subclasses override with a concrete value."""
+    """Origin of the event.
+
+    Subclasses set this: HassPayload from the HA context, HassettePayload per instance.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +52,12 @@ class HassPayload(EventPayload[DataT]):
     data: DataT
     """The actual event data from Home Assistant."""
 
+    # Subclass payloads redeclare base fields to give them their own docstrings and to narrow
+    # types (``origin`` here becomes a Literal); ``event_id`` is derived from ``context.id`` in
+    # ``__post_init__``. Redeclaring ``origin`` without a default drops the base field's kw_only
+    # default, but pyright still treats it as defaulted: it reports ``origin`` as missing a
+    # default and the required fields after it as following a defaulted field. At runtime all
+    # three are plain required fields, so the suppressions below cover a pyright modelling gap.
     origin: Literal["LOCAL", "REMOTE"]  # pyright: ignore[reportGeneralTypeIssues]
     """Origin of the event, either 'LOCAL' or 'REMOTE'."""
 
