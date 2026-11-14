@@ -196,6 +196,9 @@ class AppStartStopMixin:
         can be flagged while an earlier one's event goes out. The check sits right before the write, with no
         ``await`` between it and ``registry.set_status``.
 
+        Debug capture can change during those sends too, and ``AppHandler.set_debug_capture`` reaches only
+        registered instances, so each ``App`` takes the registry's current capture flag right before its write.
+
         Returns:
             The names whose new ``App`` was registered, the ones to initialize.
         """
@@ -206,6 +209,8 @@ class AppStartStopMixin:
             elif (refusal := self.registry.refusal_reason(app_key, name)) is not None:
                 outcomes.refused(name, refusal)
             else:
+                if result.debug_capture != (captured := self.registry.is_debug_captured(app_key, name)):
+                    result.set_debug_capture(captured)
                 await self.set_app_status(app_key, name, NOT_STARTED, app=result)
                 registered.add(name)
         return registered

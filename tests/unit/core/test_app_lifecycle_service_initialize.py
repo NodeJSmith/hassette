@@ -180,6 +180,51 @@ class TestInitializeInstances:
         assert by_name["second"].reason == STOPPED_BEFORE_INIT_REASON
         assert [p.instance_name for p in app_state_payloads(event_capture, ResourceStatus.STARTING)] == ["first"]
 
+    @pytest.mark.parametrize(
+        ("exit_reaches_it", "result", "reason"),
+        [
+            pytest.param(
+                lambda registry: registry.set_status("test_app", "test_instance", ResourceStatus.STOPPING),
+                OutcomeResult.FAILED,
+                STOPPED_BEFORE_INIT_REASON,
+                id="stopping",
+            ),
+            pytest.param(
+                lambda registry: seed_failed(registry, "test_app", "test_instance", needs_restart="work still running"),
+                OutcomeResult.REFUSED,
+                None,
+                id="flagged",
+            ),
+        ],
+    )
+    async def test_exit_reaching_it_during_the_starting_send_skips_initialization(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        exit_reaches_it: typing.Callable[[typing.Any], object],
+        result: OutcomeResult,
+        reason: str | None,
+    ) -> None:
+        """Process exit stops or flags the instance while its STARTING event is sent: it is never initialized."""
+        registry = real_registry_service.registry
+        seed_running(registry, "test_app", mock_app_instance, status=ResourceStatus.NOT_STARTED)
+
+        async def send_while_exit_reaches_it(event: typing.Any) -> None:
+            if event.payload.data.status is ResourceStatus.STARTING:
+                exit_reaches_it(registry)
+
+        mock_hassette.send_event = AsyncMock(side_effect=send_while_exit_reaches_it)
+        outcomes = AnyNameOutcomes()
+
+        await real_registry_service.initialize_instance(mock_app_instance, "TestApp", outcomes=outcomes)
+
+        mock_app_instance.initialize.assert_not_awaited()
+        [outcome] = outcomes.snapshot()
+        assert outcome.result is result
+        if reason is not None:
+            assert outcome.reason == reason
+
     async def test_a_sibling_flagged_before_its_turn_is_refused_without_a_warning(
         self,
         real_registry_service: AppLifecycleService,
@@ -292,26 +337,29 @@ class TestInitializeInstances:
     # dup-ignore-start: pytest test function signature
     async def test_emits_running_event_on_success(
         self,
-        lifecycle_service: AppLifecycleService,
+        real_registry_service: AppLifecycleService,
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
         # dup-ignore-end
-        """Emits HASSETTE_EVENT_APP_STATE_CHANGED with RUNNING status on success."""
+        """Emits HASSETTE_EVENT_APP_STATE_CHANGED with RUNNING status on success, from STARTING."""
         event_capture.install(mock_hassette)
+        seed_running(real_registry_service.registry, "test_app", mock_app_instance, status=ResourceStatus.NOT_STARTED)
         instances: dict[str, App] = {"test_instance": mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyNameOutcomes())
+        await real_registry_service.initialize_instances(
+            "test_app", instances, mock_manifest, outcomes=AnyNameOutcomes()
+        )
 
         running_calls = app_state_payloads(event_capture, ResourceStatus.RUNNING)
-        assert len(running_calls) == 1
+        assert [p.previous_status for p in running_calls] == [ResourceStatus.STARTING]
 
     # dup-ignore-start: pytest test function signature
     async def test_emits_failed_event_on_error(
         self,
-        lifecycle_service: AppLifecycleService,
+        real_registry_service: AppLifecycleService,
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
@@ -321,12 +369,17 @@ class TestInitializeInstances:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with FAILED status on error."""
         event_capture.install(mock_hassette)
         mock_app_instance.initialize.side_effect = ValueError("boom")
+        seed_running(real_registry_service.registry, "test_app", mock_app_instance, status=ResourceStatus.NOT_STARTED)
         instances: dict[str, App] = {"test_instance": mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyNameOutcomes())
+        await real_registry_service.initialize_instances(
+            "test_app", instances, mock_manifest, outcomes=AnyNameOutcomes()
+        )
 
         failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
+        assert failed_calls[0].exception_type == "ValueError"
+        assert [p.previous_status for p in failed_calls] == [ResourceStatus.STARTING]
 
 
 class TestStartingIsOutsideTheStartupTimeout:

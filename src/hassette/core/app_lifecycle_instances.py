@@ -113,19 +113,17 @@ class AppInstanceLifecycleMixin:
         write follows it, and a failure to send its event is a telemetry failure, not an app failure: it is
         logged and the app keeps running.
 
-        Initialization is skipped for an instance process exit reached first (see the comment at the check).
+        Initialization is skipped for an instance process exit reached first. Exit takes no app-key lock, so
+        while an earlier sibling initializes, or while this instance's STARTING event is sent, it may flag this
+        instance or begin stopping it. The admission check therefore runs twice: before the STARTING write, so a
+        flagged name never reaches the registry's refused-write WARNING and STARTING never replaces STOPPING, and
+        again after the send, right before ``initialize()``.
         """
-        # Process exit takes no app-key lock, so during an earlier sibling's init it may have flagged this
-        # instance or begun stopping it. Both checks sit right before the STARTING write with no ``await``
-        # between, so neither can go stale, and a flagged name never reaches the registry's refused-write WARNING.
-        if (refusal := self.registry.refusal_reason(inst.app_key, inst.instance_name)) is not None:
-            outcomes.refused(inst.instance_name, refusal)
-            return
-        if self.registry.get_status(inst.app_key, inst.instance_name) is not NOT_STARTED:
-            self.logger.debug("Skipped initializing app '%s' (%s): it is being stopped", inst.instance_name, class_name)
-            outcomes.failed(inst.instance_name, STOPPED_BEFORE_INIT_REASON)
+        if not self.admits_init(inst, class_name, NOT_STARTED, outcomes=outcomes):
             return
         await self.set_app_status(inst.app_key, inst.instance_name, STARTING)
+        if not self.admits_init(inst, class_name, STARTING, outcomes=outcomes):
+            return
         try:
             with anyio.fail_after(self.startup_timeout):
                 await inst.initialize()
@@ -146,6 +144,23 @@ class AppInstanceLifecycleMixin:
         self.logger.info("App '%s' (%s) initialized successfully", inst.instance_name, class_name)
         outcomes.succeeded(inst.instance_name)
         await self.set_app_status(inst.app_key, inst.instance_name, RUNNING)
+
+    def admits_init(
+        self, inst: "App[AppConfig]", class_name: str, expected: ResourceStatus, *, outcomes: ActionOutcomes
+    ) -> bool:
+        """Whether ``inst`` may go on initializing: not flagged needs-restart, and still at ``expected``.
+
+        On refusal, records the instance's outcome. The caller must not ``await`` between this check and the
+        step it gates, or process exit can act in between.
+        """
+        if (refusal := self.registry.refusal_reason(inst.app_key, inst.instance_name)) is not None:
+            outcomes.refused(inst.instance_name, refusal)
+            return False
+        if self.registry.get_status(inst.app_key, inst.instance_name) is not expected:
+            self.logger.debug("Skipped initializing app '%s' (%s): it is being stopped", inst.instance_name, class_name)
+            outcomes.failed(inst.instance_name, STOPPED_BEFORE_INIT_REASON)
+            return False
+        return True
 
     async def set_app_status(
         self,
@@ -519,8 +534,9 @@ class AppInstanceLifecycleMixin:
         - a stale STOPPED can remove a same-name replacement's entry;
         - a teardown that settles after ``clear_all`` can leave a FAILED entry behind.
 
-        Nothing acts on that state, since ``clear_all`` discards it. The one race with consequences, starting an
-        instance this already reached, is prevented in ``initialize_instance``.
+        Nothing acts on that state, since ``clear_all`` discards it. The one race with consequences, initializing
+        an instance this already reached, is closed in ``initialize_instance``, which checks admission right
+        before the STARTING write and again right before ``initialize()``.
         """
         self.logger.debug("Shutting down all apps")
         instances = [

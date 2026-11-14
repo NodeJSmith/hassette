@@ -5,6 +5,7 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 """
 
 import asyncio
+import typing
 from unittest.mock import ANY, AsyncMock, MagicMock, Mock
 
 import pytest
@@ -23,7 +24,7 @@ from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.outcomes import AnyNameOutcomes
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
-from .conftest import app_state_payloads, status_writes
+from .conftest import app_state_payloads
 
 
 class TestStartApp:
@@ -83,24 +84,53 @@ class TestStartApp:
             "test_app", mock_manifest, force_reload=False, outcomes=ANY
         )
 
-    async def test_emits_not_started_event(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_manifest: MagicMock,
-        mock_app_instance: AsyncMock,
-        mock_hassette: MagicMock,
-        event_capture: EventCapture,
+    async def test_a_first_start_registers_without_a_not_started_event(
+        self, real_registry_service: AppLifecycleService, mock_hassette: MagicMock, event_capture: EventCapture
     ) -> None:
-        """Emits NOT_STARTED event for each created instance."""
+        """A first registration is not a status change, so no NOT_STARTED event goes out."""
         event_capture.install(mock_hassette)
-        mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_live_apps = Mock(return_value={"test_instance": mock_app_instance})
+        app = make_mock_app_instance(instance_name="a")
 
-        await lifecycle_service.start_app("test_app")
+        registered = await real_registry_service._record_created("test_app", {"a": app}, outcomes=AnyNameOutcomes())
 
-        not_started_calls = app_state_payloads(event_capture, ResourceStatus.NOT_STARTED)
-        assert len(not_started_calls) == 1
+        assert registered == {"a"}
+        assert real_registry_service.registry.get("test_app", "a") is app
+        assert app_state_payloads(event_capture, ResourceStatus.NOT_STARTED) == []
+
+    async def test_a_retry_over_a_failed_instance_emits_not_started(
+        self, real_registry_service: AppLifecycleService, mock_hassette: MagicMock, event_capture: EventCapture
+    ) -> None:
+        """Registering over a FAILED entry changes its status, so NOT_STARTED is sent."""
+        event_capture.install(mock_hassette)
+        seed_failed(real_registry_service.registry, "test_app", "a")
+
+        await real_registry_service._record_created(
+            "test_app", {"a": make_mock_app_instance(instance_name="a")}, outcomes=AnyNameOutcomes()
+        )
+
+        assert [p.instance_name for p in app_state_payloads(event_capture, ResourceStatus.NOT_STARTED)] == ["a"]
+
+    async def test_debug_capture_changed_during_an_earlier_send_reaches_a_later_instance(
+        self, real_registry_service: AppLifecycleService, mock_hassette: MagicMock
+    ) -> None:
+        """Capture turned on for ``b`` while ``a``'s NOT_STARTED is sent is applied to ``b`` before it registers."""
+        registry = real_registry_service.registry
+        seed_failed(registry, "test_app", "a")
+        seed_failed(registry, "test_app", "b")
+        a = make_mock_app_instance(instance_name="a")
+        b = make_mock_app_instance(instance_name="b")
+        a.debug_capture = b.debug_capture = False
+
+        async def send_while_capture_turns_on_for_b(event: typing.Any) -> None:
+            if event.payload.data.instance_name == "a":
+                registry.set_debug_capture("test_app", ["b"], True)
+
+        mock_hassette.send_event = AsyncMock(side_effect=send_while_capture_turns_on_for_b)
+
+        await real_registry_service._record_created("test_app", {"a": a, "b": b}, outcomes=AnyNameOutcomes())
+
+        a.set_debug_capture.assert_not_called()
+        b.set_debug_capture.assert_called_once_with(True)
 
     async def test_reconcile_registrations_called_after_init(
         self,
@@ -217,8 +247,7 @@ class TestStartApp:
     # dup-ignore-start: pytest test function signature
     async def test_emits_stopped_event_for_pruned_stale_failed_entries(
         self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        real_registry_service: AppLifecycleService,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
@@ -231,21 +260,21 @@ class TestStartApp:
         vulnerability shape as the discarded-on-stop bug this mirrors.
         """
         event_capture.install(mock_hassette)
-        mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_live_apps = Mock(return_value={})
-        mock_registry.stale_failed_names = Mock(return_value=["stale_instance"])
+        registry = real_registry_service.registry
+        registry.set_manifests({"test_app": mock_manifest})
+        seed_failed(registry, "test_app", "stale_instance")
 
-        await lifecycle_service.start_app("test_app")
+        await real_registry_service.start_app("test_app")
 
-        assert ("stale_instance", ResourceStatus.STOPPED) in status_writes(mock_registry)
         stopped_payloads = app_state_payloads(event_capture, ResourceStatus.STOPPED)
         assert [(p.app_key, p.instance_name) for p in stopped_payloads] == [("test_app", "stale_instance")]
+        assert stopped_payloads[0].previous_status is ResourceStatus.FAILED
+        assert "stale_instance" not in registry.tracked_names("test_app")
 
     # dup-ignore-start: pytest test function signature
     async def test_emits_state_event_for_pre_instantiation_failure(
         self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        real_registry_service: AppLifecycleService,
         mock_manifest: MagicMock,
         mock_factory: MagicMock,
         mock_hassette: MagicMock,
@@ -257,17 +286,17 @@ class TestStartApp:
         through the one write path, so it reaches WS subscribers as an ordinary transition (spec 154 D1).
         """
         event_capture.install(mock_hassette)
-        mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_live_apps = Mock(return_value={})
+        real_registry_service.registry.set_manifests({"test_app": mock_manifest})
         mock_factory.create_instances = Mock(return_value={"test_app.0": ValueError("bad config")})
 
-        await lifecycle_service.start_app("test_app")
+        await real_registry_service.start_app("test_app")
 
         failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_payloads) == 1
         payload = failed_payloads[0]
         assert payload.app_key == "test_app"
         assert payload.instance_name == "test_app.0"
+        assert payload.previous_status is ResourceStatus.NOT_STARTED
         assert payload.exception == "bad config"
 
     async def test_handles_factory_load_error(
