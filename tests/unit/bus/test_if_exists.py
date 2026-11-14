@@ -274,6 +274,16 @@ async def test_skip_drift_error_names_changed_fields(bus: "Bus") -> None:
     assert "handler" in msg
 
 
+async def test_skip_drift_after_mutating_mapping_where_raises(bus: "Bus") -> None:
+    """Mutating a reused where= mapping after registering is drift, not a match for the old listener."""
+    where = {"entity_id": "light.kitchen"}
+    with mock_add_listener(bus):
+        await bus.on_call_service(handler=handler_a, name="svc_listener", where=where)
+        where["entity_id"] = "light.office"
+        with pytest.raises(ValueError, match="configuration has changed"):
+            await bus.on_call_service(handler=handler_a, name="svc_listener", where=where, if_exists="skip")
+
+
 async def test_skip_drift_with_predicate_change_notes_lambda_identity(bus: "Bus") -> None:
     """Skip drift on a changed predicate appends a note about lambda/closure identity comparison.
 

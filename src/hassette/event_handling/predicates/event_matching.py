@@ -107,6 +107,8 @@ class ServiceDataWhere(_PredicateOps):
     _predicates: tuple["Predicate[CallServiceEvent]", ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        # Snapshot the caller's mapping: equality compares ``spec``, so it must match what ``_predicates`` compiled.
+        object.__setattr__(self, "spec", dict(self.spec))
         preds: list[Predicate[CallServiceEvent]] = []
 
         for k, cond in self.spec.items():
