@@ -256,7 +256,8 @@ class StateProxy(Resource):
                 disconnect marks it STALE rather than UNAVAILABLE, so stale reads succeed
                 instead of raising.
         """
-        return self.get_state_once(entity_id)
+        self._check_ready()
+        return self.states.get(entity_id)
 
     def _check_ready(self) -> None:
         if self._cache_freshness == StateCacheFreshness.UNAVAILABLE:
@@ -264,24 +265,6 @@ class StateProxy(Resource):
                 f"StateProxy cache is not available yet (freshness={self._cache_freshness}, "
                 f"initial_capability={self.has_initial_state_capability()})."
             )
-
-    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
-        """Get the current cached state for an entity.
-
-        Equivalent to ``get_state``; kept as a distinct name for call sites that want to be
-        explicit that a single readiness check is all that happens.
-
-        Args:
-            entity_id: The entity ID to look up (e.g., "light.kitchen").
-
-        Returns:
-            The raw state dict if found, None otherwise.
-
-        Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE.
-        """
-        self._check_ready()
-        return self.states.get(entity_id)
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all cached states for a specific domain.
@@ -584,8 +567,6 @@ class StateProxy(Resource):
                 status=status,
                 candidate_states=candidate_states,
             )
-        except asyncio.CancelledError:
-            raise
         except Exception as exc:
             if self._last_logged_sync_failure_generation == generation:
                 self.logger.warning(
@@ -611,7 +592,6 @@ class StateProxy(Resource):
                 request_id=request_id,
                 generation=generation,
                 status=status,
-                baseline_states=baseline_states,
                 journal=[],
             )
         return baseline_states
