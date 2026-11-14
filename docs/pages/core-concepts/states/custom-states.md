@@ -82,7 +82,7 @@ Domain-specific attributes beyond `value` belong in an attributes class that inh
 --8<-- "pages/core-concepts/states/snippets/custom-states/adding_custom_attributes.py"
 ```
 
-Fields on the attributes class are optional by default when typed with `| None`. Hassette passes through any undeclared attribute keys. They remain accessible via `state.attributes.extras`.
+A field with a default, such as `= Field(default=None)`, is optional. A `| None` annotation alone leaves the key required, and a state without that key fails conversion. Hassette passes through any undeclared attribute keys. They remain accessible via `state.attributes.extras`.
 
 ## Using Custom States in Apps
 
