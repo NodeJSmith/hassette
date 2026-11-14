@@ -6,7 +6,7 @@ from typing_extensions import TypedDict
 
 
 class HassContextDict(TypedDict):
-    """Structure for the context of a state change event."""
+    """Structure for the context of a Home Assistant event."""
 
     id: str
     parent_id: str | None
@@ -31,7 +31,7 @@ class HassStateDict(TypedDict, total=False):
 
 
 class HassEventDict(TypedDict):
-    """Structure for the state change event data."""
+    """Structure for a Home Assistant event as sent over the websocket."""
 
     event_type: str
     data: dict[str, Any] | None
@@ -41,10 +41,9 @@ class HassEventDict(TypedDict):
 
 
 class HassEventEnvelopeDict(TypedDict):
-    """The structure of what comes from Home Assistant's websocket API for state change events.
+    """The websocket message that wraps a Home Assistant event.
 
-    When turned into an Event, the `event` attribute is popped and used to create the event,
-    with `type` and `id` being discarded.
+    When turned into an Event, only `event` is read; `type` and `id` are discarded.
     """
 
     event: HassEventDict
