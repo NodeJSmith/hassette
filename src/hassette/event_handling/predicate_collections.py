@@ -17,7 +17,6 @@ def ensure_tuple(where: "Predicate | Sequence[Predicate]") -> tuple["Predicate",
     """
     if is_predicate_collection(where):
         out: list[Predicate] = []
-        # mypy/pyright: guarded by _is_predicate_collection, so safe to iterate
         for item in typing.cast("Sequence[Predicate | Sequence[Predicate]]", where):
             out.extend(ensure_tuple(item))
         return tuple(out)
