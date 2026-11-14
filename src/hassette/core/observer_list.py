@@ -1,10 +1,4 @@
-"""A small list of async observer callbacks with add/remove/notify.
-
-Extracted from :mod:`hassette.core.websocket_service`, which had four near-identical
-registration methods (add/remove for a connected-observer list and a disconnected-observer
-list) and two near-identical notify methods, differing only in which list they touched and
-whether the callback took a ``generation`` argument.
-"""
+"""A small list of async observer callbacks with add/remove/notify."""
 
 import typing
 from collections.abc import Callable
@@ -17,9 +11,8 @@ T = TypeVar("T", bound=Callable[..., typing.Awaitable[None]])
 class ObserverList(Generic[T]):
     """An ordered, deduplicated list of async callbacks, notified in registration order.
 
-    A failing observer is logged and does not prevent the remaining observers from running —
-    matches the original ``WebsocketService`` behavior, where one broken observer (e.g.
-    ``StateProxy``'s initial sync) must not block the others.
+    A failing observer is logged and does not prevent the remaining observers from running, so
+    one broken observer (e.g. ``StateProxy``'s initial sync) cannot block the others.
     """
 
     def __init__(self, logger: Logger, label: str) -> None:

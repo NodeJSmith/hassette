@@ -23,8 +23,7 @@ if typing.TYPE_CHECKING:
 class SessionManager(Resource):
     """Manages session lifecycle: creation, orphan cleanup, and finalization.
 
-    This is a Resource (no background task). It extracts session CRUD logic that
-    was previously inline on ``Hassette``.
+    This is a Resource (no background task).
     """
 
     shutdown_hook_timeout_applies: ClassVar[bool] = False

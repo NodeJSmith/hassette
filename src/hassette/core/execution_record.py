@@ -44,14 +44,12 @@ class ExecutionRecord:
     job_id: int | None = None
     """FK to the scheduled_jobs table. Set for job executions; None for handler executions."""
 
-    # Ownership / attribution
     app_key: str = ""
     """App key that owns this execution. Empty string for framework-internal executions."""
 
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 
-    # Error details
     is_di_failure: bool = False
     """True when the execution failed due to a DependencyError (or subclass)."""
 
@@ -77,11 +75,9 @@ class ExecutionRecord:
     error_traceback: str | None = None
     """Full traceback string if status is `ExecutionStatus.ERROR`, otherwise None."""
 
-    # Execution identity
     execution_id: str | None = None
     """UUIDv7 string identifying the specific execution instance. None when not populated."""
 
-    # Handler-only fields
     trigger_context_id: str | None = None
     """event_id of the triggering event: the HA context id, or a Hassette event's uuid4.
 

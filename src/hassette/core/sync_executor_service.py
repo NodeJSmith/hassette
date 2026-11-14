@@ -94,10 +94,8 @@ class SyncExecutorService(Service):
                     self.shutdown_event.wait(),
                     timeout=_SATURATION_PROBE_INTERVAL_SECS,
                 )
-                # shutdown_event fired — exit the loop.
                 return
             except TimeoutError:
-                # Probe interval elapsed — check saturation and loop.
                 self.sync_executor.log_saturation_rate_limited()
 
     async def on_shutdown(self) -> None:
