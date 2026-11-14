@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
+HASS_EVENT_TOPIC_PREFIX = "hass.event."
+"""Prefix of every Home Assistant event topic; the event type follows it."""
+
 DataclassT = TypeVar("DataclassT", bound="DataclassInstance")
 
 reported_unknown_keys: set[tuple[str, str]] = set()
@@ -186,6 +189,15 @@ class RawStateChangeEvent(Event[HassPayload[RawStateChangePayload]]):
     """Event representing a state change in Home Assistant, with raw state data."""
 
 
+class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]]):
+    """Event representing a state change in Home Assistant, with typed state data.
+
+    Handlers receive it through the ``D.TypedStateChangeEvent[T]`` dependency annotation, which converts
+    the raw event's state dicts into ``T`` instances. Import this class to name or ``isinstance``-check
+    the event that annotation produces.
+    """
+
+
 class CallServiceEvent(Event[HassPayload[CallServicePayload]]):
     """Event representing a call service in Home Assistant."""
 
@@ -222,6 +234,32 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
+HassEvent: TypeAlias = Event[HassPayload[Any]]
+"""Alias for Home Assistant events."""
+
+
+HASS_EVENT_TYPES: "dict[str, tuple[Topic, type[HassEvent], type[DataclassInstance]]]" = {
+    "state_changed": (Topic.HASS_EVENT_STATE_CHANGED, RawStateChangeEvent, RawStateChangePayload),
+    "call_service": (Topic.HASS_EVENT_CALL_SERVICE, CallServiceEvent, CallServicePayload),
+    "component_loaded": (Topic.HASS_EVENT_COMPONENT_LOADED, ComponentLoadedEvent, ComponentLoadedPayload),
+    "service_registered": (Topic.HASS_EVENT_SERVICE_REGISTERED, ServiceRegisteredEvent, ServiceRegisteredPayload),
+    "service_removed": (Topic.HASS_EVENT_SERVICE_REMOVED, ServiceRemovedEvent, ServiceRemovedPayload),
+    "logbook_entry": (Topic.HASS_EVENT_LOGBOOK_ENTRY, LogbookEntryEvent, LogbookEntryPayload),
+    "user_added": (Topic.HASS_EVENT_USER_ADDED, UserAddedEvent, UserAddedPayload),
+    "user_removed": (Topic.HASS_EVENT_USER_REMOVED, UserRemovedEvent, UserRemovedPayload),
+    "automation_triggered": (
+        Topic.HASS_EVENT_AUTOMATION_TRIGGERED,
+        AutomationTriggeredEvent,
+        AutomationTriggeredPayload,
+    ),
+    "script_started": (Topic.HASS_EVENT_SCRIPT_STARTED, ScriptStartedEvent, ScriptStartedPayload),
+}
+"""Home Assistant event types with a typed event: event type -> (topic, event class, payload class).
+
+Any other event type becomes a generic `Event` on `HASS_EVENT_TOPIC_PREFIX + event_type` with its raw data.
+"""
+
+
 def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, Any]) -> DataclassT:
     """Construct dataclass `cls` from `data`, ignoring keys `cls` doesn't declare.
 
@@ -248,106 +286,22 @@ def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, An
 
 def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:
     """Create an Event from a dictionary."""
-    event = data.get("event", {})
-    event_type = event.get("event_type")
+    event = data["event"]
+    event_type = event["event_type"]
     if not event_type:
         raise ValueError("Event data must contain 'event_type' key")
 
-    event_data = event.get("data", {}) or {}
-    event_payload = {
+    event_data = event.get("data") or {}
+    common_fields = {
         "event_type": event_type,
         "origin": event["origin"],
         "context": construct_ignoring_unknown_keys(HassContext, event["context"]),
         "time_fired": convert_datetime_str_to_tz(event["time_fired"]),
     }
 
-    match event_type:
-        case "state_changed":
-            return RawStateChangeEvent(
-                topic=Topic.HASS_EVENT_STATE_CHANGED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(RawStateChangePayload, event_data)
-                ),
-            )
+    if event_type in HASS_EVENT_TYPES:
+        topic, event_cls, payload_cls = HASS_EVENT_TYPES[event_type]
+        data_obj = construct_ignoring_unknown_keys(payload_cls, event_data)
+        return event_cls(topic=topic, payload=HassPayload(**common_fields, data=data_obj))
 
-        case "call_service":
-            return CallServiceEvent(
-                topic=Topic.HASS_EVENT_CALL_SERVICE,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(CallServicePayload, event_data)
-                ),
-            )
-        case "component_loaded":
-            return ComponentLoadedEvent(
-                topic=Topic.HASS_EVENT_COMPONENT_LOADED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(ComponentLoadedPayload, event_data)
-                ),
-            )
-        case "service_registered":
-            return ServiceRegisteredEvent(
-                topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(ServiceRegisteredPayload, event_data)
-                ),
-            )
-        case "service_removed":
-            return ServiceRemovedEvent(
-                topic=Topic.HASS_EVENT_SERVICE_REMOVED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(ServiceRemovedPayload, event_data)
-                ),
-            )
-        case "logbook_entry":
-            return LogbookEntryEvent(
-                topic=Topic.HASS_EVENT_LOGBOOK_ENTRY,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(LogbookEntryPayload, event_data)
-                ),
-            )
-        case "user_added":
-            return UserAddedEvent(
-                topic=Topic.HASS_EVENT_USER_ADDED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(UserAddedPayload, event_data)
-                ),
-            )
-        case "user_removed":
-            return UserRemovedEvent(
-                topic=Topic.HASS_EVENT_USER_REMOVED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(UserRemovedPayload, event_data)
-                ),
-            )
-        case "automation_triggered":
-            return AutomationTriggeredEvent(
-                topic=Topic.HASS_EVENT_AUTOMATION_TRIGGERED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(AutomationTriggeredPayload, event_data)
-                ),
-            )
-        case "script_started":
-            return ScriptStartedEvent(
-                topic=Topic.HASS_EVENT_SCRIPT_STARTED,
-                payload=HassPayload(
-                    **event_payload, data=construct_ignoring_unknown_keys(ScriptStartedPayload, event_data)
-                ),
-            )
-        case _:
-            pass
-
-    # fallback to generic event
-    return Event(topic=f"hass.event.{event_type}", payload=HassPayload(**event_payload, data=event_data))
-
-
-class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]]):
-    """Event representing a state change in Home Assistant, with typed state data.
-
-    Handlers receive it through the ``D.TypedStateChangeEvent[T]`` dependency annotation, which converts
-    the raw event's state dicts into ``T`` instances. Import this class to name or ``isinstance``-check
-    the event that annotation produces.
-    """
-
-
-HassEvent: TypeAlias = Event[HassPayload[Any]]
-"""Alias for Home Assistant events."""
+    return Event(topic=f"{HASS_EVENT_TOPIC_PREFIX}{event_type}", payload=HassPayload(**common_fields, data=event_data))
