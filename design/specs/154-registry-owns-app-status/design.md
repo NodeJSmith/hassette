@@ -206,8 +206,8 @@ The paths that write status today, all of which go through `set_app_status` afte
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs (bus/methods.md on_app_state_changed statuses, operating/index.md flagged-stop wording, core REVIEW.md, .claude test rules)
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
@@ -218,6 +218,6 @@ The paths that write status today, all of which go through `set_app_status` afte
 - `set_status` raises `ValueError` for FAILED without `error` and NOT_STARTED without `app` (programmer misuse), and drops a live-status write onto an entry with no App, logged at DEBUG.
 - The factory tests' mock registry is spec'd and its `set_status` raises, pinning D1 (the factory writes nothing).
 - `get_running_apps` is renamed `get_live_apps` and `InstanceEntry.is_running` is renamed `holds_app`: with entries carrying NOT_STARTED, STARTING and STOPPING, "running" misread the filter, which is "holds its App".
-- `_record_created` checks that each NOT_STARTED registration landed and initializes only those, recording a refused one as refused: process exit can flag a name without the app-key lock between the refusal check and the write, and the per-instance path would otherwise initialize an unregistered App.
+- `_record_created` re-checks the needs-restart flag right before each NOT_STARTED write and records a flagged name as refused, registering and initializing only the rest: process exit flags names without the app-key lock, and an earlier name's event send is an `await` it can land in, after which the registry would drop the write and the App would run unregistered.
 - `fail_needs_restart` takes `flag_reason`, `shutdown_outcome` and `outcome_reason` as keywords: two near-identical reason strings passed positionally invited a swap.
 - D8's follow-up issue is #4113.

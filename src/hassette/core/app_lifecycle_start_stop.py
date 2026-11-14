@@ -190,9 +190,11 @@ class AppStartStopMixin:
     ) -> set[str]:
         """Write each factory result's status: NOT_STARTED registers a new ``App``, FAILED records its exception.
 
-        A registration the registry refuses leaves its ``App`` unregistered and uninitialized, and is recorded
-        as refused. That happens only when the name was flagged needs-restart after the caller checked, which
-        a process exit running without the app-key lock can do.
+        A name flagged needs-restart since the factory checked is refused, and its ``App`` is never registered
+        or initialized: the registry would drop the write, leaving the ``App`` to run unregistered. Process
+        exit flags names without the app-key lock, and each write here awaits its event send, so a later name
+        can be flagged while an earlier one's event goes out. The check sits right before the write, with no
+        ``await`` between it and ``registry.set_status``.
 
         Returns:
             The names whose new ``App`` was registered, the ones to initialize.
@@ -201,12 +203,11 @@ class AppStartStopMixin:
         for name, result in results.items():
             if isinstance(result, Exception):
                 await self.set_app_status(app_key, name, FAILED, error=result)
-                continue
-            await self.set_app_status(app_key, name, NOT_STARTED, app=result)
-            if self.registry.get(app_key, name) is result:
-                registered.add(name)
             elif (refusal := self.registry.refusal_reason(app_key, name)) is not None:
                 outcomes.refused(name, refusal)
+            else:
+                await self.set_app_status(app_key, name, NOT_STARTED, app=result)
+                registered.add(name)
         return registered
 
     async def stop_app(self, app_key: str) -> "tuple[InstanceOutcome, ...]":

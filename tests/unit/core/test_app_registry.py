@@ -190,7 +190,7 @@ class TestAppRegistry:
         assert entries["my_app_2"].status == ResourceStatus.FAILED
         assert entries["my_app_2"].error_message == "boom"
 
-    def test_get_running_apps_excludes_failed_entries(self, registry: AppRegistry) -> None:
+    def test_get_live_apps_excludes_failed_entries(self, registry: AppRegistry) -> None:
         """get_live_apps() returns only running entries when failed entries exist for the
         same app_key.
         """
@@ -291,7 +291,7 @@ class TestAppRegistry:
         assert app2 in all_apps
         assert app3 in all_apps
 
-    def test_get_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+    def test_get_live_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test getting all running instances for a key."""
         app1 = MagicMock(instance_name="my_app")
         app2 = MagicMock(instance_name="my_app_1")

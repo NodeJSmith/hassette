@@ -182,8 +182,8 @@ class TestCreateInstanceUnlockedRefusedRegistration:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
-        """Process exit can flag a name without the app-key lock, after the refusal check but before the
-        registration write. The registry refuses that write, so the new App must not be initialized: it would
+        """Process exit can flag a name without the app-key lock after the first refusal check. The registry
+        would refuse the registration write, so the new App must be neither registered nor initialized: it would
         run unregistered, with nothing able to stop it. The name is recorded as refused.
         """
         registry = real_registry_service.registry
