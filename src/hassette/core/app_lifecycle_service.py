@@ -87,7 +87,7 @@ class AppLifecycleService(
         self._change_event_lock = asyncio.Lock()
         # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's parked
         # start_app() (waiting in _admit_start()) and a post-release start/reload of the same app_key can both
-        # reach factory.create_instances(); register_app() then overwrites without tearing down the loser's
+        # reach factory.create_instances(); the second registration then overwrites without tearing down the loser's
         # instance, and the second reconcile can retire the first caller's live listener/job rows. Never held
         # across the admission wait, so REJECT_IF_UNRELEASED callers fail fast. The web API reads it via
         # is_action_in_progress() to reject concurrent actions. Never pruned; bounded by distinct app_keys.

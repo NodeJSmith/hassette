@@ -14,9 +14,11 @@ from humanize import precisedelta
 from hassette.core.app_lifecycle_common import (
     FAILED,
     INIT_FAILURE_TRACEBACK_LIMIT,
+    NOT_STARTED,
     RUNNING,
     STARTING,
     STOPPED,
+    STOPPED_BEFORE_INIT_REASON,
     STOPPING,
     ActionOutcomes,
     failure_reason,
@@ -25,6 +27,8 @@ from hassette.events.hassette import HassetteAppStateEvent
 from hassette.resources.lifecycle import create_lifecycle_task, mark_ready, skip_own_shutdown_hooks
 from hassette.resources.shutdown_deadline import deadline_in, tighten_shutdown_deadline
 from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
+from hassette.schemas.app_snapshots import NeedsRestartInfo
+from hassette.utils import date_utils
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -104,9 +108,24 @@ class AppInstanceLifecycleMixin:
     async def initialize_instance(self, inst: "App[AppConfig]", class_name: str, *, outcomes: ActionOutcomes) -> None:
         """Initialize one instance, recording its outcome; on failure or timeout, shut it down as a failed init.
 
-        The ``try`` covers only the initialization itself. The RUNNING event is sent after it, and a failure
-        to send it is a telemetry failure, not an app failure: it is logged and the app keeps running.
+        STARTING is written and sent before the startup timeout opens, so a slow event send never counts
+        against the app's startup budget. The ``try`` covers only the initialization itself. The RUNNING
+        write follows it, and a failure to send its event is a telemetry failure, not an app failure: it is
+        logged and the app keeps running.
+
+        Initialization is skipped for an instance process exit reached first (see the comment at the check).
         """
+        # Process exit takes no app-key lock, so during an earlier sibling's init it may have flagged this
+        # instance or begun stopping it. Both checks sit right before the STARTING write with no ``await``
+        # between, so neither can go stale, and a flagged name never reaches the registry's refused-write WARNING.
+        if (refusal := self.registry.refusal_reason(inst.app_key, inst.instance_name)) is not None:
+            outcomes.refused(inst.instance_name, refusal)
+            return
+        if self.registry.get_status(inst.app_key, inst.instance_name) is not NOT_STARTED:
+            self.logger.debug("Skipped initializing app '%s' (%s): it is being stopped", inst.instance_name, class_name)
+            outcomes.failed(inst.instance_name, STOPPED_BEFORE_INIT_REASON)
+            return
+        await self.set_app_status(inst.app_key, inst.instance_name, STARTING)
         try:
             with anyio.fail_after(self.startup_timeout):
                 await inst.initialize()
@@ -126,29 +145,38 @@ class AppInstanceLifecycleMixin:
 
         self.logger.info("App '%s' (%s) initialized successfully", inst.instance_name, class_name)
         outcomes.succeeded(inst.instance_name)
-        await self.send_outcome_event(inst, status=RUNNING, previous_status=STARTING)
+        await self.set_app_status(inst.app_key, inst.instance_name, RUNNING)
 
-    async def send_outcome_event(
+    async def set_app_status(
         self,
-        inst: "App[AppConfig]",
+        app_key: str,
+        instance_name: str,
+        to: ResourceStatus,
         *,
-        status: ResourceStatus,
-        previous_status: ResourceStatus,
-        exception: BaseException | None = None,
+        app: "App[AppConfig] | None" = None,
+        error: Exception | None = None,
+        needs_restart: NeedsRestartInfo | None = None,
     ) -> None:
-        """Send the status event for an outcome that is already recorded; a send failure is only logged.
+        """Write an app instance's status and send its event; the one path every lifecycle status write takes.
 
-        The event is telemetry: the registry already holds the outcome, so failing to send it must not
-        turn a started app into a failed one or record a stop's failure twice.
+        The parameters are ``AppRegistry.set_status``'s, which decides whether the write is a change and may
+        refuse it (an untracked or flagged name; see its docstring). No event is sent unless it changed
+        something; a caller that needs to know whether a write landed checks the registry.
+
+        A send failure is only logged: the event is telemetry, and the registry already holds the status, so
+        failing to send must not turn a started app into a failed one or record a stop's failure twice.
         """
+        change = self.registry.set_status(app_key, instance_name, to, app=app, error=error, needs_restart=needs_restart)
+        if change is None:
+            return
         try:
-            await self.emit_app_state_change(inst, status=status, previous_status=previous_status, exception=exception)
+            await self.hassette.send_event(HassetteAppStateEvent.from_change(change))
         except Exception:
             self.logger.exception(
-                "Failed to send the %s event for app '%s' (%s); its outcome is recorded",
-                status,
-                inst.instance_name,
-                inst.class_name,
+                "Failed to send the %s event for app '%s' (%s); its status is recorded",
+                to,
+                instance_name,
+                change.class_name,
             )
 
     async def remove_instance_registrations(self, inst: "App[AppConfig]") -> None:
@@ -194,13 +222,13 @@ class AppInstanceLifecycleMixin:
         away: the instance is force-terminated and its listeners and jobs are removed by owner.
 
         The instance stays registered until its teardown has finished, so readers see its own STOPPING
-        rather than a STOPPED placeholder. It is unregistered after that and before the outcome is
-        recorded, because recording a failure writes the entry an earlier unregister would discard.
+        rather than a STOPPED placeholder. The outcome's status write then replaces the live entry directly:
+        FAILED drops the ``App`` reference, and STOPPED removes the entry.
 
         Outcomes:
 
         - ``cause`` given (a failed init, or a failure after registration): FAILED with ``cause`` recorded,
-          ``previous_status`` STARTING, since no STOPPING event was sent.
+          over whatever status the entry holds (STARTING for a failed init), since no STOPPING was written.
         - A stop whose outcome says work may still be running (``ShutdownOutcome.is_restart_safe`` is
           ``False``: a walk-away, pending tasks, a raised shutdown): FAILED, a failure entry, and one ERROR
           naming what is left and saying to restart hassette. It is worded "timed out" for a walk-away, or
@@ -209,8 +237,8 @@ class AppInstanceLifecycleMixin:
         - A stop whose hook timed out but left nothing running: FAILED with a "timed out" reason; reloadable.
         - Any other stop: STOPPED.
 
-        In every FAILED outcome, an instance whose work may still run is flagged needs-restart in
-        ``AppRegistry`` before the event is sent. The first flag on a name stands until restart.
+        In every FAILED outcome, an instance whose work may still run is flagged needs-restart as part of the
+        FAILED write. The first flag on a name stands until restart.
 
         Each outcome is also recorded in ``outcomes``: ``succeeded`` for a clean stop, ``failed`` otherwise
         (with ``needs_restart`` when this stop flagged the instance), and ``refused`` when the instance was
@@ -241,50 +269,43 @@ class AppInstanceLifecycleMixin:
                 outcome = await self.walk_away_from_instance(inst, task) if force_terminated else task.result()
             except Exception as exc:
                 failure = cause or exc
-                await self.settle_raised_shutdown(
-                    inst,
-                    failure,
-                    is_init_failure=cause is not None,
-                    outcomes=outcomes,
-                )
+                await self.settle_raised_shutdown(inst, failure, outcomes=outcomes)
                 return None
 
-            self.registry.unregister_app(inst.app_key, inst.instance_name)
             friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
 
             if cause is not None:
-                self.settle_failed_init(
+                await self.settle_failed_init(
                     inst,
                     cause,
                     outcome,
                     friendly_time=friendly_time,
                     outcomes=outcomes,
                 )
-                await self.send_outcome_event(inst, status=FAILED, previous_status=STARTING, exception=cause)
                 return outcome
 
             timed_out = force_terminated or outcome.result is ShutdownResult.TIMED_OUT
             if outcome.is_restart_safe and not timed_out:
                 self.logger.info("Stopped app '%s' '%s' in %s", inst.instance_name, inst.class_name, friendly_time)
                 outcomes.succeeded(inst.instance_name)
-                await self.send_outcome_event(inst, status=STOPPED, previous_status=STOPPING)
+                await self.set_app_status(inst.app_key, inst.instance_name, STOPPED)
                 return outcome
 
-            exc = self.settle_failed_stop(
+            await self.settle_failed_stop(
                 inst,
                 outcome,
                 timed_out=timed_out,
                 friendly_time=friendly_time,
                 outcomes=outcomes,
             )
-            await self.send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)
             return outcome
         finally:
             structlog.contextvars.unbind_contextvars("app_key", "instance_name")
-            # An unregistered instance is out of reach of ``off``, yet its loggers are process-global and keyed by
-            # name, so return them to config here, even when its teardown left work running. The registry's capture
-            # pair stays, so the next instance under this name starts captured. A stop cancelled before unregister
-            # leaves the instance registered, and ``off`` still reaches it.
+            # An instance no longer registered (its entry FAILED or removed) is out of reach of ``off``, yet its
+            # loggers are process-global and keyed by name, so return them to config here, even when its teardown
+            # left work running. The registry's capture pair stays, so the next instance under this name starts
+            # captured. A stop cancelled before its status write leaves the instance registered, and ``off`` still
+            # reaches it.
             if inst.debug_capture and self.registry.get(inst.app_key, inst.instance_name) is not inst:
                 inst.set_debug_capture(False)
 
@@ -293,7 +314,6 @@ class AppInstanceLifecycleMixin:
         inst: "App[AppConfig]",
         failure: Exception,
         *,
-        is_init_failure: bool,
         outcomes: ActionOutcomes,
     ) -> None:
         """Settle a teardown that raised: FAILED with ``failure``, flagged unless its stored outcome is safe.
@@ -303,20 +323,22 @@ class AppInstanceLifecycleMixin:
         """
         name = inst.instance_name
         self.logger.error("Failed to stop app '%s':\n%s", name, get_short_traceback())
-        self.registry.unregister_app(inst.app_key, name)
-        self.registry.record_failure(inst.app_key, name, failure)
         stored = inst.shutdown_outcome
         if stored is None or not stored.is_restart_safe:
             left = describe_left_running(stored or ShutdownOutcome())
-            reason = f"shutdown raised; {left}"
-            newly_flagged = self.flag_instance_needs_restart(inst, reason, stored)
-            self.record_flagged_outcome(outcomes, inst, failure_reason(failure), newly_flagged)
+            await self.fail_needs_restart(
+                inst,
+                failure,
+                flag_reason=f"shutdown raised; {left}",
+                shutdown_outcome=stored,
+                outcome_reason=failure_reason(failure),
+                outcomes=outcomes,
+            )
         else:
+            await self.set_app_status(inst.app_key, name, FAILED, error=failure)
             outcomes.failed(name, failure_reason(failure))
-        previous = STARTING if is_init_failure else STOPPING
-        await self.send_outcome_event(inst, status=FAILED, previous_status=previous, exception=failure)
 
-    def settle_failed_init(
+    async def settle_failed_init(
         self,
         inst: "App[AppConfig]",
         cause: Exception,
@@ -327,11 +349,11 @@ class AppInstanceLifecycleMixin:
     ) -> None:
         """Settle a failed init's outcome: the failure entry, and a needs-restart flag if work may still run.
 
-        Runs synchronously right after the unregister. The init failure itself was already logged at
+        The FAILED write replaces the instance's STARTING entry. The init failure itself was already logged at
         ERROR by its caller; a needs-restart flag gets its own ERROR.
         """
-        self.registry.record_failure(inst.app_key, inst.instance_name, cause)
         if outcome.is_restart_safe:
+            await self.set_app_status(inst.app_key, inst.instance_name, FAILED, error=cause)
             self.logger.info(
                 "Shut down app '%s' (%s) after its failed start in %s",
                 inst.instance_name,
@@ -341,11 +363,16 @@ class AppInstanceLifecycleMixin:
             outcomes.failed(inst.instance_name, failure_reason(cause))
             return
         left = describe_left_running(outcome)
-        reason = f"failed to start, and {left}"
-        newly_flagged = self.flag_instance_needs_restart(inst, reason, outcome)
-        self.record_flagged_outcome(outcomes, inst, failure_reason(cause), newly_flagged)
+        await self.fail_needs_restart(
+            inst,
+            cause,
+            flag_reason=f"failed to start, and {left}",
+            shutdown_outcome=outcome,
+            outcome_reason=failure_reason(cause),
+            outcomes=outcomes,
+        )
 
-    def settle_failed_stop(
+    async def settle_failed_stop(
         self,
         inst: "App[AppConfig]",
         outcome: ShutdownOutcome,
@@ -353,14 +380,11 @@ class AppInstanceLifecycleMixin:
         timed_out: bool,
         friendly_time: str,
         outcomes: ActionOutcomes,
-    ) -> Exception:
-        """Settle a stop that timed out or left work running: one ERROR, a failure entry, and maybe a flag.
+    ) -> None:
+        """Settle a stop that timed out or left work running: one ERROR, a FAILED write, and maybe a flag.
 
         Called only for a stop that timed out, left work running, or both; a clean stop that didn't time
         out is STOPPED and never reaches here.
-
-        Returns:
-            The exception recorded as the instance's failure.
         """
         name = inst.instance_name
         if outcome.is_restart_safe:
@@ -369,9 +393,9 @@ class AppInstanceLifecycleMixin:
             self.logger.error(
                 "Stop of app '%s' (%s) timed out after %s; nothing still pending", name, inst.class_name, friendly_time
             )
-            self.registry.record_failure(inst.app_key, name, exc)
+            await self.set_app_status(inst.app_key, name, FAILED, error=exc)
             outcomes.failed(name, str(exc))
-            return exc
+            return
 
         left = describe_left_running(outcome)
         if timed_out:
@@ -380,25 +404,39 @@ class AppInstanceLifecycleMixin:
         else:
             reason = f"stopped, but {left}"
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
-        self.registry.record_failure(inst.app_key, name, exc)
-        newly_flagged = self.flag_instance_needs_restart(inst, reason, outcome)
-        self.record_flagged_outcome(outcomes, inst, str(exc), newly_flagged)
-        return exc
-
-    def flag_instance_needs_restart(self, inst: "App[AppConfig]", reason: str, outcome: ShutdownOutcome | None) -> bool:
-        """Log the needs-restart ERROR and write the instance's record; the first record on a name stands.
-
-        Returns:
-            ``True`` when this call flagged the name, ``False`` when it was already flagged.
-        """
-        self.logger.error("App '%s' (%s) %s; restart hassette to recover", inst.instance_name, inst.class_name, reason)
-        return self.registry.flag_needs_restart(
-            inst.app_key,
-            inst.instance_name,
-            class_name=inst.class_name,
-            reason=reason,
-            pending_tasks=outcome.still_running if outcome is not None else (),
+        await self.fail_needs_restart(
+            inst, exc, flag_reason=reason, shutdown_outcome=outcome, outcome_reason=str(exc), outcomes=outcomes
         )
+
+    async def fail_needs_restart(
+        self,
+        inst: "App[AppConfig]",
+        error: Exception,
+        *,
+        flag_reason: str,
+        shutdown_outcome: ShutdownOutcome | None,
+        outcome_reason: str,
+        outcomes: ActionOutcomes,
+    ) -> None:
+        """Log the needs-restart ERROR, write FAILED with the flag, and record the outcome.
+
+        ``flag_reason`` is the flag's text, shown in the ERROR log and in every later refusal of this name.
+        ``outcome_reason`` is what ``outcomes`` records for this action, usually the error itself.
+
+        Whether this write flags the name is read before it: the first flag on a name stands, so a name
+        already flagged (process exit's teardown takes no app-key lock) reports the earlier flag as a refusal.
+        """
+        newly_flagged = self.registry.get_needs_restart(inst.app_key, inst.instance_name) is None
+        self.logger.error(
+            "App '%s' (%s) %s; restart hassette to recover", inst.instance_name, inst.class_name, flag_reason
+        )
+        flag = NeedsRestartInfo(
+            reason=flag_reason,
+            pending_tasks=tuple(shutdown_outcome.still_running) if shutdown_outcome is not None else (),
+            flagged_at=date_utils.now(),
+        )
+        await self.set_app_status(inst.app_key, inst.instance_name, FAILED, error=error, needs_restart=flag)
+        self.record_flagged_outcome(outcomes, inst, outcome_reason, newly_flagged)
 
     def record_flagged_outcome(
         self, outcomes: ActionOutcomes, inst: "App[AppConfig]", failure: str, newly_flagged: bool
@@ -456,8 +494,7 @@ class AppInstanceLifecycleMixin:
         self.logger.debug("Stopping %d app instances", len(instances))
 
         async def stop_one(inst: "App[AppConfig]") -> ShutdownOutcome | None:
-            event = HassetteAppStateEvent.from_app(app=inst, status=STOPPING, previous_status=inst.status)
-            await self.hassette.send_event(event)
+            await self.set_app_status(inst.app_key, inst.instance_name, STOPPING)
             return await self.shutdown_instance(inst, deadline=deadline, outcomes=outcomes)
 
         results = await gather_all((stop_one(inst) for inst in instances), name="app:stop_instance")
@@ -470,13 +507,24 @@ class AppInstanceLifecycleMixin:
         ``deadline``, so no app's hooks are cut short by other apps' hooks. ``AppSync`` hooks share the
         sync executor's threads, so past its worker count the wait for a thread counts against their bound.
 
-        A runtime stop already in flight is still registered (``shutdown_instance`` unregisters after the
+        A runtime stop already in flight is still registered (``shutdown_instance`` writes STOPPED after the
         teardown), so it is reached here too: this joins its single shielded shutdown attempt under the
         tighter deadline, and both owners handle the outcome.
+
+        Known limitation: this takes no app-key lock, so a hung start can't hold up exit, and it races any
+        start, reload or stop still in flight. ``AppRegistry.set_status`` settles the interleaved writes with
+        its usual rules, so statuses stored and sent between here and ``clear_all`` can be wrong:
+
+        - a late RUNNING can follow STOPPING;
+        - a stale STOPPED can remove a same-name replacement's entry;
+        - a teardown that settles after ``clear_all`` can leave a FAILED entry behind.
+
+        Nothing acts on that state, since ``clear_all`` discards it. The one race with consequences, starting an
+        instance this already reached, is prevented in ``initialize_instance``.
         """
         self.logger.debug("Shutting down all apps")
         instances = [
-            inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()
+            inst for app_key in self.registry.app_keys() for inst in self.registry.get_live_apps(app_key).values()
         ]
         # Process exit has no response to carry outcomes; each stop gets its own, which nothing reads.
         results = await gather_all(
@@ -490,21 +538,9 @@ class AppInstanceLifecycleMixin:
             ),
             name="app:shutdown_all",
         )
+        # A raw reset that sends no events; ``AppRegistry.clear_all`` says why.
         self.registry.clear_all()
         return merge_outcomes(*results)
-
-    async def emit_app_state_change(
-        self,
-        app: "App[AppConfig]",
-        status: ResourceStatus,
-        previous_status: ResourceStatus | None = None,
-        exception: Exception | BaseException | None = None,
-    ) -> None:
-        """Emit an app state change event via Hassette's event system."""
-        event = HassetteAppStateEvent.from_app(
-            app=app, status=status, previous_status=previous_status, exception=exception
-        )
-        await self.hassette.send_event(event)
 
 
 def describe_left_running(outcome: ShutdownOutcome) -> str:

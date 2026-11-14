@@ -217,7 +217,7 @@ class TestPerInstanceSelectiveRestart:
             "live_instances",
             lambda: (
                 [(app_key, config["instance_name"]) for config in new_config]
-                + [(app_key, name) for name in lifecycle.registry.get_running_apps(app_key)]
+                + [(app_key, name) for name in lifecycle.registry.get_live_apps(app_key)]
             ),
         )
 

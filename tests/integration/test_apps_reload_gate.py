@@ -18,6 +18,7 @@ from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.testing import HassetteHarness, wait_for
 from hassette.types.enums import BlockReason
 from tests.support.app_manifests import make_test_app_manifest
+from tests.support.app_registry_helpers import seed_failed
 from tests.support.factories import make_change_set
 
 MULTI_INSTANCE_APP_KEY = "multi_instance"
@@ -35,9 +36,7 @@ def multi_instance_manifest(app_config: list[dict] | None = None) -> AppManifest
 
 def flag(lifecycle: AppLifecycleService, name: str) -> None:
     """Flag instance ``name`` of the multi-instance app as needing a restart, as a teardown that left work running."""
-    lifecycle.registry.flag_needs_restart(
-        MULTI_INSTANCE_APP_KEY, name, class_name="MultiInstanceApp", reason="work still running"
-    )
+    seed_failed(lifecycle.registry, MULTI_INSTANCE_APP_KEY, name, needs_restart="work still running")
 
 
 def summarize(outcomes: typing.Iterable[InstanceOutcome]) -> list[tuple[str, OutcomeResult, bool, str | None]]:
@@ -121,7 +120,7 @@ class TestReloadLockAndNeedsRestartGate:
         manifest.autostart = False
         lifecycle.set_apps_configs({app_key: manifest})
         await lifecycle.start_app(app_key)
-        assert len(lifecycle.registry.get_running_apps(app_key)) == 2, "Precondition: both instances running"
+        assert len(lifecycle.registry.get_live_apps(app_key)) == 2, "Precondition: both instances running"
 
         original_config = deepcopy(lifecycle.registry.manifests)
         lifecycle.registry.manifests[app_key].app_config = [
@@ -142,7 +141,7 @@ class TestReloadLockAndNeedsRestartGate:
             )
         await asyncio.wait_for(task, timeout=2)
 
-        assert lifecycle.registry.get_running_apps(app_key) == {}
+        assert lifecycle.registry.get_live_apps(app_key) == {}
 
     async def test_batch_reload_does_not_create_over_an_instance_its_own_stop_flagged(
         self, lifecycle: AppLifecycleService
@@ -167,9 +166,7 @@ class TestReloadLockAndNeedsRestartGate:
         async def stop_that_leaves_work_running(app_key: str, instance_name: str, *, outcomes: ActionOutcomes) -> None:
             await orig_stop(app_key, instance_name, outcomes=outcomes)
             if instance_name == "beta":
-                lifecycle.registry.flag_needs_restart(
-                    app_key, "beta", class_name="MultiInstanceApp", reason="work still running"
-                )
+                seed_failed(lifecycle.registry, app_key, "beta", needs_restart="work still running")
 
         lifecycle._stop_instance_unlocked = stop_that_leaves_work_running
 
@@ -255,9 +252,7 @@ class TestReloadLockAndNeedsRestartGate:
         lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         await lifecycle.start_app(app_key)
         await lifecycle.stop_instance(app_key, "alpha")
-        lifecycle.registry.flag_needs_restart(
-            app_key, "alpha", class_name="MultiInstanceApp", reason="work still running"
-        )
+        seed_failed(lifecycle.registry, app_key, "alpha", needs_restart="work still running")
         beta_before = lifecycle.registry.get(app_key, "beta")
 
         outcomes = await lifecycle.reload_app(app_key)
@@ -282,13 +277,11 @@ class TestReloadLockAndNeedsRestartGate:
         app_key = MULTI_INSTANCE_APP_KEY
         lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         for name in ("alpha", "beta"):
-            lifecycle.registry.flag_needs_restart(
-                app_key, name, class_name="MultiInstanceApp", reason="work still running"
-            )
+            seed_failed(lifecycle.registry, app_key, name, needs_restart="work still running")
 
         outcomes = await lifecycle.start_app(app_key)
 
-        assert lifecycle.registry.get_running_apps(app_key) == {}
+        assert lifecycle.registry.get_live_apps(app_key) == {}
         infos = lifecycle.registry.resolve_instance_infos(app_key)
         assert sorted(infos) == ["alpha", "beta"]
         assert all(info.needs_restart is not None for info in infos.values())
@@ -307,7 +300,7 @@ class TestActionOutcomes:
         """The multi-instance app with both instances, ``alpha`` and ``beta``, running."""
         lifecycle.set_apps_configs({MULTI_INSTANCE_APP_KEY: multi_instance_manifest()})
         await lifecycle.start_app(MULTI_INSTANCE_APP_KEY)
-        assert len(lifecycle.registry.get_running_apps(MULTI_INSTANCE_APP_KEY)) == 2, "Precondition: both running"
+        assert len(lifecycle.registry.get_live_apps(MULTI_INSTANCE_APP_KEY)) == 2, "Precondition: both running"
         return lifecycle
 
     async def test_start_reports_already_running_instances(self, running: AppLifecycleService) -> None:
@@ -337,7 +330,7 @@ class TestActionOutcomes:
             ("alpha", OutcomeResult.SUCCEEDED),
             ("beta", OutcomeResult.SUCCEEDED),
         ]
-        assert running.registry.get_running_apps(MULTI_INSTANCE_APP_KEY) == {}
+        assert running.registry.get_live_apps(MULTI_INSTANCE_APP_KEY) == {}
 
     @pytest.mark.parametrize("per_instance", [False, True], ids=["stop_app", "stop_instance"])
     async def test_stop_refuses_an_instance_already_flagged(
@@ -456,7 +449,7 @@ class TestActionOutcomes:
             ("alpha", OutcomeResult.SUCCEEDED),
             ("beta", OutcomeResult.SUCCEEDED),
         ]
-        assert running.registry.get_running_apps(MULTI_INSTANCE_APP_KEY) == {}
+        assert running.registry.get_live_apps(MULTI_INSTANCE_APP_KEY) == {}
 
     async def test_start_of_an_app_with_no_manifest_raises_app_removed(self, lifecycle: AppLifecycleService) -> None:
         with pytest.raises(AppRemovedError):

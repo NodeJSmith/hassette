@@ -208,7 +208,7 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
 
 def wire_owner_resolution(hassette) -> None:
     """Wire app instance owner resolution onto the mock app handler."""
-    hassette._app_handler.registry.get_running_apps.return_value = {
+    hassette._app_handler.registry.get_live_apps.return_value = {
         MY_APP_INSTANCE_NAME: SimpleNamespace(unique_name="MyApp.0"),
     }
     hassette._app_handler.registry.get.side_effect = lambda app_key, instance_name=None: (

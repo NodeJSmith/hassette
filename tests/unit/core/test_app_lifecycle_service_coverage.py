@@ -1,8 +1,9 @@
 """Unit tests filling coverage gaps in AppLifecycleService.
 
 Complements test_app_lifecycle_service.py (init/properties/bootstrap-admission/apply-changes
-gating), test_app_lifecycle_service_instances.py (initialize/cleanup/shutdown instance
-operations), and the operation-family files: test_app_lifecycle_service_start_stop.py
+gating), test_app_lifecycle_service_initialize.py and test_app_lifecycle_service_instances.py
+(initialize/cleanup/shutdown instance operations), and the operation-family files:
+test_app_lifecycle_service_start_stop.py
 (whole-app start/stop), test_app_lifecycle_service_per_instance_ops.py (per-instance ops and
 locking), test_app_lifecycle_service_reload.py (change application and reload), and
 test_app_lifecycle_service_reconcile.py (resolve_only_apps/refresh_config/reconcile). This
@@ -139,15 +140,15 @@ class TestStartAppSpecificFactoryErrors:
 
         await lifecycle_service.start_app("test_app")
 
-        mock_registry.get_running_apps.assert_not_called()
+        mock_registry.get_live_apps.assert_not_called()
 
 
 class TestStopAppFailure:
-    async def test_unregister_failure_does_not_raise(
+    async def test_registry_lookup_failure_does_not_raise(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
-        """An exception from registry.unregister_app is caught and logged, not propagated."""
-        mock_registry.unregister_app = Mock(side_effect=RuntimeError("registry corrupted"))
+        """An exception from the registry lookup is caught and logged, not propagated."""
+        mock_registry.get_live_apps = Mock(side_effect=RuntimeError("registry corrupted"))
         lifecycle_service.shutdown_instances = AsyncMock()
 
         await lifecycle_service.stop_app("test_app")

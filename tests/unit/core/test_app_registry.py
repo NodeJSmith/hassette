@@ -14,8 +14,7 @@ from hassette_wire import ResourceStatus
 
 from hassette.core.app_registry import AppRegistry, InstanceEntry
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-
-from .conftest import make_manifest_obj
+from tests.support.app_registry_helpers import seed_failed, seed_running
 
 if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
@@ -59,15 +58,15 @@ class TestAppStatusSnapshot:
 
 
 class TestInstanceEntry:
-    def test_is_running_false_without_app(self) -> None:
+    def test_holds_app_false_without_app(self) -> None:
         """A failed entry (no App object) is not running."""
         entry = InstanceEntry(app=None, status=ResourceStatus.FAILED, error=RuntimeError("boom"))
-        assert entry.is_running is False
+        assert entry.holds_app is False
 
-    def test_is_running_true_with_app(self) -> None:
+    def test_holds_app_true_with_app(self) -> None:
         """An entry holding an App object is running."""
         entry = InstanceEntry(app=MagicMock(), status=ResourceStatus.RUNNING)
-        assert entry.is_running is True
+        assert entry.holds_app is True
 
 
 class TestAppRegistry:
@@ -93,78 +92,62 @@ class TestAppRegistry:
         manifest.app_config = {"instance_name": "test_instance"}
         return manifest
 
-    def test_register_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """Test registering an app."""
-        registry.register_app("my_app", mock_app)
+    def test_running_entry_is_readable(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+        """A running entry is visible through `in` and `get`."""
+        seed_running(registry, "my_app", mock_app)
 
         assert "my_app" in registry
         assert registry.get("my_app", "my_app") is mock_app
 
     def test_register_multiple_instances(self, registry: AppRegistry) -> None:
-        """Test registering multiple instances of the same app."""
+        """Several running instances of one app key are tracked under their own names."""
         app1 = MagicMock(instance_name="my_app")
         app2 = MagicMock(instance_name="my_app_1")
 
-        registry.register_app("my_app", app1)
-        registry.register_app("my_app", app2)
+        seed_running(registry, "my_app", app1)
+        seed_running(registry, "my_app", app2)
 
-        assert len(registry.get_running_apps("my_app")) == 2
+        assert len(registry.get_live_apps("my_app")) == 2
         assert registry.get("my_app", "my_app") is app1
         assert registry.get("my_app", "my_app_1") is app2
 
-    def test_unregister_app_all_instances(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """Test unregistering all instances of an app."""
-        registry.register_app("my_app", mock_app)
-        registry.register_app("my_app", MagicMock(instance_name="my_app_1"))
-
-        removed = registry.unregister_app("my_app")
-
-        assert removed is not None
-        assert len(removed) == 2
-        assert "my_app" not in registry
-
-    def test_unregister_app_single_instance(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """Test unregistering a single instance."""
+    def test_stopped_write_removes_only_that_instance(self, registry: AppRegistry) -> None:
+        """A STOPPED write removes its own entry and leaves siblings registered."""
         app1 = MagicMock(instance_name="my_app")
         app2 = MagicMock(instance_name="my_app_1")
-        registry.register_app("my_app", app1)
-        registry.register_app("my_app", app2)
+        seed_running(registry, "my_app", app1)
+        seed_running(registry, "my_app", app2)
 
-        removed = registry.unregister_app("my_app", "my_app")
+        registry.set_status("my_app", "my_app", ResourceStatus.STOPPED)
 
-        assert removed == {"my_app": app1}
         assert registry.get("my_app", "my_app") is None
         assert registry.get("my_app", "my_app_1") is app2
 
-    def test_unregister_nonexistent_app(self, registry: AppRegistry) -> None:
-        """Test unregistering an app that doesn't exist."""
-        removed = registry.unregister_app("nonexistent")
-        assert removed is None
+    def test_stopping_every_instance_removes_the_app_key(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+        """Removing the last entry removes the app key's map too, so iteration never sees an empty one."""
+        seed_running(registry, "my_app", mock_app)
 
-    def test_unregister_nonexistent_name(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """Test unregistering a nonexistent name."""
-        registry.register_app("my_app", mock_app)
+        registry.set_status("my_app", "my_app", ResourceStatus.STOPPED)
 
-        removed = registry.unregister_app("my_app", "nonexistent")
+        assert "my_app" not in registry
+        assert "my_app" not in registry._instances
 
-        assert removed is None
-
-    def test_record_failure(self, registry: AppRegistry) -> None:
-        """Test recording a failure."""
+    def test_failed_entry_appears_in_snapshot(self, registry: AppRegistry) -> None:
+        """A failed entry appears in the snapshot with its error."""
         error = Exception("test error")
-        registry.record_failure("my_app", "my_app", error)
+        seed_failed(registry, "my_app", "my_app", error)
 
         snapshot = registry.get_snapshot()
 
         assert any(i.app_key == "my_app" and i.error is not None for i in snapshot.instances)
 
-    def test_record_multiple_failures(self, registry: AppRegistry) -> None:
-        """Test recording multiple failures for the same app."""
+    def test_multiple_failed_entries_for_one_app(self, registry: AppRegistry) -> None:
+        """Failures under different names of one app key are kept separately."""
         error1 = Exception("error 1")
         error2 = Exception("error 2")
 
-        registry.record_failure("my_app", "my_app", error1)
-        registry.record_failure("my_app", "my_app_1", error2)
+        seed_failed(registry, "my_app", "my_app", error1)
+        seed_failed(registry, "my_app", "my_app_1", error2)
 
         snapshot = registry.get_snapshot()
         assert any(i.app_key == "my_app" and i.error is not None for i in snapshot.instances)
@@ -172,50 +155,50 @@ class TestAppRegistry:
         assert len(failed) == 2
         assert {f.instance_name for f in failed} == {"my_app", "my_app_1"}
 
-    def test_record_failure_replaces_running_entry_under_same_name(
+    def test_failed_write_replaces_running_entry_under_same_name(
         self, registry: AppRegistry, mock_app: MagicMock
     ) -> None:
-        """record_failure under a name with a running entry replaces it."""
-        registry.register_app("my_app", mock_app)
+        """A FAILED write under a name with a running entry replaces it."""
+        seed_running(registry, "my_app", mock_app)
 
-        registry.record_failure("my_app", "my_app", ValueError("crashed"))
+        seed_failed(registry, "my_app", "my_app", ValueError("crashed"))
 
         assert registry.get("my_app", "my_app") is None
         assert "my_app" not in registry
 
-    def test_record_failure_dedups_same_name(self, registry: AppRegistry) -> None:
+    def test_second_failure_under_same_name_replaces_first(self, registry: AppRegistry) -> None:
         """Two failures recorded under the same name leave exactly one entry with the last error."""
         err1 = ValueError("first")
         err2 = ValueError("second")
 
-        registry.record_failure("my_app", "my_app", err1)
-        registry.record_failure("my_app", "my_app", err2)
+        seed_failed(registry, "my_app", "my_app", err1)
+        seed_failed(registry, "my_app", "my_app", err2)
 
         entries = registry.get_instances("my_app")
 
         assert len(entries) == 1
         assert entries["my_app"].error is err2
 
-    def test_register_app_preserves_failure_under_other_name(self, registry: AppRegistry) -> None:
-        """register_app under one name does not clear a failure recorded under a different name."""
-        registry.record_failure("my_app", "my_app_2", ValueError("boom"))
+    def test_running_write_preserves_failure_under_other_name(self, registry: AppRegistry) -> None:
+        """A running write under one name does not clear a failure recorded under a different name."""
+        seed_failed(registry, "my_app", "my_app_2", ValueError("boom"))
 
-        registry.register_app("my_app", MagicMock(instance_name="my_app"))
+        seed_running(registry, "my_app", MagicMock(instance_name="my_app"))
 
         entries = registry.get_instances("my_app")
         assert "my_app_2" in entries
         assert entries["my_app_2"].status == ResourceStatus.FAILED
         assert entries["my_app_2"].error_message == "boom"
 
-    def test_get_running_apps_excludes_failed_entries(self, registry: AppRegistry) -> None:
-        """get_running_apps() returns only running entries when failed entries exist for the
+    def test_get_live_apps_excludes_failed_entries(self, registry: AppRegistry) -> None:
+        """get_live_apps() returns only running entries when failed entries exist for the
         same app_key.
         """
         app0 = MagicMock(instance_name="my_app")
-        registry.register_app("my_app", app0)
-        registry.record_failure("my_app", "my_app_1", ValueError("boom"))
+        seed_running(registry, "my_app", app0)
+        seed_failed(registry, "my_app", "my_app_1", ValueError("boom"))
 
-        result = registry.get_running_apps("my_app")
+        result = registry.get_live_apps("my_app")
 
         assert result == {"my_app": app0}
 
@@ -223,8 +206,8 @@ class TestAppRegistry:
         """get_instances() returns all entries, running and failed."""
         app0 = MagicMock(instance_name="my_app")
         error = ValueError("boom")
-        registry.register_app("my_app", app0)
-        registry.record_failure("my_app", "my_app_1", error)
+        seed_running(registry, "my_app", app0)
+        seed_failed(registry, "my_app", "my_app_1", error)
 
         entries = registry.get_instances("my_app")
 
@@ -235,96 +218,32 @@ class TestAppRegistry:
         assert entries["my_app_1"].status == ResourceStatus.FAILED
         assert entries["my_app_1"].error is error
 
-    def test_get_failed_instance_infos_excludes_running_entries(self, registry: AppRegistry) -> None:
-        """get_failed_instance_infos() returns only failed entries, resolved to AppInstanceInfo."""
-        app0 = MagicMock(instance_name="my_app")
-        error = ValueError("bad config")
-        registry.register_app("my_app", app0)
-        registry.record_failure("my_app", "my_app_1", error)
-
-        infos = registry.get_failed_instance_infos("my_app")
-
-        assert set(infos) == {"my_app_1"}
-        assert infos["my_app_1"].app_key == "my_app"
-        assert infos["my_app_1"].status == ResourceStatus.FAILED
-        assert infos["my_app_1"].error is error
-        assert infos["my_app_1"].error_message == "bad config"
-
-    def test_get_failed_instance_infos_resolves_instance_name_from_manifest(self, registry: AppRegistry) -> None:
-        """Resolved instance_name/class_name match snapshot generation for the same entry —
-        this is what backs the app_status_changed event emitted for pre-instantiation failures
-        (invalid instance_name, config validation, class load error) that create_instances()
-        records with no App object to build an event from.
-        """
-        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "configured_name"}])
-        registry.set_manifests({"my_app": manifest})
-        registry.record_failure("my_app", "configured_name", ValueError("boom"))
-
-        infos = registry.get_failed_instance_infos("my_app")
-
-        assert infos["configured_name"].instance_name == "configured_name"
-        assert infos["configured_name"].class_name == manifest.class_name
-
-    def test_get_failed_instance_infos_empty_for_all_running(self, registry: AppRegistry, mock_app: MagicMock) -> None:
-        """No failed entries — returns an empty dict, not one padded with running entries."""
-        registry.register_app("my_app", mock_app)
-
-        assert registry.get_failed_instance_infos("my_app") == {}
-
-    def test_prune_stale_failed_removes_names_the_config_lacks(self, registry: AppRegistry) -> None:
+    def test_stale_failed_names_lists_failures_the_config_lacks(self, registry: AppRegistry) -> None:
         """A config shrink (3 instances -> 1) leaves failed entries under the now-removed names
-        stranded in the registry forever unless something prunes them — create_instances() only
-        ever touches names within the *current* config, so a stale failed entry would
-        otherwise misreport the app as degraded/failed even after the remaining instance starts cleanly. The
-        return value is what the caller needs to emit a status-change event for each removal —
-        see AppLifecycleService._start_app_unlocked.
+        stranded in the registry unless something prunes them — create_instances() only
+        ever touches names within the *current* config. The read changes nothing; the caller
+        writes STOPPED for each name, so each removal sends its own event.
         """
-        registry.record_failure("my_app", "a", ValueError("still fails"))
-        registry.record_failure("my_app", "b", ValueError("stale - instance removed"))
-        registry.record_failure("my_app", "c", ValueError("stale - instance removed"))
+        seed_failed(registry, "my_app", "a", ValueError("still fails"))
+        seed_failed(registry, "my_app", "b", ValueError("stale - instance removed"))
+        seed_failed(registry, "my_app", "c", ValueError("stale - instance removed"))
 
-        pruned = registry.prune_stale_failed("my_app", ["a"])
+        stale = registry.stale_failed_names("my_app", ["a"])
 
-        entries = registry.get_instances("my_app")
-        assert set(entries) == {"a"}
-        assert set(pruned) == {"b", "c"}
-        assert pruned["b"].app_key == "my_app"
-        assert pruned["b"].status == ResourceStatus.FAILED
+        assert sorted(stale) == ["b", "c"]
+        assert set(registry.get_instances("my_app")) == {"a", "b", "c"}
 
-    def test_prune_stale_failed_preserves_running_entries(self, registry: AppRegistry) -> None:
-        """Only failed entries are pruned — an orphaned running instance needs an actual
-        shutdown, not just a registry removal, which is a different concern.
-        """
-        app0 = MagicMock(instance_name="a")
-        registry.register_app("my_app", app0)
-        registry.record_failure("my_app", "b", ValueError("stale"))
+    def test_stale_failed_names_leaves_out_running_and_flagged_entries(self, registry: AppRegistry) -> None:
+        """An orphaned running instance needs a real shutdown, and only clear_all removes a flagged entry."""
+        seed_running(registry, "my_app", MagicMock(instance_name="a"))
+        seed_failed(registry, "my_app", "b", ValueError("stale"))
+        seed_failed(registry, "my_app", "c", ValueError("stale"), needs_restart="work still running")
 
-        pruned = registry.prune_stale_failed("my_app", [])
+        assert registry.stale_failed_names("my_app", []) == ["b"]
 
-        entries = registry.get_instances("my_app")
-        assert set(entries) == {"a"}
-        assert entries["a"].app is app0
-        assert set(pruned) == {"b"}
-
-    def test_prune_stale_failed_removes_app_key_when_nothing_remains(self, registry: AppRegistry) -> None:
-        """Pruning the last entry for an app_key removes the app_key mapping itself from the
-        internal dict, not just leaving an empty inner dict behind — matching unregister_app's
-        own cleanup convention. Checked against the internal dict directly: every public accessor
-        (get_instances, __contains__, etc.) already treats "missing key" and "present but empty"
-        identically, so only inspecting the private attribute actually exercises this behavior.
-        """
-        registry.record_failure("my_app", "a", ValueError("stale"))
-
-        pruned = registry.prune_stale_failed("my_app", [])
-
-        assert "my_app" not in registry._instances
-        assert set(pruned) == {"a"}
-
-    def test_prune_stale_failed_noop_for_unknown_app(self, registry: AppRegistry) -> None:
-        """No entries for the app_key at all — a no-op, not an error."""
-        pruned = registry.prune_stale_failed("unknown_app", [])
-
-        assert pruned == {}
+    def test_stale_failed_names_empty_for_unknown_app(self, registry: AppRegistry) -> None:
+        """No entries for the app_key at all — an empty list, not an error."""
+        assert registry.stale_failed_names("unknown_app", []) == []
         assert registry.get_instances("unknown_app") == {}
 
     def test_clear_failures_and_iter_all_instances_removed(self, registry: AppRegistry) -> None:
@@ -334,7 +253,7 @@ class TestAppRegistry:
 
     def test_get_existing_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test getting an existing app."""
-        registry.register_app("my_app", mock_app)
+        seed_running(registry, "my_app", mock_app)
 
         result = registry.get("my_app", "my_app")
 
@@ -349,7 +268,7 @@ class TestAppRegistry:
         self, registry: AppRegistry, mock_app: MagicMock
     ) -> None:
         """Test that get() without a name returns the first running instance."""
-        registry.register_app("my_app", mock_app)
+        seed_running(registry, "my_app", mock_app)
 
         result = registry.get("my_app")
 
@@ -361,9 +280,9 @@ class TestAppRegistry:
         app2 = MagicMock(instance_name="app2")
         app3 = MagicMock(instance_name="app2_1")
 
-        registry.register_app("app1", app1)
-        registry.register_app("app2", app2)
-        registry.register_app("app2", app3)
+        seed_running(registry, "app1", app1)
+        seed_running(registry, "app2", app2)
+        seed_running(registry, "app2", app3)
 
         all_apps = registry.all_apps()
 
@@ -372,14 +291,14 @@ class TestAppRegistry:
         assert app2 in all_apps
         assert app3 in all_apps
 
-    def test_get_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
+    def test_get_live_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test getting all running instances for a key."""
         app1 = MagicMock(instance_name="my_app")
         app2 = MagicMock(instance_name="my_app_1")
-        registry.register_app("my_app", app1)
-        registry.register_app("my_app", app2)
+        seed_running(registry, "my_app", app1)
+        seed_running(registry, "my_app", app2)
 
-        result = registry.get_running_apps("my_app")
+        result = registry.get_live_apps("my_app")
 
         assert result == {"my_app": app1, "my_app_1": app2}
         # Verify it's a copy
@@ -398,7 +317,7 @@ class TestAppRegistry:
         mock_app.status = ResourceStatus.RUNNING
         mock_app.instance_name = "test_instance"
         mock_app.app_config.instance_name = "test_instance"
-        registry.register_app("my_app", mock_app)
+        seed_running(registry, "my_app", mock_app)
 
         snapshot = registry.get_snapshot()
 
@@ -414,7 +333,7 @@ class TestAppRegistry:
         """Test snapshot includes failed apps."""
         error = Exception("startup failed")
         registry.set_manifests({"my_app": mock_manifest})
-        registry.record_failure("my_app", "test_instance", error)
+        seed_failed(registry, "my_app", "test_instance", error)
 
         snapshot = registry.get_snapshot()
 
@@ -442,11 +361,11 @@ class TestAppRegistry:
         app2.status = ResourceStatus.RUNNING
         app2.unique_name = "app2"
 
-        registry.register_app("app1", app1)
-        registry.register_app("app2", app2)
+        seed_running(registry, "app1", app1)
+        seed_running(registry, "app2", app2)
 
         error = ValueError("boom")
-        registry.record_failure("app3", "app3", error)
+        seed_failed(registry, "app3", "app3", error)
 
         snapshot = registry.get_snapshot()
 
@@ -477,14 +396,13 @@ class TestAppRegistry:
 
         assert snapshot.only_apps == ("other_app", "special_app")
 
-    def test_get_snapshot_preserves_resource_status(self, registry: AppRegistry) -> None:
-        """Test that snapshot uses ResourceStatus directly from app."""
+    def test_get_snapshot_reports_the_entry_status_not_the_app_status(self, registry: AppRegistry) -> None:
+        """A live instance's snapshot status is the registry entry's, whatever the App resource says (D4)."""
         app = MagicMock()
         app.instance_name = "app"
-        app.app_config.instance_name = "test"
         app.class_name = "Test"
-        app.status = ResourceStatus.STARTING
-        registry.register_app("app", app)
+        app.status = ResourceStatus.RUNNING
+        seed_running(registry, "app", app, status=ResourceStatus.STARTING)
 
         snapshot = registry.get_snapshot()
 
@@ -492,8 +410,8 @@ class TestAppRegistry:
 
     def test_clear_all(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test clearing all apps and failures."""
-        registry.register_app("app1", mock_app)
-        registry.record_failure("app2", "app2", Exception("error"))
+        seed_running(registry, "app1", mock_app)
+        seed_failed(registry, "app2", "app2", Exception("error"))
 
         registry.clear_all()
 

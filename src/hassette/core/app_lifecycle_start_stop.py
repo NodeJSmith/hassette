@@ -19,26 +19,24 @@ from hassette.core.app_lifecycle_common import (
     failure_reason,
 )
 from hassette.core.app_registry import name_in_current_config
-from hassette.events.hassette import HassetteAppStateEvent
 from hassette.exceptions import (
     AppBlockedError,
     AppRemovedError,
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
-from hassette.resources.lifecycle import skip_own_shutdown_hooks
 from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette import AppConfig, Hassette
+    from hassette.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_factory import AppFactory
     from hassette.core.app_key_lock import AppKeyLock
     from hassette.core.app_registry import AppRegistry
     from hassette.resources.shutdown_outcome import ShutdownOutcome
     from hassette.schemas.app_outcomes import InstanceOutcome
-    from hassette.schemas.app_snapshots import AppInstanceInfo
 
 
 class AppStartStopMixin:
@@ -56,6 +54,7 @@ class AppStartStopMixin:
     initialize_instances: Callable[..., Awaitable[None]]
     shutdown_instance: "Callable[..., Awaitable[ShutdownOutcome | None]]"
     shutdown_instances: "Callable[..., Awaitable[ShutdownOutcome]]"
+    set_app_status: Callable[..., Awaitable[None]]
 
     async def start_app(
         self,
@@ -152,21 +151,17 @@ class AppStartStopMixin:
         # longer has — e.g. an autostart=false app that wasn't auto-reconciled on the config
         # change (see should_auto_reconcile) and is now being started manually. Prune those
         # before create_instances() runs (not inside it), so pruning applies uniformly whether
-        # or not class-loading itself fails, and so pruned entries can be reported as STOPPED —
-        # unregister_app()-style silent discarding leaves the WS status cache for that instance
-        # stuck on FAILED forever (see _stop_app_unlocked for the same problem on the stop side).
-        # A no-op on the reload_app() path: _stop_app_unlocked() already removed every failed entry
-        # for app_key before this runs, so there's nothing left to prune. This only ever does real
-        # work for a standalone start_app() call.
-        await self._emit_discarded_entry_events(self.registry.prune_stale_failed(app_key, configured_names))
+        # or not class-loading itself fails. Each removal is a STOPPED write, which sends its own event.
+        # A no-op on the reload_app() path: _stop_app_unlocked() already removed every unflagged failed
+        # entry for app_key before this runs. This only ever does real work for a standalone start_app() call.
+        for name in self.registry.stale_failed_names(app_key, configured_names):
+            await self.set_app_status(app_key, name, STOPPED)
         # A capture pair under a name that left the config would otherwise sit unseen until a restart (spec 148 D8).
         self.registry.prune_stale_debug_capture(app_key, configured_names)
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)
-            created_names = self.factory.create_instances(
-                app_key, app_manifest, force_reload=force_reload, outcomes=outcomes
-            )
+            results = self.factory.create_instances(app_key, app_manifest, force_reload=force_reload, outcomes=outcomes)
         except (UndefinedUserConfigError, InvalidInheritanceError) as exc:
             self.logger.error(
                 "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
@@ -178,54 +173,42 @@ class AppStartStopMixin:
             outcomes.fail_undecided(f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(exc)}")
             return
 
-        # create_instances() records failures (config validation, class
-        # load error) straight to the registry without emitting an event — no App object exists
-        # yet to build one from. Without this, those failures never reach app_status_changed
-        # subscribers, so a WS-cached status from before this call (e.g. still "stopped" from a
-        # reload's stop phase, or never-set on a first start) lingers indefinitely instead of
-        # reflecting the failure — for both a plain start_app() and a reload_app().
-        #
-        # This re-syncs *every* currently-failed instance still in the current config,
-        # not just ones create_instances() touched on this call (it only overwrites the names
-        # it actually processes — e.g. a class-load failure records one name and returns
-        # immediately, leaving any pre-existing failures under other configured names as-is). A
-        # repeated start_app() on an app with untouched stale failures will re-broadcast them
-        # unchanged. Accepted: the frontend applies this as a plain state overwrite with no
-        # notification side effect (see updateAppStatus in state/store.ts), so a re-broadcast of
-        # an already-known status is a harmless no-op, not user-visible noise. Names *outside*
-        # the current config don't hit this path at all — those are pruned above instead.
-        for info in self.registry.get_failed_instance_infos(app_key).values():
-            await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
+        created_names = await self._record_created(app_key, results, outcomes=outcomes)
 
         # Pass all running instances so reconciliation sees every live listener/job ID.
         # only_names restricts which instances actually run on_initialize() — pre-existing
         # ones are skipped but still contribute to the reconciliation's live-ID set, preventing
         # their telemetry rows from being retired.
-        instances = self.registry.get_running_apps(app_key)
+        instances = self.registry.get_live_apps(app_key)
         if instances:
-            for name, inst in instances.items():
-                if name in created_names:
-                    event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
-                    await self.hassette.send_event(event)
             await self.initialize_instances(
                 app_key, instances, app_manifest, only_names=created_names, outcomes=outcomes
             )
 
-    async def _emit_discarded_entry_events(self, infos: "dict[str, AppInstanceInfo]") -> None:
-        """Emit an event for each discarded failed-entry snapshot: STOPPED, or FAILED for a flagged one.
+    async def _record_created(
+        self, app_key: str, results: "dict[str, App[AppConfig] | Exception]", *, outcomes: ActionOutcomes
+    ) -> set[str]:
+        """Write each factory result's status: NOT_STARTED registers a new ``App``, FAILED records its exception.
 
-        Shared by ``_start_app_unlocked`` (entries pruned for being outside the current config)
-        and the stop paths (failed entries discarded with no teardown to run) — both
-        remove a failed entry from the registry without an App object to build an event from,
-        and both need the WS status cache to learn the entry is gone rather than staying stuck on
-        FAILED forever. An instance flagged needs-restart keeps reporting FAILED until restart, so its
-        event says FAILED rather than STOPPED.
+        A name flagged needs-restart since the factory checked is refused, and its ``App`` is never registered
+        or initialized: the registry would drop the write, leaving the ``App`` to run unregistered. Process
+        exit flags names without the app-key lock, and each write here awaits its event send, so a later name
+        can be flagged while an earlier one's event goes out. The check sits right before the write, with no
+        ``await`` between it and ``registry.set_status``.
+
+        Returns:
+            The names whose new ``App`` was registered, the ones to initialize.
         """
-        for info in infos.values():
-            status = FAILED if info.needs_restart is not None else STOPPED
-            await self.hassette.send_event(
-                HassetteAppStateEvent.from_instance_info(info, status=status, previous_status=info.status)
-            )
+        registered: set[str] = set()
+        for name, result in results.items():
+            if isinstance(result, Exception):
+                await self.set_app_status(app_key, name, FAILED, error=result)
+            elif (refusal := self.registry.refusal_reason(app_key, name)) is not None:
+                outcomes.refused(name, refusal)
+            else:
+                await self.set_app_status(app_key, name, NOT_STARTED, app=result)
+                registered.add(name)
+        return registered
 
     async def stop_app(self, app_key: str) -> "tuple[InstanceOutcome, ...]":
         """Stop and remove all instances for a given app key.
@@ -265,18 +248,18 @@ class AppStartStopMixin:
 
         Only an app key with no targets is "not found".
 
-        Running instances stay registered through their teardown: ``shutdown_instance`` unregisters
-        each one itself, between its teardown and its outcome, so readers never see a STOPPED
-        placeholder while ``on_shutdown`` still runs. Names holding only a failure entry have no
-        teardown; they are discarded per name up front with a STOPPED event (FAILED when flagged
-        needs-restart), so the WS status cache doesn't keep a stale FAILED for them indefinitely.
+        Running instances stay registered through their teardown: ``shutdown_instance`` writes STOPPED
+        for each one once its teardown has finished, so readers never see a STOPPED placeholder while
+        ``on_shutdown`` still runs. Names holding only an unflagged failure entry have no
+        teardown; each is discarded up front with a STOPPED write, so the WS status cache doesn't keep a stale
+        FAILED for it. A flagged name keeps its entry and is refused.
         """
         if not outcomes.names:
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
         self._record_untracked_stops(app_key, outcomes.names, outcomes=outcomes)
         try:
-            instances = self.registry.get_running_apps(app_key)
+            instances = self.registry.get_live_apps(app_key)
             await self._discard_failed_instances(
                 app_key, self.registry.tracked_names(app_key) - set(instances), outcomes=outcomes
             )
@@ -310,17 +293,19 @@ class AppStartStopMixin:
                 outcomes.refused(name, refusal)
 
     async def _discard_failed_instances(self, app_key: str, names: set[str], *, outcomes: ActionOutcomes) -> None:
-        """Discard the failure entries under ``names`` (none of them running), emit their events, and record each.
+        """Write STOPPED for each unflagged failure entry under ``names``, and record each as cleared.
 
-        ``unregister_app`` removes only the failure entry, never a needs-restart record, so a flagged
-        instance stays FAILED after this and its event says FAILED (``_emit_discarded_entry_events``).
+        A flagged entry is left alone: only ``AppRegistry.clear_all`` removes one, and the stop refuses it
+        (``_refuse_flagged_stops``).
         """
-        failed_infos = self.registry.get_failed_instance_infos(app_key)
-        discarded = {name: info for name, info in failed_infos.items() if name in names}
-        for name in discarded:
-            self.registry.unregister_app(app_key, name)
+        entries = self.registry.get_instances(app_key)
+        # Walked in display order, not set order, so the STOPPED events go out in the order the UI lists them.
+        for name in self.registry.display_names(app_key):
+            entry = entries.get(name)
+            if name not in names or entry is None or entry.holds_app or entry.needs_restart is not None:
+                continue
+            await self.set_app_status(app_key, name, STOPPED)
             outcomes.succeeded(name, CLEARED_FAILURE_REASON)
-        await self._emit_discarded_entry_events(discarded)
 
     async def reload_app(
         self,
@@ -387,17 +372,6 @@ class AppStartStopMixin:
         self.logger.debug("Instance %s of app %s is not in its config — skipping", instance_name, app_key)
         return False
 
-    async def _emit_failure_event_if_present(self, app_key: str, instance_name: str) -> None:
-        """Emit a FAILED ``HassetteAppStateEvent`` for ``instance_name`` if it currently has a failed entry.
-
-        Scoped to the single target instance (not the app-key-wide ``get_failed_instance_infos``
-        resync that ``_start_app_unlocked`` performs) — a per-instance operation must not
-        re-broadcast an unrelated sibling instance's failure.
-        """
-        info = self.registry.get_failed_instance_infos(app_key).get(instance_name)
-        if info is not None:
-            await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
-
     async def _create_instance_unlocked(
         self,
         app_key: str,
@@ -444,44 +418,35 @@ class AppStartStopMixin:
         app_class = self.factory.load_class(app_key, app_manifest, force_reload)
         if app_class is None:
             load_error = self.factory.get_load_error(app_manifest)
-            self.registry.record_failure(app_key, instance_name, load_error)
             outcomes.failed(instance_name, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
-            await self._emit_failure_event_if_present(app_key, instance_name)
+            await self.set_app_status(app_key, instance_name, FAILED, error=load_error)
             return
 
-        self.factory.create_single_instance(app_key, app_manifest, instance_name, app_class, outcomes=outcomes)
+        created = self.factory.create_single_instance(
+            app_key, app_manifest, instance_name, app_class, outcomes=outcomes
+        )
+        registered = await self._record_created(app_key, {instance_name: created}, outcomes=outcomes)
+        if isinstance(created, Exception) or instance_name not in registered:
+            return
 
-        # Set just before initialize_instances() is called. initialize_instances() settles its own
-        # init failures (shutdown_instance with a cause) and doesn't raise them, so an exception after
-        # this point comes from post-ready reconciliation: the app initialized, and its shutdown hooks
-        # may run. An exception before it means the instance never started, so its hooks must not run.
-        init_started = False
+        # initialize_instances() settles its own init failures (shutdown_instance with a cause) and
+        # doesn't raise them, and nothing before inst.initialize() raises (the STARTING write logs a failed
+        # send instead), so an exception here comes from post-ready reconciliation: the app initialized,
+        # and its shutdown hooks may run.
         try:
-            inst = self.registry.get(app_key, instance_name)
-            if inst is None:
-                # create_single_instance() recorded a failure instead of registering an instance.
-                await self._emit_failure_event_if_present(app_key, instance_name)
-                return
-
-            await self.hassette.send_event(HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED))
-            init_started = True
             await self.initialize_instances(
-                app_key, {instance_name: inst}, app_manifest, instance_name=instance_name, outcomes=outcomes
+                app_key, {instance_name: created}, app_manifest, instance_name=instance_name, outcomes=outcomes
             )
         except Exception as exc:
             phantom = self.registry.get(app_key, instance_name)
             if phantom is not None:
-                # Still registered: the instance either initialized and then something after it
-                # raised (reconciliation), or never started. Either way it goes through shutdown,
-                # under the entry deadline, and is flagged if its work may still be running.
-                if not init_started:
-                    skip_own_shutdown_hooks(phantom)
+                # Still registered: it goes through shutdown, under the entry deadline, and is flagged
+                # if its work may still be running.
                 await self.shutdown_instance(phantom, cause=exc, outcomes=outcomes)
             else:
                 failure = Exception(f"Post-registration failure for {app_key}[{instance_name}]")
-                self.registry.record_failure(app_key, instance_name, failure)
                 outcomes.failed(instance_name, str(failure))
-                await self._emit_failure_event_if_present(app_key, instance_name)
+                await self.set_app_status(app_key, instance_name, FAILED, error=failure)
             raise
 
     async def _stop_instance_unlocked(self, app_key: str, instance_name: str, *, outcomes: ActionOutcomes) -> None:
@@ -490,7 +455,7 @@ class AppStartStopMixin:
         Caller must hold ``self._get_app_key_lock(app_key)``. Scoped to the target instance only,
         mirroring ``_stop_app_unlocked`` but for one instance instead of the whole app key — so
         restarting one instance never emits a STOPPED event for an unrelated sibling's failed
-        entry. A running instance stays registered until ``shutdown_instance`` unregisters it
+        entry. A running instance stays registered until ``shutdown_instance`` writes STOPPED for it
         after its teardown; a name holding only a failure entry is discarded up front.
 
         Wraps its body in try/except, mirroring ``_stop_app_unlocked`` — this keeps the
@@ -605,7 +570,7 @@ class AppStartStopMixin:
 
         No-ops (``succeeded``, "already running") if the target instance is already running — unlike
         ``reload_instance``, this does not stop-then-recreate. Starting over a live instance without
-        stopping it first would overwrite the registry entry (``register_app()`` replaces any prior entry
+        stopping it first would overwrite the registry entry (a NOT_STARTED registration replaces any prior entry
         under that name) while leaving the original instance's listeners, scheduler jobs, and tasks running but
         unreachable by later stop/shutdown calls. Callers that want a fresh instance should use
         ``reload_instance`` instead.

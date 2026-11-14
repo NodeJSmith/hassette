@@ -1,18 +1,31 @@
-"""Unit tests for AppRegistry's needs-restart record and the resolver every per-instance reader goes through."""
+"""Unit tests for AppRegistry's needs-restart flag on a FAILED entry, and the readers that report it."""
 
 import pytest
 from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_registry import AppRegistry, overlay_runtime_state
+from hassette.schemas import AppInstanceInfo
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.web_manifest_helpers import make_manifest_db_row
 
 from .conftest import make_app_instance, make_manifest_obj
 
 
 def flag(
-    registry: AppRegistry, app_key: str = "my_app", name: str = "my_app", reason: str = "work still running"
-) -> bool:
-    return registry.flag_needs_restart(app_key, name, class_name="MyApp", reason=reason, pending_tasks=("t1",))
+    registry: AppRegistry,
+    app_key: str = "my_app",
+    name: str = "my_app",
+    reason: str = "work still running",
+    error: Exception | None = None,
+) -> None:
+    seed_failed(registry, app_key, name, error, needs_restart=reason, pending_tasks=("t1",))
+
+
+def resolved(registry: AppRegistry, name: str = "my_app") -> AppInstanceInfo:
+    """The resolved info for ``my_app``'s instance ``name``, which the test expects the registry to track."""
+    info = registry.resolve_instance_info("my_app", name)
+    assert info is not None
+    return info
 
 
 @pytest.fixture
@@ -22,39 +35,25 @@ def registry() -> AppRegistry:
     return registry
 
 
-class TestRecord:
-    def test_survives_unregister_and_a_later_failure_entry(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", make_app_instance("my_app"))
+class TestFlag:
+    def test_flag_sits_on_the_failed_entry(self, registry: AppRegistry) -> None:
+        seed_running(registry, "my_app", make_app_instance("my_app"))
         flag(registry)
 
-        registry.unregister_app("my_app", "my_app")
-        registry.record_failure("my_app", "my_app", ValueError("boom"))
-        registry.unregister_app("my_app")
-
-        info = registry.resolve_instance_info("my_app", "my_app")
-        assert info is not None
+        info = resolved(registry)
         assert info.status == ResourceStatus.FAILED
         assert info.needs_restart is not None
         assert info.needs_restart.pending_tasks == ("t1",)
         assert info.needs_restart.flagged_at is not None
+        assert registry.get("my_app", "my_app") is None
 
-    def test_survives_pruning_and_config_changes(self, registry: AppRegistry) -> None:
-        registry.record_failure("my_app", "removed", ValueError("boom"))
+    def test_survives_the_stale_failed_prune_and_config_changes(self, registry: AppRegistry) -> None:
         flag(registry, name="removed")
 
-        registry.prune_stale_failed("my_app", ["my_app"])
+        assert registry.stale_failed_names("my_app", ["my_app"]) == []
         registry.set_manifests({})
 
         assert registry.resolve_instance_info("my_app", "removed") is not None
-
-    def test_first_record_stands(self, registry: AppRegistry) -> None:
-        assert flag(registry, reason="first") is True
-        assert flag(registry, reason="second") is False
-
-        info = registry.resolve_instance_info("my_app", "my_app")
-        assert info is not None
-        assert info.needs_restart is not None
-        assert info.needs_restart.reason == "first"
 
     def test_clear_all_clears_it(self, registry: AppRegistry) -> None:
         flag(registry)
@@ -63,51 +62,29 @@ class TestRecord:
 
         assert registry.resolve_instance_info("my_app", "my_app") is None
 
+    def test_the_failure_error_message_is_reported(self, registry: AppRegistry) -> None:
+        flag(registry, error=TimeoutError("stop timed out"))
 
-class TestResolver:
-    def test_record_wins_over_a_live_entry(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", make_app_instance("my_app"))
-        flag(registry)
-
-        info = registry.resolve_instance_info("my_app", "my_app")
-
-        assert info is not None
-        assert info.status == ResourceStatus.FAILED
-        assert info.error_message == "work still running"
-
-    def test_entry_error_message_is_kept_over_the_reason(self, registry: AppRegistry) -> None:
-        registry.record_failure("my_app", "my_app", TimeoutError("stop timed out"))
-        flag(registry)
-
-        info = registry.resolve_instance_info("my_app", "my_app")
-
-        assert info is not None
+        info = resolved(registry)
         assert info.error_message == "stop timed out"
 
-    def test_without_a_record_the_entry_is_returned_as_is(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", make_app_instance("my_app"))
+    def test_without_a_flag_the_entry_is_returned_as_is(self, registry: AppRegistry) -> None:
+        seed_running(registry, "my_app", make_app_instance("my_app"))
 
-        info = registry.resolve_instance_info("my_app", "my_app")
-
-        assert info is not None
+        info = resolved(registry)
         assert info.status == ResourceStatus.RUNNING
         assert info.needs_restart is None
 
 
 class TestReaders:
     def test_snapshot_counts_a_flagged_instance_as_failed(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", make_app_instance("my_app"))
+        seed_running(registry, "my_app", make_app_instance("my_app"))
         flag(registry)
 
         snapshot = registry.get_snapshot()
 
         assert snapshot.running_count == 0
         assert snapshot.failed_count == 1
-
-    def test_failed_instance_infos_include_a_record_only_name(self, registry: AppRegistry) -> None:
-        flag(registry)
-
-        assert set(registry.get_failed_instance_infos("my_app")) == {"my_app"}
 
     def test_manifest_info_is_failed_with_a_count(self, registry: AppRegistry) -> None:
         flag(registry)
@@ -122,7 +99,7 @@ class TestReaders:
         registry.set_manifests(
             {"my_app": make_manifest_obj("my_app", app_config=[{"instance_name": "a"}, {"instance_name": "b"}])}
         )
-        registry.register_app("my_app", make_app_instance("my_app"))
+        seed_running(registry, "my_app", make_app_instance("my_app"))
         flag(registry, name="b")
 
         info = registry.build_manifest_info("my_app", registry.manifests["my_app"])
@@ -149,16 +126,16 @@ class TestRefusalReason:
 
     def test_says_a_restart_is_needed_with_the_flag_time_and_reason(self, registry: AppRegistry) -> None:
         flag(registry, reason="task t1 still pending")
-        record = registry.get_needs_restart("my_app", "my_app")
-        assert record is not None
+        flag_info = registry.get_needs_restart("my_app", "my_app")
+        assert flag_info is not None
 
         refusal = registry.refusal_reason("my_app", "my_app")
 
-        assert refusal == f"needs a hassette restart (flagged at {record.info.flagged_at}: task t1 still pending)"
+        assert refusal == f"needs a hassette restart (flagged at {flag_info.flagged_at}: task t1 still pending)"
 
 
 class TestDisplayNames:
-    def test_a_flagged_untracked_name_outside_the_config_keeps_its_name(self, registry: AppRegistry) -> None:
+    def test_a_flagged_name_outside_the_config_keeps_its_name(self, registry: AppRegistry) -> None:
         flag(registry, name="gone")
 
         assert "gone" in registry.display_names("my_app")
