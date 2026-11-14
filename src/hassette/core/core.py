@@ -112,16 +112,13 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # A plain class (no Resource/Service base) — see hassette.core.sync_executor.
         # The pool is not created here — SyncExecutorService.on_initialize() calls
         # rebuild_pool() on every initialization.
-        self._sync_executor = SyncExecutor()
-        self.sync_executor = self._sync_executor
+        self.sync_executor = SyncExecutor()
 
         # Process-wide telemetry loss/sample/failure counters (D24.1). Plain thread-safe class, set
         # unconditionally so every component can increment it from construction onward.
         self.pipeline_counters = PipelineCounters()
 
-        super().__init__(
-            self, task_bucket=TaskBucket(self, parent=self, sync_executor=self._sync_executor), parent=self
-        )
+        super().__init__(self, task_bucket=TaskBucket(self, parent=self, sync_executor=self.sync_executor), parent=self)
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
@@ -605,7 +602,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         outcome = await self._run_stage(
             "foundation", run_steps(), services, deadline=deadline, current_step=lambda: step
         )
-        surviving = self._sync_executor.surviving_threads()
+        surviving = self.sync_executor.surviving_threads()
         if surviving:
             self.logger.error("Sync executor threads still running after the shutdown join: %s", ", ".join(surviving))
         return outcome

@@ -142,7 +142,6 @@ def db_hassette(premigrated_db_path: Path, sync_executor: SyncExecutor) -> Async
     # _create_task_bucket reads hassette.sync_executor when wiring every Resource built
     # from this mock (CommandExecutor, BusService, SchedulerService) — wire the real
     # SyncExecutor so run_in_thread works instead of raising on a None executor.
-    hassette._sync_executor = sync_executor
     hassette.sync_executor = sync_executor
     return hassette
 

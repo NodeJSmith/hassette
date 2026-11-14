@@ -2,7 +2,6 @@
 
 import re
 from dataclasses import dataclass
-from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -104,9 +103,6 @@ class ChangeSet:
 
 class AppChangeDetector:
     """Detects changes between app configurations using DeepDiff."""
-
-    def __init__(self) -> None:
-        self.logger = getLogger(f"{__name__}.AppChangeDetector")
 
     def detect_changes(
         self,

@@ -136,7 +136,6 @@ class TestAppSyncCacheInitialization:
         """AppSync inherits App's framework-owned cache initialization."""
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         svc = make_sync_executor()
-        hassette._sync_executor = svc
         hassette.sync_executor = svc
         app = make_app(cls=AppSync, hassette=hassette)
         assert isinstance(app.cache, AsyncCache)

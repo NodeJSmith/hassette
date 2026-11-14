@@ -190,8 +190,6 @@ def mock_factory() -> MagicMock:
     """
     factory = MagicMock()
     factory.create_instances = Mock(return_value={"test_instance"})
-    # One configured instance, so a start or reload targets ``mock_app_instance``'s name.
-    factory.normalize_configs = Mock(return_value=[{"instance_name": "test_instance"}])
     return factory
 
 

@@ -477,7 +477,7 @@ class TestShutdownChildren:
         for child in hassette.children:
             stub_shutdown(child, AsyncMock(return_value=ShutdownOutcome()))
         db.write_shutdown_snapshot = AsyncMock()
-        monkeypatch.setattr(hassette._sync_executor, "surviving_threads", lambda: ["hassette-sync_0"])
+        monkeypatch.setattr(hassette.sync_executor, "surviving_threads", lambda: ["hassette-sync_0"])
 
         with patch.object(hassette.logger, "error") as log_error:
             await hassette._shutdown_children()
