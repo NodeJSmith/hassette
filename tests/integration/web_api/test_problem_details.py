@@ -252,13 +252,13 @@ def app_health_aggregates_fail(mock_hassette: MagicMock, tmp_path: Path) -> None
 
 
 def job_lookup_fails(mock_hassette: MagicMock, _: Path) -> None:
-    mock_hassette.scheduler_service.trigger_job = AsyncMock(side_effect=ValueError("Job 7 is not registered"))
+    mock_hassette.scheduler_service.get_live_job = AsyncMock(side_effect=ValueError("Job 7 is not registered"))
 
 
 def job_removed_before_submit(mock_hassette: MagicMock, _: Path) -> None:
     job = MagicMock()
     job.name = "nightly"
-    mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
+    mock_hassette.scheduler_service.get_live_job = AsyncMock(return_value=job)
     mock_hassette.scheduler_service.submit_job = MagicMock(side_effect=JobRemovedError("nightly", 7))
 
 
