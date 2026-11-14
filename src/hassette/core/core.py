@@ -749,10 +749,8 @@ class Hassette(HassetteAccessorsMixin, Resource):
                 self.logger.warning("Loop watchdog stop raised during shutdown", exc_info=True)
             self._loop_watchdog = None
         # Uninstall Tier 2 call-site interception so no patches remain after shutdown.
-        # Pass self so a non-owning instance's shutdown cannot remove the owner's process-global
-        # patches (Tier 2 has a single owner; uninstall no-ops for non-owners).
         try:
-            uninstall_block_io_guard(self)
+            uninstall_block_io_guard()
         except Exception:
             self.logger.warning("Tier 2 block IO guard uninstall raised during shutdown", exc_info=True)
         try:
