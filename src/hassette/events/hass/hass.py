@@ -1,8 +1,7 @@
-import typing
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from logging import getLogger
-from typing import Any, Generic, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypeVar
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import AnyEvent, Event, HassContext, HassPayload
@@ -11,7 +10,7 @@ from hassette.utils.date_utils import convert_datetime_str_to_tz
 
 from .raw import HassEventEnvelopeDict, HassStateDict
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
     from hassette.const.misc import FalseySentinel
@@ -34,7 +33,7 @@ class CallServicePayload:
     domain: str
     service: str
     service_data: dict[str, Any] = field(default_factory=dict)
-    service_call_id: str | None = None  # have never seen this but the docs say it exists
+    service_call_id: str | None = None  # documented by Home Assistant, rarely sent
 
 
 @dataclass(slots=True, frozen=True)
@@ -90,8 +89,8 @@ class AutomationTriggeredPayload:
 
     name: str
     entity_id: str
-    source: str | None = None  # this one isn't on the docs page but is included apparently
-    # https://www.home-assistant.io/docs/configuration/events/#automation_triggered
+    # sent by Home Assistant but missing from https://www.home-assistant.io/docs/configuration/events/#automation_triggered
+    source: str | None = None
 
     item_id: str | None = None
     """The automation's config ID (its `id:` in YAML). Sent by Home Assistant 2026.11 and later."""
@@ -119,7 +118,7 @@ class RawStateChangePayload:
     """Payload for a state_changed event in Home Assistant."""
 
     entity_id: str
-    """"The entity ID of the entity that changed state."""
+    """The entity ID of the entity that changed state."""
 
     old_state: HassStateDict | None
     """The previous state of the entity before it changed. Omitted if the state is set for the first time."""
