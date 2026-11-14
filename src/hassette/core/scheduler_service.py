@@ -50,9 +50,6 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     _wakeup_event: asyncio.Event
     """Event to wake the scheduler when a new job is added or jobs are removed."""
 
-    _exit_event: asyncio.Event
-    """Event to signal the scheduler to exit."""
-
     _executor: "CommandExecutor"
     """Command executor for running jobs and persisting registration/execution records."""
 
@@ -78,7 +75,6 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         self.bus = self.add_child(Bus)
         self._job_queue = self.add_child(_ScheduledJobQueue)
         self._wakeup_event = asyncio.Event()
-        self._exit_event = asyncio.Event()
         self._removal_callbacks = {}
         self._jobs_by_id = {}
 

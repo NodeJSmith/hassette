@@ -30,7 +30,6 @@ class ActiveSynchronization:
     request_id: int
     generation: int
     status: "StateSynchronizationStatus"
-    baseline_states: dict[str, "HassStateDict"]
     journal: list[JournalOperation]
 
 
@@ -138,8 +137,6 @@ async def run_retry_after_delay(proxy: "StateProxy", *, generation: int, delay: 
             if proxy._retry_generation == generation and proxy._retry_task is None:
                 proxy._retry_generation = None
                 proxy._retry_attempt = 0
-    except asyncio.CancelledError:
-        raise
     finally:
         async with proxy._sync_control_lock:
             if proxy._retry_task is current_task:
