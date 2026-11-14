@@ -12,6 +12,8 @@ from ._fixtures_app_lifecycle import (
     app_state_payloads,
     assert_acquires_app_key_lock_once,
     assert_load_completed_count,
+    failure_writes,
+    fake_set_status,
     lifecycle_service,
     make_mock_app_instance,
     mock_app_instance,
@@ -21,6 +23,7 @@ from ._fixtures_app_lifecycle import (
     mock_registry,
     real_registry_service,
     set_registry_apps,
+    status_writes,
     stub_detected_changes,
 )
 from ._fixtures_app_registry import make_app_instance, make_manifest_obj
@@ -67,6 +70,8 @@ __all__ = [
     "assert_listener_count",
     "assert_load_completed_count",
     "cleanup_disconnected",
+    "failure_writes",
+    "fake_set_status",
     "fetch_job_field",
     "fetch_listener_field",
     "init_executor",
@@ -93,6 +98,7 @@ __all__ = [
     "run_cleanup",
     "run_core_running_gate",
     "set_registry_apps",
+    "status_writes",
     "stub_detected_changes",
     "stub_refused_attempts",
     "telemetry_db",

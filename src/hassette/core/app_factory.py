@@ -52,15 +52,19 @@ class AppFactory:
         force_reload: bool = False,
         *,
         outcomes: "ActionOutcomes",
-    ) -> set[str]:
-        """Create all app instances for a manifest and register them.
+    ) -> "dict[str, App[AppConfig] | Exception]":
+        """Create the app instances for a manifest that aren't live or flagged; writes nothing to the registry.
 
-        Returns the set of names that were actually created. Names that already have a
-        live registry entry are skipped and recorded as succeeded ("already running") — callers use
-        the returned set to initialize only the new instances. Names flagged as needing a hassette
-        restart are skipped too, and recorded as refused; this logs nothing for them, so a caller with
-        no response to carry the refusal logs it (``log_refusals``). When no configured name is left
-        to create, the class isn't loaded. A class that fails to load fails every name left to create.
+        Returns a result for each name it created or tried to: its new ``App``, or the exception that stopped
+        it. The one exception is a class that fails to load: that fails every name left to create in
+        ``outcomes``, but is returned under one representative name only, the first name left to create. The
+        caller writes each result's status (NOT_STARTED with the ``App``, FAILED with the exception) and
+        initializes only the new instances.
+
+        Names that already have a live registry entry are skipped and recorded as succeeded ("already
+        running"). Names flagged as needing a hassette restart are skipped too, and recorded as refused; this
+        logs nothing for them, so a caller with no response to carry the refusal logs it (``log_refusals``).
+        When no configured name is left to create, the class isn't loaded.
 
         Args:
             app_key: The app key from configuration
@@ -86,14 +90,14 @@ class AppFactory:
                 continue
             to_create.append(name)
         if not to_create:
-            return set()
+            return {}
 
         # A forced reload is unsafe to combine with any already-running instance of this
         # app_key: load_class() would reload the shared module/class before the per-instance guard
         # above preserves the live instance, leaving it bound to the pre-reload class while any
         # newly created sibling gets the post-reload one -- two class versions serving one
         # app_key at once. Unlike the guard above, this check is NOT scoped to the current config:
-        # prune_stale_failed() (called by _start_app_unlocked() before this) only prunes stale
+        # the stale-failed prune (in _start_app_unlocked() before this) only prunes stale
         # *failed* entries, never running ones, so a running orphan under a name the config no
         # longer has can still be live here. Missing it would let force_reload slip through and
         # reproduce the exact class-version split this guard exists to prevent, just via an orphan
@@ -101,7 +105,7 @@ class AppFactory:
         # reload_app() is the supported way to get a fresh class onto instances that are already
         # up (it stops them first, so create_instances() runs against an empty slate — see its
         # "no-op on the reload_app() path" note below).
-        if force_reload and self.registry.get_running_apps(app_key):
+        if force_reload and self.registry.get_live_apps(app_key):
             self.logger.debug(
                 "Ignoring force_reload for '%s' -- instance(s) already running; use reload_app() "
                 "to recreate them with a freshly-reloaded class",
@@ -113,29 +117,27 @@ class AppFactory:
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
             # Class loading failed — this affects every configured instance (one shared class
-            # serves all instances of this app_key), but we only ever record one representative
-            # failure. Record it against the first configured name that is neither running nor
-            # flagged: if the first name is preserved from a prior successful start, blindly
-            # recording there would both overwrite its live entry and leave a genuinely-failed,
-            # unstarted sibling unreported (looking like an ordinary stopped instance instead
-            # of FAILED). The request's outcomes fail every name left to create, naming the shared cause.
+            # serves all instances of this app_key), but only one representative failure is returned.
+            # It goes to the first configured name that is neither running nor flagged: if the first
+            # name is preserved from a prior successful start, failing it would both overwrite its live
+            # entry and leave a genuinely-failed, unstarted sibling unreported (looking like an ordinary
+            # stopped instance instead of FAILED). The request's outcomes fail every name left to create,
+            # naming the shared cause.
             load_error = self.get_load_error(manifest)
-            self.registry.record_failure(app_key, to_create[0], load_error)
             for name in to_create:
                 outcomes.failed(name, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
-            return set()
+            return {to_create[0]: load_error}
 
         # Create only the names in to_create: live and flagged ones were skipped above.
         # Without the live-instance skip, a second start_app() call silently overwrites running instances
-        # via register_app() (which replaces any prior entry under that name), orphaning the
+        # (a NOT_STARTED registration replaces any prior entry under that name), orphaning the
         # originals' listeners, scheduler jobs, and tasks. Callers that want a fresh instance
         # should use reload_app(), which stops before recreating. A no-op on the reload_app()
         # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
         # Mirrors the per-instance guard in start_instance() (#1688).
         return {
-            name
+            name: self.create_single_instance(app_key, manifest, name, app_class, outcomes=outcomes)
             for name in to_create
-            if self.create_single_instance(app_key, manifest, name, app_class, outcomes=outcomes)
         }
 
     def create_single_instance(
@@ -146,11 +148,11 @@ class AppFactory:
         app_class: "type[App[AppConfig]]",
         *,
         outcomes: "ActionOutcomes",
-    ) -> bool:
-        """Create and register a single app instance under the given name.
+    ) -> "App[AppConfig] | Exception":
+        """Create a single app instance under the given name; writes nothing to the registry.
 
         A config that fails validation, or a constructor that raises, is recorded as the instance's
-        failure in the registry and in ``outcomes``; nothing is registered.
+        failure in ``outcomes`` and returned.
 
         Args:
             app_key: The app key from configuration
@@ -160,7 +162,7 @@ class AppFactory:
             outcomes: The request's outcomes
 
         Returns:
-            Whether the instance was registered.
+            The new instance, or the exception that stopped it.
         """
         # Each instance config's name is set by AppManifest.model_post_init (resolve_instance_name).
         configs = normalize_app_config(manifest.app_config)
@@ -181,14 +183,13 @@ class AppFactory:
                 config_dict=config_dict,
                 validated=validated,
             )
-            app_instance = app_class(
+            return app_class(
                 hassette=self.hassette,
                 app_config=validated,
                 app_key=app_key,
                 app_manifest=manifest,
                 debug_capture=self.registry.is_debug_captured(app_key, instance_name),
             )
-            self.registry.register_app(app_key, app_instance)
         except Exception as exc:
             self.logger.error(
                 "Failed to validate/init config for %s (%s):\n%s",
@@ -196,10 +197,8 @@ class AppFactory:
                 app_class.__name__,
                 get_short_traceback(),
             )
-            self.registry.record_failure(app_key, instance_name, exc)
             outcomes.failed(instance_name, failure_reason(exc))
-            return False
-        return True
+            return exc
 
     def load_class(
         self,

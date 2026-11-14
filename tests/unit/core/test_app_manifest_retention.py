@@ -9,10 +9,12 @@ from unittest.mock import MagicMock, PropertyMock
 
 import aiosqlite
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.app_registry import AppRegistry
 from hassette.core.database_service import DatabaseService
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.helpers import create_app_manifest
 from tests.support.sql import count_rows, insert_execution_row
 
@@ -126,7 +128,7 @@ async def test_removed_app_with_a_flagged_instance_is_kept(
 ) -> None:
     """App lists show a flagged removed app until a restart, so its row must outlive its history."""
     registry = AppRegistry()
-    registry.flag_needs_restart(REMOVED_APP, REMOVED_APP, class_name="RemovedApp", reason="hung", pending_tasks=("t1",))
+    seed_failed(registry, REMOVED_APP, REMOVED_APP, needs_restart="hung", pending_tasks=("t1",))
     mock_hassette_for_db.app_handler.registry = registry
     await insert_manifest(db, REMOVED_APP)
 
@@ -417,12 +419,12 @@ def test_live_app_keys_counts_only_apps_with_a_running_instance(
     configured = create_app_manifest("configured", tmp_path)
     mock_hassette_for_db.config.apps.manifests = {configured.app_key: configured}
     registry = AppRegistry()
-    registry.register_app("running", MagicMock(instance_name="running"))
-    registry.register_app("multi", MagicMock(instance_name="multi"))
-    registry.register_app("multi", MagicMock(instance_name="multi_1"))
-    registry.record_failure("failed_only", "failed_only", RuntimeError("boom"))
-    registry.register_app("stopping", MagicMock(instance_name="stopping"))
-    registry.unregister_app("stopping")
+    seed_running(registry, "running", MagicMock(instance_name="running"))
+    seed_running(registry, "multi", MagicMock(instance_name="multi"))
+    seed_running(registry, "multi", MagicMock(instance_name="multi_1"))
+    seed_failed(registry, "failed_only", "failed_only", RuntimeError("boom"))
+    seed_running(registry, "stopping", MagicMock(instance_name="stopping"))
+    registry.set_status("stopping", "stopping", ResourceStatus.STOPPED)
     mock_hassette_for_db.app_handler.registry = registry
 
     assert retention_service.live_app_keys() == sorted([configured.app_key, "multi", "running"])

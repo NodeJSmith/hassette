@@ -80,13 +80,10 @@ class AppStatusSnapshot:
 
     @property
     def total_count(self) -> int:
-        """Number of tracked app instances, whether running or failed."""
+        """Number of tracked app instances."""
         return len(self.instances)
 
-    # "running" here means "has no recorded error and isn't flagged needs-restart", not "status ==
-    # RUNNING" — a live instance's status can be STARTING/STOPPING/etc. and still count as running;
-    # error is None iff an App object exists for the entry (see AppRegistry.InstanceEntry), and a
-    # flagged instance counts as failed whatever its entry holds (AppRegistry.resolve_instance_info).
+    # "running" here means any status but FAILED (``is_failed_info``): STARTING, STOPPING etc. count.
     @property
     def running_count(self) -> int:
         """Number of running app instances."""
@@ -155,8 +152,8 @@ class AppFullSnapshot:
 
 
 def is_failed_info(info: AppInstanceInfo) -> bool:
-    """Whether an instance snapshot is failed: it has a recorded error or is flagged needs-restart."""
-    return info.error is not None or info.needs_restart is not None
+    """Whether an instance snapshot's status is FAILED (a flagged instance is always FAILED)."""
+    return info.status is ResourceStatus.FAILED
 
 
 def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:

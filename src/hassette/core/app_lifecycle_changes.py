@@ -114,8 +114,8 @@ class AppChangeReconcilerMixin:
             finally:
                 # Its debug routes now answer 404, so nothing could end a capture left behind (spec 148 D8),
                 # including on an instance the stop failed to remove or a stop cancelled partway. Instances the
-                # stop did unregister were already reset by ``shutdown_instance``; this covers the ones still here.
-                for survivor in self.registry.get_running_apps(app_key).values():
+                # stop did remove were already reset by ``shutdown_instance``; this covers the ones still here.
+                for survivor in self.registry.get_live_apps(app_key).values():
                     survivor.set_debug_capture(False)
                 self.registry.clear_debug_capture(app_key)
         if changes.orphans:

@@ -50,6 +50,9 @@ NO_OUTCOME_REASON = "no outcome was recorded"
 NOT_IN_CONFIG_REASON = "the instance is no longer in the app's config"
 """A target's failure reason when its instance was removed from the app's config."""
 
+STOPPED_BEFORE_INIT_REASON = "stopped before it was initialized"
+"""An instance process exit reached between its registration and its initialization."""
+
 CLASS_LOAD_FAILED_PREFIX = "the app class failed to load: "
 """Leads a target's failure reason when its app class could not be loaded."""
 

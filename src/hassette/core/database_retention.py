@@ -260,10 +260,11 @@ class DatabaseRetentionMixin:
 
         Config alone is not enough: a hot reload installs the new config before it stops the
         apps it removed, so an app about to be stopped would look removed. The registry covers
-        an app until its stop begins (``stop_app`` unregisters before shutting down), so rows of
-        an app that is still shutting down can be retired; that is harmless, because retiring
-        deletes nothing and re-registration clears it. Read fresh on every cycle, so nothing
-        about an app's removal is stored and a failed cycle simply retries on the next one.
+        an app while any of its entries holds an ``App``, which lasts through each instance's
+        teardown, so a removed app's rows can be retired once its last teardown ends, even one that
+        failed; that is harmless, because retiring deletes nothing and re-registration clears it.
+        Read fresh on every cycle, so nothing about an app's removal is stored and a failed cycle
+        simply retries on the next one.
 
         A flagged needs-restart app stays listed (``listed_apps``) until a restart clears the flag, so its
         manifest row must outlive its history until then.

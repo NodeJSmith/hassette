@@ -21,7 +21,13 @@ Served models, WS payloads, and the live system-status snapshot are defined only
 ``BootIssue``, and the WS event payload models.
 """
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import (
+    AppFullSnapshot,
+    AppInstanceInfo,
+    AppManifestInfo,
+    AppStatusSnapshot,
+    NeedsRestartInfo,
+)
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 
@@ -33,4 +39,5 @@ __all__ = [
     "AppManifestInfo",
     "AppStatusSnapshot",
     "LiveCounts",
+    "NeedsRestartInfo",
 ]

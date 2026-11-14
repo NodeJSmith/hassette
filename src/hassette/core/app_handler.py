@@ -151,7 +151,7 @@ class AppHandler(Service):
         registered until their teardown finishes.
         """
         instances = [
-            inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()
+            inst for app_key in self.registry.app_keys() for inst in self.registry.get_live_apps(app_key).values()
         ]
         unfinished = [inst for inst in instances if not inst.shutdown_completed]
         if unfinished:
@@ -169,12 +169,12 @@ class AppHandler(Service):
         App-wide ``on`` captures every configured instance; app-wide ``off`` ends capture for every name under
         ``app_key``, configured or not. Every targeted running instance has its levels re-applied at once, which
         also repairs an instance whose flag drifted from the registry; a stopped one gets them when it starts,
-        since ``AppFactory`` passes the flag in at construction. Each instance whose state changed gets a WARNING
-        attributed to it.
+        since ``AppFactory`` passes the flag in at construction and each new instance takes the registry's flag
+        again right before it is registered. Each instance whose state changed gets a WARNING attributed to it.
 
-        Takes no lifecycle lock and must never await (spec 148 D6): app construction and registration are
-        synchronous, so on one event loop a concurrent build sees the registry either before or after this whole
-        change, never partway.
+        Takes no lifecycle lock and must never await (spec 148 D6): on one event loop, construction and each
+        registration see the registry either before or after this whole change, never partway. A change that
+        lands between an instance's construction and its registration reaches it through that re-read.
 
         Args:
             app_key: The app to act on; the caller has checked that it is known.
