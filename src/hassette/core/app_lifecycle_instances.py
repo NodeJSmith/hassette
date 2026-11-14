@@ -18,6 +18,7 @@ from hassette.core.app_lifecycle_common import (
     RUNNING,
     STARTING,
     STOPPED,
+    STOPPED_BEFORE_INIT_REASON,
     STOPPING,
     ActionOutcomes,
     failure_reason,
@@ -122,7 +123,7 @@ class AppInstanceLifecycleMixin:
             return
         if self.registry.get_status(inst.app_key, inst.instance_name) is not NOT_STARTED:
             self.logger.debug("Skipped initializing app '%s' (%s): it is being stopped", inst.instance_name, class_name)
-            outcomes.failed(inst.instance_name, "stopped before it was initialized")
+            outcomes.failed(inst.instance_name, STOPPED_BEFORE_INIT_REASON)
             return
         await self.set_app_status(inst.app_key, inst.instance_name, STARTING)
         try:

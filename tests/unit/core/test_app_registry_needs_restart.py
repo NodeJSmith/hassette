@@ -4,6 +4,7 @@ import pytest
 from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_registry import AppRegistry, overlay_runtime_state
+from hassette.schemas import AppInstanceInfo
 from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.web_manifest_helpers import make_manifest_db_row
 
@@ -20,6 +21,13 @@ def flag(
     seed_failed(registry, app_key, name, error, needs_restart=reason, pending_tasks=("t1",))
 
 
+def resolved(registry: AppRegistry, name: str = "my_app") -> AppInstanceInfo:
+    """The resolved info for ``my_app``'s instance ``name``, which the test expects the registry to track."""
+    info = registry.resolve_instance_info("my_app", name)
+    assert info is not None
+    return info
+
+
 @pytest.fixture
 def registry() -> AppRegistry:
     registry = AppRegistry()
@@ -32,8 +40,7 @@ class TestFlag:
         seed_running(registry, "my_app", make_app_instance("my_app"))
         flag(registry)
 
-        info = registry.resolve_instance_info("my_app", "my_app")
-        assert info is not None
+        info = resolved(registry)
         assert info.status == ResourceStatus.FAILED
         assert info.needs_restart is not None
         assert info.needs_restart.pending_tasks == ("t1",)
@@ -58,17 +65,13 @@ class TestFlag:
     def test_the_failure_error_message_is_reported(self, registry: AppRegistry) -> None:
         flag(registry, error=TimeoutError("stop timed out"))
 
-        info = registry.resolve_instance_info("my_app", "my_app")
-
-        assert info is not None
+        info = resolved(registry)
         assert info.error_message == "stop timed out"
 
     def test_without_a_flag_the_entry_is_returned_as_is(self, registry: AppRegistry) -> None:
         seed_running(registry, "my_app", make_app_instance("my_app"))
 
-        info = registry.resolve_instance_info("my_app", "my_app")
-
-        assert info is not None
+        info = resolved(registry)
         assert info.status == ResourceStatus.RUNNING
         assert info.needs_restart is None
 

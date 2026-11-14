@@ -21,6 +21,7 @@ import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.core import app_lifecycle_instances
+from hassette.core.app_lifecycle_common import STOPPED_BEFORE_INIT_REASON
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
@@ -187,7 +188,7 @@ class TestInitializeInstances:
         second.initialize.assert_not_called()
         by_name = {o.instance_name: o for o in outcomes.snapshot()}
         assert by_name["second"].result is OutcomeResult.FAILED
-        assert by_name["second"].reason == "stopped before it was initialized"
+        assert by_name["second"].reason == STOPPED_BEFORE_INIT_REASON
         assert [p.instance_name for p in app_state_payloads(event_capture, ResourceStatus.STARTING)] == ["first"]
 
     async def test_a_sibling_flagged_before_its_turn_is_refused_without_a_warning(
@@ -846,7 +847,7 @@ class TestStartingIsOutsideTheStartupTimeout:
         mock_hassette: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """STARTING is written and sent before the startup timeout opens, so a slow bus never fails the app (D4)."""
+        """STARTING is sent before the startup timeout opens, so a slow bus never fails the app (spec 154 D4)."""
         monkeypatch.setattr(AppLifecycleService, "startup_timeout", property(lambda _self: 0.05))
         sends: list[ResourceStatus] = []
 

@@ -220,8 +220,7 @@ class TestStartInstanceBehavior:
     ) -> None:
         """start_instance no-ops when the target name already has a running instance, rather
         than overwriting the registry entry and leaking the original instance's listeners,
-        scheduler jobs, and tasks (ship-time review finding — a registration write replaces
-        any prior entry under that name).
+        scheduler jobs, and tasks: a registration write replaces any prior entry under that name.
         """
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)

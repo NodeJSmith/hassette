@@ -158,8 +158,9 @@ class AppRegistry:
         previous = current.status if current is not None else ResourceStatus.NOT_STARTED
         previous_error = current.error if current is not None else None
         current_flag = current.needs_restart if current is not None else None
-        adds_flag = to is ResourceStatus.FAILED and needs_restart is not None and current_flag is None
-        is_change = previous is not to or (to is ResourceStatus.FAILED and error is not previous_error) or adds_flag
+        flag = current_flag or needs_restart
+        new_failure = to is ResourceStatus.FAILED and (error is not previous_error or flag is not current_flag)
+        is_change = previous is not to or new_failure
         live_app = app if to is ResourceStatus.NOT_STARTED else previous_app
 
         # The write happens even when it isn't a change: a re-registration replaces the App, and a repeat
@@ -173,7 +174,7 @@ class AppRegistry:
                 error=error,
                 error_message=str(error),
                 error_traceback=get_traceback_string(error) if error.__traceback__ else None,
-                needs_restart=current_flag or needs_restart,
+                needs_restart=flag,
             )
         else:
             self._instances[app_key][instance_name] = InstanceEntry(app=live_app, status=to)
@@ -188,7 +189,7 @@ class AppRegistry:
             previous=previous,
             status=to,
             error=error if to is ResourceStatus.FAILED else None,
-            needs_restart=(current_flag or needs_restart) if to is ResourceStatus.FAILED else None,
+            needs_restart=flag if to is ResourceStatus.FAILED else None,
         )
 
     def _remove(self, app_key: str, instance_name: str) -> None:

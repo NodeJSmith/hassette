@@ -12,7 +12,7 @@ Covers:
 - on_state_change(changed=<ComparisonCondition>) builds a StateComparison predicate
 """
 
-import typing
+from typing import TYPE_CHECKING
 
 import pytest
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
@@ -31,8 +31,19 @@ from tests.support.helpers import create_component_loaded_event, create_service_
 
 from .conftest import mock_add_listener
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette.bus.bus import Bus
+
+
+def running_change(*, app_key: str) -> StatusChange:
+    """A STARTING -> RUNNING transition of one instance of ``app_key``."""
+    return StatusChange(
+        app_key=app_key,
+        instance_name=app_key,
+        class_name="MyApp",
+        previous=ResourceStatus.STARTING,
+        status=ResourceStatus.RUNNING,
+    )
 
 
 async def handler_a(event) -> None:
@@ -211,14 +222,3 @@ class TestStateChangeComparisonCondition:
         decreased = create_state_change_event(entity_id="sensor.temp", old_value=25, new_value=20)
         assert sub.listener.matches(increased) is True
         assert sub.listener.matches(decreased) is False
-
-
-def running_change(*, app_key: str) -> StatusChange:
-    """A STARTING -> RUNNING transition of one instance of ``app_key``."""
-    return StatusChange(
-        app_key=app_key,
-        instance_name=app_key,
-        class_name="MyApp",
-        previous=ResourceStatus.STARTING,
-        status=ResourceStatus.RUNNING,
-    )

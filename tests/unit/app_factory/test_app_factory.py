@@ -199,7 +199,7 @@ class TestAppFactoryCreateInstances:
         assert flags == {"captured": True, "plain": False}
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_create_instances_registers_each_app(
+    def test_create_instances_returns_each_app(
         self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Returns an App for each successful instance."""
@@ -359,7 +359,6 @@ class TestAppFactoryNeedsRestartGate:
 
         assert results == {}
         mock_load_class.assert_not_called()
-        assert not failures(results)
         assert [o.result for o in outcomes.snapshot()] == [OutcomeResult.REFUSED, OutcomeResult.REFUSED]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
@@ -382,7 +381,6 @@ class TestAppFactoryNeedsRestartGate:
 
         assert results == {}
         mock_load_class.assert_not_called()
-        assert not failures(results)
         assert [(o.result, o.reason) for o in outcomes.snapshot()] == [
             (OutcomeResult.SUCCEEDED, "already running"),
             (OutcomeResult.REFUSED, "refused instance_1"),
