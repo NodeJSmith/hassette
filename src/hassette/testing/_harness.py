@@ -344,7 +344,7 @@ class HassetteHarness:
         bucket = TaskBucket(
             cast("Hassette", self.hassette),
             parent=self.hassette,  # pyright: ignore[reportArgumentType]
-            sync_executor=self.hassette._sync_executor,
+            sync_executor=self.hassette.sync_executor,
         )
         self.hassette.task_bucket = bucket
         loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]

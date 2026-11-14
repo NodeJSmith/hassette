@@ -27,12 +27,8 @@ class EventFilter:
         logger: logging.Logger,
     ) -> None:
         self.logger = logger
-        self.setup(excluded_domains or (), excluded_entities or ())
-
-    def setup(self, domains: tuple[str, ...], entities: tuple[str, ...]) -> None:
-        """Parse domain and entity exclusion config into exact/glob sets."""
-        self._excluded_domains_exact, self._excluded_domain_globs = split_exact_and_glob(domains)
-        self._excluded_entities_exact, self._excluded_entity_globs = split_exact_and_glob(entities)
+        self._excluded_domains_exact, self._excluded_domain_globs = split_exact_and_glob(excluded_domains or ())
+        self._excluded_entities_exact, self._excluded_entity_globs = split_exact_and_glob(excluded_entities or ())
 
         self._has_exclusions = bool(
             self._excluded_domains_exact

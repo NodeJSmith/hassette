@@ -163,7 +163,7 @@ class AppFactory:
             Whether the instance was registered.
         """
         # Each instance config's name is set by AppManifest.model_post_init (resolve_instance_name).
-        configs = self.normalize_configs(manifest.app_config)
+        configs = normalize_app_config(manifest.app_config)
         config_dict = {config[INSTANCE_NAME_KEY]: config for config in configs}[instance_name]
 
         try:
@@ -236,11 +236,6 @@ class AppFactory:
         if class_failed_to_load(manifest.full_path, manifest.class_name):
             return get_class_load_error(manifest.full_path, manifest.class_name)
         return RuntimeError(f"Unknown error loading class for {manifest.class_name}")
-
-    @staticmethod
-    def normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
-        """Ensure app_config is a list of dicts."""
-        return normalize_app_config(app_config)
 
 
 def warn_unrecognized_config_keys(

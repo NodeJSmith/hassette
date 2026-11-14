@@ -7,6 +7,7 @@ from pydantic import field_validator
 from hassette import AppConfig
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_lifecycle_common import ActionOutcomes
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.schemas.app_outcomes import OutcomeResult
 from tests.support.outcomes import AnyNameOutcomes
 
@@ -570,42 +571,42 @@ class TestAppFactoryGetLoadError:
         assert "Unknown error" in str(result)
 
 
-class TestAppFactoryNormalizeConfigs:
-    def test_normalize_configs_none(self):
+class TestNormalizeAppConfig:
+    def test_normalize_app_config_none(self):
         """Returns empty list for None."""
-        result = AppFactory.normalize_configs(None)
+        result = normalize_app_config(None)
         assert result == []
 
-    def test_normalize_configs_empty_dict(self):
+    def test_normalize_app_config_empty_dict(self):
         """Returns empty list for empty dict."""
-        result = AppFactory.normalize_configs({})
+        result = normalize_app_config({})
         assert result == [{}]
 
-    def test_normalize_configs_single_dict(self):
+    def test_normalize_app_config_single_dict(self):
         """Wraps single dict in list."""
         config = {"instance_name": "test"}
-        result = AppFactory.normalize_configs(config)
+        result = normalize_app_config(config)
         assert result == [config]
 
-    def test_normalize_configs_list(self):
+    def test_normalize_app_config_list(self):
         """Returns list as-is."""
         configs = [{"instance_name": "test1"}, {"instance_name": "test2"}]
-        result = AppFactory.normalize_configs(configs)
+        result = normalize_app_config(configs)
         assert result == configs
 
-    def test_normalize_configs_single_dict_returns_independent_copy(self):
+    def test_normalize_app_config_single_dict_returns_independent_copy(self):
         """Mutating the result of a single-dict input must not mutate the original."""
         config = {"instance_name": "test"}
-        result = AppFactory.normalize_configs(config)
+        result = normalize_app_config(config)
 
         result[0]["instance_name"] = "mutated"
 
         assert config["instance_name"] == "test"
 
-    def test_normalize_configs_list_returns_independent_copies(self):
+    def test_normalize_app_config_list_returns_independent_copies(self):
         """Mutating the result of a list input must not mutate the original list or dicts."""
         configs = [{"instance_name": "test1"}, {"instance_name": "test2"}]
-        result = AppFactory.normalize_configs(configs)
+        result = normalize_app_config(configs)
 
         result.append({"instance_name": "test3"})
         result[0]["instance_name"] = "mutated"

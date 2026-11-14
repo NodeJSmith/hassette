@@ -183,14 +183,6 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         return self._db is not None
 
     @property
-    def is_accepting_writes(self) -> bool:
-        """Whether the write queue is live and accepting submissions.
-
-        False before ``on_initialize()`` creates the queue and after shutdown drains it.
-        """
-        return self._db_write_queue is not None
-
-    @property
     def db(self) -> aiosqlite.Connection:
         """Return the active write database connection.
 
