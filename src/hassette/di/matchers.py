@@ -43,8 +43,12 @@ class TypeMatcher:
         if annotation is inspect.Parameter.empty:
             return None
 
-        # Unwrap a PEP 695 `type X = ...` alias, matching `get_type_and_details`.
-        annotation = getattr(annotation, "__value__", annotation)
+        # Unwrap PEP 695 `type X = ...` aliases, including chains (`type B = A`), matching
+        # `get_type_and_details`. `seen` stops a cyclic alias pair from looping forever.
+        seen: set[int] = set()
+        while id(annotation) not in seen and (alias_value := getattr(annotation, "__value__", None)) is not None:
+            seen.add(id(annotation))
+            annotation = alias_value
         origin = get_origin(annotation)
         base_type = origin or annotation
 

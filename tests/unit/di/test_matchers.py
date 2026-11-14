@@ -15,6 +15,7 @@ from hassette.utils.type_utils import get_typed_signature
 # Equivalent to `type MyEvent = Event` / `type MyStateEvent = RawStateChangeEvent | None` (PEP 695, 3.12+).
 MyEvent = TypeAliasType("MyEvent", Event)
 MyOptionalStateEvent = TypeAliasType("MyOptionalStateEvent", RawStateChangeEvent | None)
+MyChainedEvent = TypeAliasType("MyChainedEvent", MyEvent)
 
 
 def match_param(
@@ -116,16 +117,15 @@ class TestTypeMatcher:
 
         assert match_param(matcher, handler, "value") is None
 
-    def test_unwraps_type_alias(self):
-        def handler(event: MyEvent):
+    @pytest.mark.parametrize("alias", [MyEvent, MyChainedEvent], ids=["alias", "chained_alias"])
+    def test_unwraps_type_alias(self, alias: Any):
+        def handler(event):
             pass
 
+        handler.__annotations__["event"] = alias
         plan = build_injection_plan(get_typed_signature(handler), [AnnotatedMatcher(Event), TypeMatcher(Event)])
 
-        assert len(plan) == 1
-        assert plan[0].name == "event"
-        assert plan[0].source_type is Event
-        assert plan[0].target_type is Event
+        assert [(p.name, p.source_type, p.target_type) for p in plan] == [("event", Event, Event)]
 
     def test_unwraps_type_alias_of_union(self):
         def handler(event: MyOptionalStateEvent):
