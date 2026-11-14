@@ -14,7 +14,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY
 from hassette.conversion.state_registry import StateKey, StateRegistry
 from hassette.conversion.type_registry import TypeConverterEntry, TypeRegistry
 from hassette.conversion.validation import RegistryValidationIssue, validate_registries
-from hassette.exceptions import DomainRequiredError, RegistryValidationError
+from hassette.exceptions import DomainRequiredError, InvalidEntityIdError, RegistryValidationError
 from hassette.models.states import SensorState
 from hassette.models.states.base import BaseState
 from hassette.models.states.catalog import _STATE_CATALOG, resolve, restore_catalog
@@ -107,6 +107,22 @@ class TestStateRegistryValidation:
             i for i in issues if i.registry == "STATE_REGISTRY" and i.severity == "warning" and "dup" in i.message
         ]
         assert dup_warnings == []
+
+
+class TestGetEntityId:
+    @pytest.mark.parametrize("data", [{}, {"entity_id": ""}, {"entity_id": None}])
+    def test_missing_entity_id_logs_no_entity_id(self, data: dict, caplog: pytest.LogCaptureFixture) -> None:
+        """A state dict with no entity id is reported as missing, not as malformed."""
+        with pytest.raises(InvalidEntityIdError):
+            STATE_REGISTRY.get_entity_id(data)  # pyright: ignore[reportArgumentType]
+        assert "has no 'entity_id'" in caplog.text
+        assert "malformed" not in caplog.text
+
+    def test_entity_id_without_domain_logs_malformed(self, caplog: pytest.LogCaptureFixture) -> None:
+        """An entity id with no domain separator is still reported as malformed."""
+        with pytest.raises(InvalidEntityIdError):
+            STATE_REGISTRY.get_entity_id({"entity_id": "nodomain"})  # pyright: ignore[reportArgumentType]
+        assert "malformed 'entity_id' (missing domain)" in caplog.text
 
 
 class TestTypeRegistryValidation:
