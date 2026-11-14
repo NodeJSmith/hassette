@@ -12,10 +12,10 @@ Tests verify:
 
 import logging
 from dataclasses import dataclass
-from unittest.mock import MagicMock
 
 from hassette.core.event_filter import EventFilter
 from hassette.events import AnyEvent, Event
+from hassette.events.hass.hass import CallServicePayload
 from tests.support.factories import make_hass_event, make_hassette_event
 
 
@@ -44,13 +44,6 @@ class StateChangedData:
     domain: str | None = None
 
 
-@dataclass(slots=True, frozen=True)
-class CallServiceData:
-    domain: str
-    service: str
-    service_data: dict
-
-
 class TestNoPayloadAndNonHass:
     def test_no_payload_returns_false(self) -> None:
         """should_skip returns False when event has no payload."""
@@ -68,7 +61,7 @@ class TestNoPayloadAndNonHass:
 class TestSystemLogFiltering:
     def test_system_log_debug_call_service_skipped(self) -> None:
         """call_service event targeting system_log at debug level is skipped."""
-        data = CallServiceData(
+        data = CallServicePayload(
             domain="system_log",
             service="write",
             service_data={"level": "debug"},
@@ -79,7 +72,7 @@ class TestSystemLogFiltering:
 
     def test_system_log_non_debug_not_skipped(self) -> None:
         """call_service to system_log at non-debug level is NOT skipped."""
-        data = CallServiceData(
+        data = CallServicePayload(
             domain="system_log",
             service="write",
             service_data={"level": "warning"},
@@ -90,7 +83,7 @@ class TestSystemLogFiltering:
 
     def test_call_service_other_domain_not_skipped(self) -> None:
         """call_service to a non-system_log domain is NOT skipped."""
-        data = CallServiceData(
+        data = CallServicePayload(
             domain="light",
             service="turn_on",
             service_data={"level": "debug"},
@@ -99,14 +92,12 @@ class TestSystemLogFiltering:
         ef = make_filter()
         assert ef.should_skip("hass.call_service", event) is False
 
-    def test_system_log_bad_payload_shape_does_not_raise(self) -> None:
-        """AttributeError during system_log check is caught; event is not skipped."""
-        data = MagicMock(spec=[])  # no attributes — accessing .domain raises AttributeError
+    def test_call_service_non_call_service_payload_not_skipped(self) -> None:
+        """A call_service event whose data is not a CallServicePayload is NOT skipped."""
+        data = {"domain": "system_log", "service": "write", "service_data": {"level": "debug"}}
         event = make_hass_event(event_type="call_service", data=data)
         ef = make_filter()
-        # Should not raise; returns False (no exclusions configured)
-        result = ef.should_skip("hass.call_service", event)
-        assert result is False
+        assert ef.should_skip("hass.call_service", event) is False
 
 
 class TestNoExclusionsShortCircuit:

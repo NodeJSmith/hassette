@@ -24,15 +24,9 @@ class AppRegistrationReconcilerMixin:
         """
         live_listener_ids: set[int] = set()
         for inst in instances.values():
-            try:
-                for listener in inst.bus.get_listeners():
-                    if listener.db_id is not None:
-                        live_listener_ids.add(listener.db_id)
-            except Exception:
-                self.logger.warning(
-                    "Failed to collect listener IDs from app '%s' instance — proceeding with partial set",
-                    app_key,
-                )
+            for listener in inst.bus.get_listeners():
+                if listener.db_id is not None:
+                    live_listener_ids.add(listener.db_id)
         return live_listener_ids
 
     def merge_router_listener_ids(
@@ -47,32 +41,19 @@ class AppRegistrationReconcilerMixin:
         Avoids retiring rows for mid-session active handlers that ``collect_live_listener_ids``
         may have missed. Returns a new set rather than mutating ``live_listener_ids``.
         """
-        try:
-            router = bus_service.router
-            router_ids: set[int] = set()
-            for inst in instances.values():
-                for listener in router.get_listeners_by_owner(inst.bus.owner_id):
-                    if listener.db_id is not None:
-                        router_ids.add(listener.db_id)
-            return live_listener_ids | router_ids
-        except Exception:
-            self.logger.warning(
-                "Router safety guard failed for app '%s' — proceeding with collected live IDs only",
-                app_key,
-            )
-            return live_listener_ids
+        router = bus_service.router
+        router_ids: set[int] = set()
+        for inst in instances.values():
+            for listener in router.get_listeners_by_owner(inst.bus.owner_id):
+                if listener.db_id is not None:
+                    router_ids.add(listener.db_id)
+        return live_listener_ids | router_ids
 
     def collect_live_job_ids(self, app_key: str, instances: "dict[str, App[AppConfig]]") -> list[int]:
         """Collect scheduled-job db_ids registered by all instances."""
         live_job_ids: list[int] = []
         for inst in instances.values():
-            try:
-                live_job_ids.extend(inst.scheduler.get_job_db_ids())
-            except Exception:
-                self.logger.warning(
-                    "Failed to collect job IDs from app '%s' instance — proceeding with partial set",
-                    app_key,
-                )
+            live_job_ids.extend(inst.scheduler.get_job_db_ids())
         return live_job_ids
 
     async def reconcile_app_registrations(
