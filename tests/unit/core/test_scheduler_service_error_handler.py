@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import hassette.utils.date_utils as date_utils
+from hassette.scheduler.classes import Job
 
 from .conftest import make_scheduler_service
 from .test_scheduler_service_timeout import run_job_and_get_cmd
@@ -28,6 +29,8 @@ def make_job(  # factory-local: returns MagicMock, not ScheduledJob
     job._dequeued = False
     job.fire_at = date_utils.now()
     job.job = AsyncMock()
+    # Route through the real method so tests can set ``app_error_handler_resolver`` directly.
+    job.resolve_app_error_handler = lambda: Job.resolve_app_error_handler(job)
     return job
 
 

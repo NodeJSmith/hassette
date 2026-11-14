@@ -445,6 +445,10 @@ class Job:
         """Set the closure that resolves the app-level error handler at dispatch time."""
         self.app_error_handler_resolver = resolver
 
+    def resolve_app_error_handler(self) -> "SchedulerErrorHandlerType | None":
+        """Return the app-level error handler from the resolver, or None if no resolver is set."""
+        return self.app_error_handler_resolver() if self.app_error_handler_resolver is not None else None
+
     def remove(self) -> None:
         """Remove this job's registration by delegating to the owning Scheduler.
 
