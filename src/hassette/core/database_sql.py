@@ -40,8 +40,8 @@ async def safe_rollback(db: aiosqlite.Connection, owner: LoggerOwner, context: s
 
     Callers remain responsible for handling the original exception (re-raising, logging,
     etc.) after this returns -- this only guards the rollback attempt itself. ``owner.logger``
-    is accessed only on the failure path, matching pre-extraction behavior where a caller whose
-    rollback always succeeds never had to have a real logger configured.
+    is read only on the failure path, so an owner whose rollback succeeds needs no configured
+    logger.
 
     A failed rollback here leaves the shared write connection's transaction state unknown --
     the next queued write (heartbeat, another retention batch) executes against whatever was

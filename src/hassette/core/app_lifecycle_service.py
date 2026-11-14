@@ -43,9 +43,7 @@ class AppLifecycleService(
 ):
     """Manages app lifecycle orchestration, change detection, and event emission.
 
-    Folds in all functionality from ``AppLifecycleManager`` and absorbs the
-    implementation methods from ``AppHandler`` that deal with starting, stopping,
-    reloading, and change-handling of apps.
+    Owns starting, stopping, reloading, and change handling of apps.
 
     Owns:
         - ``AppFactory`` (plain utility, created internally)
