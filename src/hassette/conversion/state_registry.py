@@ -61,8 +61,9 @@ class StateRegistry:
     """Registry for mapping domains to their state classes.
 
     This class maintains a mapping of Home Assistant domains to their corresponding
-    BaseState subclasses. State classes get registered during the `after_initialize` phase
-    by scanning all subclasses of BaseState.
+    BaseState subclasses. State classes get registered through `register_state_converter`
+    into the state catalog (`models/states/catalog.py`), either automatically from a
+    `Literal` domain annotation or by an explicit call.
     """
 
     @property
@@ -81,10 +82,14 @@ class StateRegistry:
             The entity id, guaranteed to be a string containing a domain separator.
 
         Raises:
-            InvalidEntityIdError: If the resolved id is not a string or contains no ``.``.
+            InvalidEntityIdError: If no id resolves, or the resolved id is not a string or contains no ``.``.
         """
         if not entity_id:
-            entity_id = data.get("entity_id") or "<unknown>"
+            entity_id = data.get("entity_id")
+
+        if not entity_id:
+            LOGGER.error("State data has no 'entity_id': %s", data, stacklevel=2)
+            raise InvalidEntityIdError(entity_id)
 
         if not isinstance(entity_id, str):
             LOGGER.error("State data has invalid 'entity_id' field: %s", data, stacklevel=2)
@@ -213,14 +218,14 @@ class StateRegistry:
             UnableToConvertStateError: If conversion fails for any reason.
         """
         class_name = state_class.__name__
-        truncated_data = repr(data)
-        if len(truncated_data) > STATE_REPR_MAX_LENGTH:
-            truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + TRUNCATION_SUFFIX
 
         try:
             return convert_state_dict_to_model(data, state_class)
         except Exception as exc:
             tb = get_short_traceback()
+            truncated_data = repr(data)
+            if len(truncated_data) > STATE_REPR_MAX_LENGTH:
+                truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + TRUNCATION_SUFFIX
 
             LOGGER.error(
                 CONVERSION_FAIL_TEMPLATE,
@@ -260,7 +265,7 @@ STATE_REGISTRY = StateRegistry()
 def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> "BaseState":
     """Convert a raw HA state dict to a typed state model via preprocessing + value coercion.
 
-    Applies the same preprocessing order as the old model validator: domain extraction,
+    Preprocesses in this order: domain extraction,
     then unknown/unavailable normalization (setting state to None before coercion touches it),
     then TYPE_REGISTRY.convert for the model's value_type. When `model` is one of the four
     narrowed sensor shape classes, also validates that the entity's actual value shape matches the
