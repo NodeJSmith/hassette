@@ -123,12 +123,12 @@ async def drain_and_persist(
     executor: "CommandExecutor",
     first_item: ExecutionRecord | RetryableBatch | None = None,
 ) -> None:
-    """Drain up to 100 queue items and persist them to DB.
+    """Drain up to ``_BATCH_DRAIN_CAP`` queue items and persist them to DB.
 
     Separates fresh ExecutionRecord items from RetryableBatch items.
     RetryableBatch items are processed separately to preserve their retry_count.
 
-    Note: the 100-item cap applies to *queue items*, not total records.
+    Note: the ``_BATCH_DRAIN_CAP`` cap applies to *queue items*, not total records.
     A single RetryableBatch counts as 1 queue item but may contain a full
     prior batch's worth of records. This is acceptable for append-only
     telemetry — a large single transaction at recovery time is benign.
@@ -140,8 +140,8 @@ async def drain_and_persist(
     Args:
         executor: The owning CommandExecutor instance.
         first_item: An already-dequeued item to include as the first record.
-            When provided, at most 99 additional items are drained from the queue
-            so that the total batch size stays at 100.
+            When provided, at most ``_BATCH_DRAIN_CAP - 1`` additional items are drained
+            from the queue so that the total batch size stays at ``_BATCH_DRAIN_CAP``.
     """
     fresh_records: list[ExecutionRecord] = []
     retry_batches: list[RetryableBatch] = []
@@ -277,7 +277,7 @@ async def persist_batch(
 
     Error classification:
     - sqlite3.OperationalError / TimeoutError (write queue backed up) → retry via RetryableBatch
-      (max 3 retries), unless ``shutdown`` — see ``retry_or_drop()``.
+      (up to ``_MAX_RETRY_COUNT`` retries), unless ``shutdown`` — see ``retry_or_drop()``.
     - sqlite3.IntegrityError → FK violation path (row-by-row fallback).
     - sqlite3.DataError / sqlite3.ProgrammingError → non-retryable, drop + REGRESSION log.
     - Other Exception → non-retryable, drop + ERROR log.

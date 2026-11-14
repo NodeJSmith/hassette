@@ -3,8 +3,7 @@
 Inbound frames are HA data and can carry sensitive values (helper `initial`, entity attributes), and
 exception messages raised while handling them can quote those values (e.g. a pydantic `input_value`).
 Every log line here therefore names only lengths, types, message ids, and traceback frames -- never
-frame contents or `str(exc)`. Extracted from `websocket_service.py` to keep that module under the
-project's file-size guideline.
+frame contents or `str(exc)`.
 """
 
 import json

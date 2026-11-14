@@ -35,7 +35,7 @@ R = TypeVar("R")
 
 # Pool saturation defaults — mirror command_executor's capacity-warning defaults but scoped
 # to global pool saturation. Pool saturation is a global condition (not per-entity), so a
-# single global timestamp is the right rate-limit model (cf. enqueue_record in command_executor).
+# single global timestamp is the right rate-limit model (cf. execution_pipeline.enqueue_record).
 # Both are user-configurable via lifecycle.sync_executor_saturation_warn_threshold /
 # lifecycle.sync_executor_saturation_warn_rate_limit_seconds (see config/models.py); these
 # module-level defaults exist only so SyncExecutor works standalone (e.g. in tests) without
@@ -235,8 +235,8 @@ class SyncExecutor:
         """Emit a rate-limited pool-saturation WARNING when outstanding submissions cross the threshold.
 
         Uses a single global timestamp for rate-limiting — pool saturation is a global
-        condition, not per-entity, so the global-timestamp model from enqueue_record
-        (command_executor.py) is the right fit here (not the per-entity dict in
+        condition, not per-entity, so the global-timestamp model from
+        execution_pipeline.enqueue_record is the right fit here (not the per-entity dict in
         log_timeout_rate_limited).
 
         Outstanding-submission count is tracked via a dedicated counter incremented on
