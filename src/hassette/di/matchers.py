@@ -23,7 +23,8 @@ class TypeMatcher:
 
     Parameterized generics (e.g. `Event[EventPayload[Any]]`) are unwrapped to their origin before the
     subclass check, matching the behavior of `hassette.events.type_checks.is_event_type`. Union members
-    are unwrapped the same way, so `AnyEvent | None` matches `Event`.
+    are unwrapped the same way, so `AnyEvent | None` matches `Event`. A PEP 695 type alias is unwrapped
+    to its value first, so `type MyEvent = Event` matches too.
     """
 
     match_type: type
@@ -42,6 +43,12 @@ class TypeMatcher:
         if annotation is inspect.Parameter.empty:
             return None
 
+        # Unwrap PEP 695 `type X = ...` aliases, including chains (`type B = A`), matching
+        # `get_type_and_details`. `seen` stops a cyclic alias pair from looping forever.
+        seen: set[int] = set()
+        while id(annotation) not in seen and (alias_value := getattr(annotation, "__value__", None)) is not None:
+            seen.add(id(annotation))
+            annotation = alias_value
         origin = get_origin(annotation)
         base_type = origin or annotation
 
