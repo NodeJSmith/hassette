@@ -64,7 +64,7 @@ async def trigger_job(job_id: int, scheduler_service: SchedulerDep, request: Req
     a pending one-shot or recurring schedule still fires at its own time.
     """
     try:
-        job = await scheduler_service.trigger_job(job_id)
+        job = await scheduler_service.get_live_job(job_id)
     except ValueError as exc:
         raise WebApiError(ProblemCode.JOB_NOT_REGISTERED, str(exc)) from exc
 

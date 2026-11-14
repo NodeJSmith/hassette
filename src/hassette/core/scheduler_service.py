@@ -274,7 +274,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         """
         return list(self._jobs_by_id.values())
 
-    async def trigger_job(self, job_id: int) -> "Job":
+    async def get_live_job(self, job_id: int) -> "Job":
         """Look up a job in the live registry by its database id.
 
         Used by the manual-submission route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)
@@ -291,9 +291,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
             ValueError: If no job with the given job_id is currently registered — the
                 registration was never made, was removed, or the owning app is not running.
         """
-        live_jobs = await self.get_all_jobs()
-        live_by_job_id = {job.db_id: job for job in live_jobs if job.db_id is not None}
-        job = live_by_job_id.get(job_id)
+        job = self._jobs_by_id.get(job_id)
         if job is None:
             raise ValueError(f"Job {job_id} is not currently triggerable")
         return job
