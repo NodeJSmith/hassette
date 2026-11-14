@@ -242,6 +242,16 @@ async def test_skip_via_on_call_service(bus: "Bus") -> None:
     assert sub2.listener is sub1.listener
 
 
+async def test_skip_via_on_call_service_with_mapping_where(bus: "Bus") -> None:
+    """A mapping where= builds an equal ServiceDataWhere each time, so skip returns the existing listener."""
+    where = {"entity_id": "light.kitchen"}
+    with mock_add_listener(bus):
+        sub1 = await bus.on_call_service(handler=handler_a, name="svc_listener", where=where)
+        sub2 = await bus.on_call_service(handler=handler_a, name="svc_listener", where=where, if_exists="skip")
+
+    assert sub2.listener is sub1.listener
+
+
 # skip with drift raises ValueError
 
 

@@ -104,7 +104,7 @@ class ServiceDataWhere(_PredicateOps):
 
     spec: Mapping[str, "ChangeType"]
     auto_glob: bool = True
-    _predicates: tuple["Predicate[CallServiceEvent]", ...] = field(init=False, repr=False)
+    _predicates: tuple["Predicate[CallServiceEvent]", ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         preds: list[Predicate[CallServiceEvent]] = []
