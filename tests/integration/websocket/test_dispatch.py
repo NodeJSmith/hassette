@@ -16,7 +16,6 @@ import hassette.core.websocket_io as websocket_io_module
 from hassette.api.api import Api
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
-from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import CommandNotSentError, CommandRejectedError, ResponseTimeoutError
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types.enums import ConnectionState
@@ -341,7 +340,7 @@ async def test_dispatch_stamps_state_change_event_with_connected_generation(
     assert send_event_call is not None
     event = send_event_call.args[0]
     assert isinstance(event, RawStateChangeEvent)
-    assert get_websocket_generation(event) == 1
+    assert event.websocket_generation == 1
 
 
 async def test_dispatch_routes_result_messages(
