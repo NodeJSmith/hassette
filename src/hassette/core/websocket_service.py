@@ -312,7 +312,11 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         return self._connected_generation
 
     async def before_shutdown(self) -> None:
-        """Notify disconnect observers and send the connection-lost event before teardown begins."""
+        """Announce the disconnect before teardown begins."""
+        await self.announce_disconnect()
+
+    async def announce_disconnect(self) -> None:
+        """Notify disconnect observers, then send the connection-lost event to the bus."""
         await self._notify_disconnected_observers()
         await self.send_connection_lost_event()
 
@@ -377,12 +381,12 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         self._send_ready_event.clear()
         self._policy.on_connection_ended(connected_for)
         plan = self._policy.on_failure(exc)
-        if plan.disposition is not Disposition.PARK:
+        parking = plan.disposition is Disposition.PARK
+        if not parking:
             self.set_connection_state(ConnectionState.CONNECTING)
 
-        await self._notify_disconnected_observers()
-        await self.send_connection_lost_event()
-        if plan.disposition is not Disposition.PARK:  # park() reports its own reason
+        await self.announce_disconnect()
+        if not parking:  # park() reports its own reason
             await self.report_connection_status(NOT_CONNECTED_REASON)
         await self.partial_cleanup()
 
@@ -462,8 +466,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """
         while True:
             self._core_started_event.clear()
-            config = await race_recv_task(self.send_and_wait(type="get_config"), recv_task)
-            self.store_ha_core_config(config)
+            config = await self.read_core_config(recv_task)
             core_state = str(config["state"])
             if core_state == CORE_STATE_RUNNING:
                 return
@@ -481,8 +484,14 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             if await race_recv_task(
                 event_set_within(self._core_started_event, CORE_RUNNING_RECHECK_SECONDS), recv_task
             ):
-                self.store_ha_core_config(await race_recv_task(self.send_and_wait(type="get_config"), recv_task))
+                await self.read_core_config(recv_task)
                 return
+
+    async def read_core_config(self, recv_task: asyncio.Task) -> dict[str, typing.Any]:
+        """Read ``get_config`` raced against ``recv_task``, store it in ``ha_core_config``, and return it."""
+        config = await race_recv_task(self.send_and_wait(type="get_config"), recv_task)
+        self.store_ha_core_config(config)
+        return config
 
     def store_ha_core_config(self, config: dict[str, typing.Any]) -> None:
         """Replace ``ha_core_config`` from a ``get_config`` response; a malformed one keeps the previous value."""
@@ -543,8 +552,16 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """
         if task is not self._recv_task:
             return
-        self._pending.fail_all(self._ws.close_code if self._ws is not None else None)
+        self._pending.fail_all(self.current_close_code())
         self.set_connection_state(ConnectionState.DISCONNECTED)
+
+    def current_close_code(self) -> int | None:
+        """Return the socket's current close code, or None when there is no socket or it is still open.
+
+        The code comes from a peer CLOSE frame or a detected abnormal closure (1006, e.g. heartbeat
+        timeout). Read it before our own ``close()``, which would stamp hassette's code on an open socket.
+        """
+        return self._ws.close_code if self._ws is not None else None
 
     async def partial_cleanup(self) -> None:
         """Cancel recv task, close WebSocket, clear futures and subscriptions.
@@ -552,9 +569,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         Does NOT close self._session — that is owned by serve()'s async with block.
         Suppresses all exceptions so cleanup never prevents retry.
         """
-        # The code from a peer CLOSE frame or a detected abnormal closure (1006, e.g. heartbeat
-        # timeout). Read before close() below, which would stamp hassette's own code on an open socket.
-        close_code = self._ws.close_code if self._ws is not None else None
+        close_code = self.current_close_code()  # before the close() below
         self._send_ready_event.clear()
 
         if (recv_task := self._recv_task) is not None:
@@ -578,9 +593,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """Cleanup resources after the WebSocket connection is closed."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
 
-        # Set exceptions for all pending response futures, before the close() below can replace
-        # the socket's close code (peer CLOSE frame or detected abnormal closure) with our own.
-        self._pending.fail_all(self._ws.close_code if self._ws is not None else None)
+        # Fail all pending response futures before the close() below.
+        self._pending.fail_all(self.current_close_code())
 
         # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run
         # before the send-ready gate closes below — send_json() raises immediately once the gate

@@ -183,9 +183,9 @@ class PendingResponses:
             if success:
                 entry.future.set_result(message.get("result"))
             else:
-                entry.future.set_exception(self.rejection(message, error_envelope))
+                entry.future.set_exception(self.rejection(message, error_envelope, code))
         elif not entry.fire_and_forget:
-            self.log_late_reply(msg_id, entry.command_type, message)
+            self.log_late_reply(msg_id, entry.command_type, success, code)
 
         if entry.on_resolve is None:
             return
@@ -199,12 +199,11 @@ class PendingResponses:
                 error_message=error_envelope.get("message"),
             )
 
-    def rejection(self, message: dict, error_envelope: dict) -> CommandRejectedError:
+    def rejection(self, message: dict, error_envelope: dict, code: Any) -> CommandRejectedError:
         """Build the exception an awaited caller gets for an error reply."""
         # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
         #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
         err = error_envelope.get("message", "Unknown error")
-        code = error_envelope.get("code")
         if code is None and error_envelope:
             self.logger.debug(
                 "HA error envelope has no 'code' field (raw envelope: %r). "
@@ -232,7 +231,7 @@ class PendingResponses:
         except Exception:
             self.logger.exception("Failed to record the %r outcome of a %r write", outcome, entry.command_type)
 
-    def log_late_reply(self, msg_id: int, command_type: str, message: dict) -> None:
+    def log_late_reply(self, msg_id: int, command_type: str, success: bool, code: Any) -> None:
         """Log a late reply to a non-retried write whose caller stopped waiting.
 
         A late success proves the write applied. A late failure only reports that Home
@@ -240,7 +239,7 @@ class PendingResponses:
         service) can partly apply before failing, so a failure reply does not prove the
         command had no effect.
         """
-        if message.get("success"):
+        if success:
             self.logger.info(
                 "Late reply to abandoned %r (id %s): it succeeded, so the command applied after its caller stopped "
                 "waiting",
@@ -248,7 +247,6 @@ class PendingResponses:
                 msg_id,
             )
         else:
-            code = (message.get("error") or {}).get("code")
             self.logger.warning(
                 "Late reply to abandoned %r (id %s): Home Assistant reported failure (code %r); "
                 "check state before re-sending",
