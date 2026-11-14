@@ -27,9 +27,20 @@ def app() -> MagicMock:
     return MagicMock(instance_name=NAME, class_name="KitchenApp")
 
 
-def change(previous: ResourceStatus, status: ResourceStatus, error: Exception | None = None) -> StatusChange:
+def change(
+    previous: ResourceStatus,
+    status: ResourceStatus,
+    error: Exception | None = None,
+    needs_restart: NeedsRestartInfo | None = None,
+) -> StatusChange:
     return StatusChange(
-        app_key=APP_KEY, instance_name=NAME, class_name="KitchenApp", previous=previous, status=status, error=error
+        app_key=APP_KEY,
+        instance_name=NAME,
+        class_name="KitchenApp",
+        previous=previous,
+        status=status,
+        error=error,
+        needs_restart=needs_restart,
     )
 
 
@@ -174,8 +185,33 @@ class TestNeedsRestart:
 
         result = registry.set_status(APP_KEY, NAME, ResourceStatus.FAILED, error=error, needs_restart=flag)
 
-        assert result == change(ResourceStatus.STOPPING, ResourceStatus.FAILED, error)
+        assert result == change(ResourceStatus.STOPPING, ResourceStatus.FAILED, error, needs_restart=flag)
         assert registry.get_needs_restart(APP_KEY, NAME) is flag
+
+    def test_flagging_a_failed_entry_with_the_same_error_is_a_change(self, registry: AppRegistry) -> None:
+        """Adding the flag to a FAILED entry reports a change even when the error object is unchanged."""
+        error = ValueError("hung")
+        seed_failed(registry, APP_KEY, NAME, error)
+        flag = NeedsRestartInfo(reason="work still running", pending_tasks=(), flagged_at=date_utils.now())
+
+        result = registry.set_status(APP_KEY, NAME, ResourceStatus.FAILED, error=error, needs_restart=flag)
+
+        assert result is not None
+        assert (result.previous, result.status, result.needs_restart) == (
+            ResourceStatus.FAILED,
+            ResourceStatus.FAILED,
+            flag,
+        )
+
+    def test_a_later_failure_reports_the_standing_flag(self, registry: AppRegistry) -> None:
+        """A FAILED change over a flagged entry carries the flag it keeps, so its event still says needs-restart."""
+        seed_failed(registry, APP_KEY, NAME, ValueError("first"), needs_restart="first reason")
+
+        result = registry.set_status(APP_KEY, NAME, ResourceStatus.FAILED, error=ValueError("second"))
+
+        assert result is not None
+        assert result.needs_restart is not None
+        assert result.needs_restart.reason == "first reason"
 
     def test_the_first_flag_stands_and_a_later_failure_replaces_the_error(self, registry: AppRegistry) -> None:
         """A FAILED write over a flagged entry keeps the original flag, and a new error still emits."""

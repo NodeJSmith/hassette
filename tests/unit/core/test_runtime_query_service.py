@@ -10,16 +10,18 @@ from hassette_wire import AppStatus, ExecutionCompletedData, ExecutionStatus, Re
 from pydantic import TypeAdapter, ValidationError
 
 from hassette.core.app_handler import AppHandler
-from hassette.core.app_registry import AppRegistry
+from hassette.core.app_registry import AppRegistry, StatusChange
 from hassette.core.pipeline_counters import PipelineCounter, PipelineCounters
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import (
+    HassetteAppStateEvent,
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
 )
+from hassette.schemas import NeedsRestartInfo
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.types.enums import BlockReason, ResourceRole
-from hassette.utils import get_version
+from hassette.utils import date_utils, get_version
 from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.helpers import create_app_manifest
 from tests.support.mock_hassette import make_mock_hassette
@@ -287,57 +289,58 @@ class TestConcurrentAppHandlerTeardown:
         [info] = runtime.overlay_manifest_rows([make_manifest_db_row(app_key=manifest.app_key)])
         assert info.status is AppStatus.STOPPED
 
-    async def test_on_app_state_changed_is_idempotent_when_registry_entry_is_gone(
+    async def test_on_app_state_changed_does_not_read_needs_restart_from_the_registry(
         self, runtime: RuntimeQueryService
     ) -> None:
-        """Broadcasting an app-state event for an index the registry no longer holds still sends it, unflagged."""
-        broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
-        runtime.hassette.app_handler.registry = AppRegistry()  # already cleared by teardown
-
-        event = MagicMock()
-        event.payload.data.app_key = "gone_app"
-        event.payload.data.status = ResourceStatus.STOPPED
-        event.payload.data.previous_status = ResourceStatus.RUNNING
-        event.payload.data.instance_name = "GoneApp[0]"
-        event.payload.data.class_name = "GoneApp"
-        event.payload.data.exception = None
-        event.payload.data.exception_type = None
-        event.payload.data.exception_traceback = None
-
-        await runtime.on_app_state_changed(event)
-
-        assert len(broadcast_calls) == 1
-        assert broadcast_calls[0]["data"]["app_key"] == "gone_app"
-        assert broadcast_calls[0]["data"]["needs_restart"] is None
-
-    async def test_on_app_state_changed_carries_needs_restart_from_registry(self, runtime: RuntimeQueryService) -> None:
-        """The WS event carries the registry's needs-restart record, which the bus payload doesn't have."""
+        """An event with no needs-restart flag broadcasts ``needs_restart: None``, whatever the registry holds."""
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
         registry = AppRegistry()
-        seed_failed(
-            registry, "stuck_app", "StuckApp[0]", needs_restart="1 task still pending", pending_tasks=("StuckApp.poll",)
-        )
+        # A flag that landed after this STARTING event was sent must not show on it.
+        seed_failed(registry, "stuck_app", "StuckApp[0]", needs_restart="flagged after this event was sent")
         runtime.hassette.app_handler.registry = registry
-
-        event = MagicMock()
-        event.payload.data.app_key = "stuck_app"
-        event.payload.data.status = ResourceStatus.FAILED
-        event.payload.data.previous_status = ResourceStatus.STOPPING
-        event.payload.data.instance_name = "StuckApp[0]"
-        event.payload.data.class_name = "StuckApp"
-        event.payload.data.exception = None
-        event.payload.data.exception_type = None
-        event.payload.data.exception_traceback = None
+        event = HassetteAppStateEvent.from_change(
+            StatusChange(
+                app_key="stuck_app",
+                instance_name="StuckApp[0]",
+                class_name="StuckApp",
+                previous=ResourceStatus.NOT_STARTED,
+                status=ResourceStatus.STARTING,
+            )
+        )
 
         await runtime.on_app_state_changed(event)
 
         [msg] = broadcast_calls
-        flag = msg["data"]["needs_restart"]
-        assert flag["reason"] == "1 task still pending"
-        assert flag["pending_tasks"] == ["StuckApp.poll"]
-        assert isinstance(flag["flagged_at"], float)
+        assert msg["data"]["status"] == ResourceStatus.STARTING
+        assert msg["data"]["needs_restart"] is None
+
+    async def test_on_app_state_changed_carries_the_events_needs_restart(self, runtime: RuntimeQueryService) -> None:
+        """The WS message carries the flag the bus event carries, with ``flagged_at`` in epoch seconds."""
+        broadcast_calls: list[dict] = []
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        flag = NeedsRestartInfo(
+            reason="1 task still pending", pending_tasks=("StuckApp.poll",), flagged_at=date_utils.now()
+        )
+        event = HassetteAppStateEvent.from_change(
+            StatusChange(
+                app_key="stuck_app",
+                instance_name="StuckApp[0]",
+                class_name="StuckApp",
+                previous=ResourceStatus.STOPPING,
+                status=ResourceStatus.FAILED,
+                error=RuntimeError("hung"),
+                needs_restart=flag,
+            )
+        )
+
+        await runtime.on_app_state_changed(event)
+
+        [msg] = broadcast_calls
+        wire_flag = msg["data"]["needs_restart"]
+        assert wire_flag["reason"] == "1 task still pending"
+        assert wire_flag["pending_tasks"] == ["StuckApp.poll"]
+        assert isinstance(wire_flag["flagged_at"], float)
 
 
 class TestUnwiredBootstrapCoordinator:

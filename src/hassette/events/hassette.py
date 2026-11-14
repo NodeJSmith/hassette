@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from hassette_wire import ExecutionKind, ExecutionStatus, ResourceStatus
 
 from hassette.events.base import Event, HassettePayload
+from hassette.schemas.app_snapshots import NeedsRestartInfo
 from hassette.types import ResourceRole, Topic
 from hassette.utils import get_traceback_string
 
@@ -154,6 +155,9 @@ class AppStateChangePayload:
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None
+    needs_restart: NeedsRestartInfo | None = None
+    """Set on a FAILED change when the instance is flagged needs-restart: its teardown may have left work
+    running, so it won't start again until hassette restarts."""
 
 
 class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
@@ -163,8 +167,8 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
     def from_change(cls, change: "StatusChange") -> "HassetteAppStateEvent":
         """Build an app state-change event from a transition ``AppRegistry.set_status`` applied.
 
-        Identity and class name come from the change. Exception fields are filled from ``change.error``, which
-        only a FAILED change carries.
+        Identity and class name come from the change. Exception fields are filled from ``change.error``, and
+        ``needs_restart`` from ``change.needs_restart``; only a FAILED change carries either.
 
         Args:
             change: The transition to report.
@@ -182,6 +186,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
             exception=exc_str,
             exception_type=exc_type,
             exception_traceback=exc_tb,
+            needs_restart=change.needs_restart,
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,

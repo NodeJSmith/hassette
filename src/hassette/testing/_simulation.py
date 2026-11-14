@@ -14,6 +14,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_registry import StatusChange
 from hassette.events import CallServiceEvent, ComponentLoadedEvent, Event, RawStateChangeEvent, ServiceRegisteredEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
+from hassette.schemas.app_snapshots import NeedsRestartInfo
 from hassette.testing._factories import (
     create_call_service_event,
     create_component_loaded_event,
@@ -503,6 +504,7 @@ class SimulationMixin:
         *,
         previous_status: ResourceStatus | None = None,
         exception: Exception | None = None,
+        needs_restart: NeedsRestartInfo | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> HassetteAppStateEvent:
         """Create an app state changed event and send it through the bus.
@@ -515,6 +517,7 @@ class SimulationMixin:
             status: The new app status.
             previous_status: The previous status, if known.
             exception: An exception associated with the status change, if any.
+            needs_restart: The needs-restart flag a FAILED change carries, if any.
             timeout: Maximum seconds to wait for handlers to complete.
 
         Returns:
@@ -538,6 +541,7 @@ class SimulationMixin:
             previous=previous_status,
             status=status,
             error=exception,
+            needs_restart=needs_restart,
         )
         event = HassetteAppStateEvent.from_change(change)
         return await self.simulate_event(event, timeout=timeout)

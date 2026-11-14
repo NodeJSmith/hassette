@@ -169,7 +169,7 @@ without a live instance:
 | Method | Fires the event for |
 |---|---|
 | `simulate_websocket_connected()` / `simulate_websocket_disconnected()` | `on_websocket_connected` / `on_websocket_disconnected` — reconnection logic |
-| `simulate_app_state_changed(status, ...)` | `on_app_state_changed` — status changes of the app under test |
+| `simulate_app_state_changed(status, ...)` | `on_app_state_changed` — status changes of the app under test (`previous_status=`, `exception=`, and `needs_restart=` for a flagged `FAILED`) |
 | `simulate_app_running()` / `simulate_app_stopping()` | `on_app_running` / `on_app_stopping` |
 | `simulate_homeassistant_restart()` / `_start()` / `_stop()` | `on_homeassistant_restart` / `_start` / `_stop` |
 | `simulate_component_loaded(component)` | `on_component_loaded` |

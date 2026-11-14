@@ -11,6 +11,7 @@ instance/all-app shutdown outcomes.
 """
 
 import asyncio
+import logging
 import re
 import typing
 from typing import TYPE_CHECKING
@@ -25,6 +26,7 @@ from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
+from hassette.schemas.app_outcomes import OutcomeResult
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from tests.support.app_registry_helpers import seed_failed, seed_running
@@ -143,6 +145,79 @@ class TestInitializeInstances:
         assert app_state_payloads(event_capture, ResourceStatus.STOPPING) == []
         failed = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert [p.previous_status for p in failed] == [ResourceStatus.STARTING]
+
+    @pytest.mark.parametrize(
+        "exit_reaches_second",
+        [
+            pytest.param(
+                lambda registry: registry.set_status("test_app", "second", ResourceStatus.STOPPING), id="stopping"
+            ),
+            pytest.param(
+                lambda registry: registry.set_status("test_app", "second", ResourceStatus.STOPPED), id="stopped"
+            ),
+        ],
+    )
+    async def test_a_sibling_exit_reached_first_is_not_initialized(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
+        exit_reaches_second: typing.Callable[[typing.Any], object],
+    ) -> None:
+        """Process exit starts stopping a sibling during an earlier one's init: it fails, never initialized."""
+        event_capture.install(mock_hassette)
+        registry = real_registry_service.registry
+        first = make_mock_app_instance(instance_name="first")
+        second = make_mock_app_instance(instance_name="second")
+        registry.set_status("test_app", "first", ResourceStatus.NOT_STARTED, app=first)
+        registry.set_status("test_app", "second", ResourceStatus.NOT_STARTED, app=second)
+
+        async def first_init_while_exit_reaches_second() -> None:
+            exit_reaches_second(registry)
+
+        first.initialize.side_effect = first_init_while_exit_reaches_second
+        outcomes = AnyNameOutcomes()
+
+        with patch.object(app_lifecycle_instances, "mark_ready"):
+            await real_registry_service.initialize_instances(
+                "test_app", {"first": first, "second": second}, mock_manifest, outcomes=outcomes
+            )
+
+        second.initialize.assert_not_called()
+        by_name = {o.instance_name: o for o in outcomes.snapshot()}
+        assert by_name["second"].result is OutcomeResult.FAILED
+        assert by_name["second"].reason == "stopped before it was initialized"
+        assert [p.instance_name for p in app_state_payloads(event_capture, ResourceStatus.STARTING)] == ["first"]
+
+    async def test_a_sibling_flagged_before_its_turn_is_refused_without_a_warning(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_manifest: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A sibling flagged needs-restart during an earlier one's init is refused, and no refused write is logged."""
+        registry = real_registry_service.registry
+        first = make_mock_app_instance(instance_name="first")
+        second = make_mock_app_instance(instance_name="second")
+        registry.set_status("test_app", "first", ResourceStatus.NOT_STARTED, app=first)
+        registry.set_status("test_app", "second", ResourceStatus.NOT_STARTED, app=second)
+
+        async def first_init_while_exit_flags_second() -> None:
+            seed_failed(registry, "test_app", "second", needs_restart="work still running")
+
+        first.initialize.side_effect = first_init_while_exit_flags_second
+        outcomes = AnyNameOutcomes()
+
+        with patch.object(app_lifecycle_instances, "mark_ready"), caplog.at_level(logging.WARNING):
+            await real_registry_service.initialize_instances(
+                "test_app", {"first": first, "second": second}, mock_manifest, outcomes=outcomes
+            )
+
+        second.initialize.assert_not_called()
+        by_name = {o.instance_name: o for o in outcomes.snapshot()}
+        assert by_name["second"].result is OutcomeResult.REFUSED
+        assert not [r for r in caplog.records if "flagged needs-restart" in r.getMessage()]
 
     async def test_a_failed_running_event_is_logged_and_the_app_keeps_running(
         self,

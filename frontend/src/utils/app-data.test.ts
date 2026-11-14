@@ -65,6 +65,23 @@ describe("appLiveStatus", () => {
     expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
   });
 
+  it.each(["starting", "stopping", "not_started"] as const)(
+    "derives degraded from a failed instance beside a %s one, as the server's rollup does",
+    (sibling) => {
+      const row = instanceRow("multi_app", "degraded", ["failed", "running"]);
+      const liveStatuses: Record<string, AppStatusEntry> = {
+        "multi_app:inst_0": { status: "failed", instance_name: "inst_0" },
+        "multi_app:inst_1": { status: sibling, instance_name: "inst_1" },
+      };
+      expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
+    },
+  );
+
+  it("reports failed, not degraded, for a failed instance beside a stopped one", () => {
+    const row = instanceRow("multi_app", "failed", ["failed", "stopped"]);
+    expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("failed");
+  });
+
   it("clears a stale degraded row.status once live statuses show full recovery", () => {
     const row = instanceRow("multi_app", "degraded", ["running", "failed"]);
     const liveStatuses: Record<string, AppStatusEntry> = {

@@ -14,6 +14,7 @@ from humanize import precisedelta
 from hassette.core.app_lifecycle_common import (
     FAILED,
     INIT_FAILURE_TRACEBACK_LIMIT,
+    NOT_STARTED,
     RUNNING,
     STARTING,
     STOPPED,
@@ -110,7 +111,19 @@ class AppInstanceLifecycleMixin:
         against the app's startup budget. The ``try`` covers only the initialization itself. The RUNNING
         write follows it, and a failure to send its event is a telemetry failure, not an app failure: it is
         logged and the app keeps running.
+
+        Initialization is skipped for an instance process exit reached first (see the comment at the check).
         """
+        # Process exit takes no app-key lock, so during an earlier sibling's init it may have flagged this
+        # instance or begun stopping it. Both checks sit right before the STARTING write with no ``await``
+        # between, so neither can go stale, and a flagged name never reaches the registry's refused-write WARNING.
+        if (refusal := self.registry.refusal_reason(inst.app_key, inst.instance_name)) is not None:
+            outcomes.refused(inst.instance_name, refusal)
+            return
+        if self.registry.get_status(inst.app_key, inst.instance_name) is not NOT_STARTED:
+            self.logger.debug("Skipped initializing app '%s' (%s): it is being stopped", inst.instance_name, class_name)
+            outcomes.failed(inst.instance_name, "stopped before it was initialized")
+            return
         await self.set_app_status(inst.app_key, inst.instance_name, STARTING)
         try:
             with anyio.fail_after(self.startup_timeout):
@@ -496,6 +509,17 @@ class AppInstanceLifecycleMixin:
         A runtime stop already in flight is still registered (``shutdown_instance`` writes STOPPED after the
         teardown), so it is reached here too: this joins its single shielded shutdown attempt under the
         tighter deadline, and both owners handle the outcome.
+
+        Known limitation: this takes no app-key lock, so a hung start can't hold up exit, and it races any
+        start, reload or stop still in flight. ``AppRegistry.set_status`` settles the interleaved writes with
+        its usual rules, so statuses stored and sent between here and ``clear_all`` can be wrong:
+
+        - a late RUNNING can follow STOPPING;
+        - a stale STOPPED can remove a same-name replacement's entry;
+        - a teardown that settles after ``clear_all`` can leave a FAILED entry behind.
+
+        Nothing acts on that state, since ``clear_all`` discards it. The one race with consequences, starting an
+        instance this already reached, is prevented in ``initialize_instance``.
         """
         self.logger.debug("Shutting down all apps")
         instances = [

@@ -190,6 +190,7 @@ def mock_registry() -> MagicMock:
     registry.clear_all = Mock()
     registry.get_manifest = Mock(return_value=None)
     registry.refusal_reason = Mock(return_value=None)
+    registry.get_status = Mock(return_value=ResourceStatus.NOT_STARTED)
     registry.set_manifests = Mock()
     registry.set_only_apps = Mock()
     set_registry_apps(registry, {})

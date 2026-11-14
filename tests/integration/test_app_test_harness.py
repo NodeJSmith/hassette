@@ -17,7 +17,9 @@ from hassette.app.app_config import AppConfig
 from hassette.events import CallServiceEvent, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.models import states
+from hassette.schemas import NeedsRestartInfo
 from hassette.testing import AppConfigurationError, AppTestHarness, RecordingApi, wait_for
+from hassette.utils import date_utils
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -629,6 +631,28 @@ async def test_simulate_app_state_changed():
         # Filter by STOPPING — startup emits RUNNING/STARTING, teardown emits STOPPING
         stopping_events = [e for e in received if e.payload.data.status == ResourceStatus.STOPPING]
         assert len(stopping_events) == 1
+
+
+async def test_simulate_app_state_changed_carries_needs_restart():
+    """A simulated FAILED change delivers the needs-restart flag it was given on the event payload."""
+    received: list[HassetteAppStateEvent] = []
+    flag = NeedsRestartInfo(reason="work still running", flagged_at=date_utils.now())
+
+    class FlaggedApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            await self.bus.on_app_state_changed(
+                handler=self.on_state, status=ResourceStatus.FAILED, name="app_state_failed"
+            )
+
+        async def on_state(self, event: HassetteAppStateEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(FlaggedApp, config={"instance_name": "flagged_app"}) as harness:
+        await harness.simulate_app_state_changed(
+            ResourceStatus.FAILED, exception=RuntimeError("hung"), needs_restart=flag
+        )
+        [event] = received
+        assert event.payload.data.needs_restart is flag
 
 
 async def test_simulate_app_running():

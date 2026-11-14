@@ -72,7 +72,9 @@ together?
 and lifecycle code reaches it only through `AppInstanceLifecycleMixin.set_app_status()`, which writes and sends
 the event in one call. Does a new status write go through `set_app_status()` rather than calling
 `registry.set_status()` directly (whose returned change would then go unsent)? The needs-restart flag lives on
-the FAILED entry and is set by the FAILED write itself (`needs_restart=`). Does every new FAILED outcome in
+the FAILED entry and is set by the FAILED write itself (`needs_restart=`); its `StatusChange` and
+`HassetteAppStateEvent` carry it. Does a consumer of app status events read the flag from the event rather than
+the registry, which may already hold a later write? Does every new FAILED outcome in
 `src/hassette/core/app_lifecycle_instances.py` whose `ShutdownOutcome` is not restart-safe pass the flag on that
 write (`fail_needs_restart()`)? Does a new path that creates an instance go through
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,

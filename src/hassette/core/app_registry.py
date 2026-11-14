@@ -77,6 +77,9 @@ class StatusChange:
     simulates without a known previous status."""
     status: ResourceStatus
     error: Exception | None = None
+    needs_restart: NeedsRestartInfo | None = None
+    """The entry's needs-restart flag after the write. Only a FAILED change can carry one, since every other
+    write onto a flagged entry is refused."""
 
 
 class AppRegistry:
@@ -154,7 +157,9 @@ class AppRegistry:
 
         previous = current.status if current is not None else ResourceStatus.NOT_STARTED
         previous_error = current.error if current is not None else None
-        is_change = previous is not to or (to is ResourceStatus.FAILED and error is not previous_error)
+        current_flag = current.needs_restart if current is not None else None
+        adds_flag = to is ResourceStatus.FAILED and needs_restart is not None and current_flag is None
+        is_change = previous is not to or (to is ResourceStatus.FAILED and error is not previous_error) or adds_flag
         live_app = app if to is ResourceStatus.NOT_STARTED else previous_app
 
         # The write happens even when it isn't a change: a re-registration replaces the App, and a repeat
@@ -168,7 +173,7 @@ class AppRegistry:
                 error=error,
                 error_message=str(error),
                 error_traceback=get_traceback_string(error) if error.__traceback__ else None,
-                needs_restart=(current.needs_restart if current is not None else None) or needs_restart,
+                needs_restart=current_flag or needs_restart,
             )
         else:
             self._instances[app_key][instance_name] = InstanceEntry(app=live_app, status=to)
@@ -183,6 +188,7 @@ class AppRegistry:
             previous=previous,
             status=to,
             error=error if to is ResourceStatus.FAILED else None,
+            needs_restart=(current_flag or needs_restart) if to is ResourceStatus.FAILED else None,
         )
 
     def _remove(self, app_key: str, instance_name: str) -> None:
@@ -388,6 +394,11 @@ class AppRegistry:
         running = (entries[name].app for name in self.display_names(app_key) if name in entries)
         return next((app for app in running if app is not None), None)
 
+    def get_status(self, app_key: str, instance_name: str) -> ResourceStatus | None:
+        """An instance's stored status, or ``None`` when the registry doesn't track it."""
+        entry = self._instances.get(app_key, {}).get(instance_name)
+        return entry.status if entry is not None else None
+
     def get_manifest(self, app_key: str) -> "AppManifest | None":
         """Get the manifest for an app key."""
         return self._manifests.get(app_key)
@@ -480,6 +491,7 @@ class AppRegistry:
         ``instances`` also lists its not-yet-tracked instances. A flagged name counts as failed.
         """
         tracked = self.resolve_instance_infos(app_key, manifest)
+        # The frontend's ``appLiveStatus`` (frontend/src/utils/app-data.ts) mirrors this rollup rule (#4147).
         has_running = any(not is_failed_info(info) for info in tracked.values())
         has_failed = any(is_failed_info(info) for info in tracked.values())
 

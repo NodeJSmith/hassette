@@ -1,7 +1,7 @@
 # Design: The app registry owns app status transitions
 
 **Date:** 2026-11-13
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4092
 **Prior art:** `design/research/2026-11-13-framework-timeline/structural-gaps.md` (Gap 1: the Prefect, Airflow and HA `force_update` claims in D1–D3) and `peer-check.md` beside it, copied from commit `f1cf5699` on the `3678` branch; `design/research/2026-11-13-unsafe-teardown-restart/prior-art.md` (needs-restart, D6)
@@ -208,7 +208,7 @@ The paths that write status today, all of which go through `set_app_status` afte
 
 - [x] Implementation and tests committed
 - [x] Docs (bus/methods.md on_app_state_changed statuses, operating/index.md flagged-stop wording, core REVIEW.md, .claude test rules)
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `prune_stale_failed` is renamed `stale_failed_names`: under the Summary it only reads, and a read named "prune" misleads.
@@ -221,3 +221,11 @@ The paths that write status today, all of which go through `set_app_status` afte
 - `_record_created` re-checks the needs-restart flag right before each NOT_STARTED write and records a flagged name as refused, registering and initializing only the rest: process exit flags names without the app-key lock, and an earlier name's event send is an `await` it can land in, after which the registry would drop the write and the App would run unregistered.
 - `fail_needs_restart` takes `flag_reason`, `shutdown_outcome` and `outcome_reason` as keywords: two near-identical reason strings passed positionally invited a swap.
 - D8's follow-up issue is #4113.
+- The PR is titled `feat!:` and ends with one `BREAKING CHANGE:` footer: `HassetteAppStateEvent.from_app` and `from_instance_info` are removed (build events through the `hassette.testing` simulate helpers instead), instances now emit STARTING, and NOT_STARTED is no longer sent on a first start, only on a retry over a failed instance. The commits are plain `feat:`/`fix:`, and the squash title is what reaches the changelog.
+- Process exit stays lock-free: `shutdown_all`'s docstring records, as one known limitation, that its races with in-flight lifecycle work can leave wrong statuses between exit and `clear_all` (a late RUNNING after STOPPING, a stale STOPPED removing a same-name replacement, a FAILED entry left after `clear_all`). HA config entries, NetDaemon and pyscript stop the same way, and none guards late status writes (design/research/2026-11-14-exit-vs-inflight-lifecycle/prior-art.md).
+- `initialize_instance` skips `initialize()` for an instance exit reached first, checking right before the STARTING write: a flagged name is refused (so the registry logs no refused-write WARNING), and one no longer NOT_STARTED (STOPPING, or removed) fails with "stopped before it was initialized". The check reads `AppRegistry.get_status`, so `set_app_status` still returns nothing.
+- A FAILED write that adds the needs-restart flag is a change even when the error object is unchanged, so the flag always reaches an event.
+- `needs_restart` rides on `StatusChange` and `HassetteAppStateEvent`'s payload (a FAILED change carries the entry's flag after the write), and `RuntimeQueryService.on_app_state_changed` reads it from the event instead of the registry, so an earlier event handled after a flag lands no longer shows it. `NeedsRestartInfo` is exported from `hassette.schemas`, and `simulate_app_state_changed` takes `needs_restart=`.
+- D2's accepted limitation covers every status event, not only FAILED: a send that raises (logged at ERROR) leaves the UI row at its previous status until the instance's next transition or a WS reconnect. The underlying fix, ordering the REST snapshot against WS deltas, is filed with the server-owned rollup as #4147.
+- `is_failed_info` reads `info.status is FAILED` instead of inferring failure from `error`/`needs_restart`.
+- The frontend's `appLiveStatus` reports "degraded" when a failed instance sits beside any instance that is neither failed nor stopped, the server's manifest rollup rule (a "stopped" instance there is an untracked configured name).
