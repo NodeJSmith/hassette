@@ -19,7 +19,6 @@ from hassette.schemas.app_snapshots import (
     tally_app_statuses,
 )
 from hassette.types.enums import BlockReason
-from hassette.utils import date_utils
 from hassette.utils.exception_utils import get_traceback_string
 
 if TYPE_CHECKING:
@@ -30,9 +29,24 @@ if TYPE_CHECKING:
 UNKNOWN_LABEL = "Unknown"
 
 
+LIVE_STATUSES = frozenset(
+    {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING, ResourceStatus.STOPPING}
+)
+"""Statuses whose entry holds a live ``App``."""
+
+MISSING_ENTRY_STATUSES = frozenset({ResourceStatus.NOT_STARTED, ResourceStatus.FAILED})
+"""Statuses ``set_status`` accepts for a name with no entry: registration, and a failure before any ``App`` existed.
+
+A missing entry reads as NOT_STARTED. Any other write to one comes from a late writer racing process exit or a
+concurrent stop, and is dropped so it can't create a ghost entry or report a bogus change."""
+
+
 @dataclass(frozen=True)
 class InstanceEntry:
-    """A single tracked app instance — either running (``app`` set) or failed (``error`` set).
+    """One tracked app instance.
+
+    An entry with a live status (``LIVE_STATUSES``) holds its ``App``. A FAILED entry holds none, carries the
+    error, and can carry ``needs_restart``. STOPPED is never stored: it removes the entry.
 
     No ``instance_name`` field: the dict key ``_instances[app_key][instance_name]`` is the single
     source of truth.
@@ -43,22 +57,26 @@ class InstanceEntry:
     error: Exception | None = None
     error_message: str | None = None
     error_traceback: str | None = None
+    needs_restart: NeedsRestartInfo | None = None
 
     @property
-    def is_running(self) -> bool:
-        """Whether this entry holds a live ``App`` (as opposed to a recorded failure)."""
+    def holds_app(self) -> bool:
+        """Whether this entry holds its ``App`` (any live status), as opposed to a recorded failure."""
         return self.app is not None
 
 
 @dataclass(frozen=True)
-class NeedsRestartRecord:
-    """A needs-restart flag on one ``(app_key, instance_name)``, kept outside the instance map.
+class StatusChange:
+    """One app instance status transition, as ``AppRegistry.set_status`` applied it."""
 
-    Stores the class name so the row still renders after its entry is unregistered or its app leaves config.
-    """
-
+    app_key: str
+    instance_name: str
     class_name: str
-    info: NeedsRestartInfo
+    previous: ResourceStatus | None
+    """The status before the write. Always set by ``set_status``; ``None`` only in events the test harness
+    simulates without a known previous status."""
+    status: ResourceStatus
+    error: Exception | None = None
 
 
 class AppRegistry:
@@ -66,90 +84,125 @@ class AppRegistry:
 
     Single source of truth for app state with snapshot generation for web UI.
 
-    Per-instance state is keyed by instance name, and has two parts: the instance entry (running or failed)
-    and an optional needs-restart record. ``_combine_instance_info`` is the one place they combine; every
-    per-instance reader goes through it, by way of ``resolve_instance_info`` or ``resolve_instance_infos``.
+    Per-instance state is one ``InstanceEntry`` per instance name, and ``set_status`` is its only writer
+    (``clear_all`` aside). Every per-instance reader goes through ``resolve_instance_info`` or
+    ``resolve_instance_infos``.
 
     Position carries no identity here. Display order is derived on each read by ``display_names``.
     """
 
     def __init__(self) -> None:
         self._instances: dict[str, dict[str, InstanceEntry]] = defaultdict(dict)
-        self._needs_restart: dict[str, dict[str, NeedsRestartRecord]] = defaultdict(dict)
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
         self._only_apps: frozenset[str] = frozenset()
         self._debug_capture: set[tuple[str, str]] = set()
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
-    def register_app(self, app_key: str, app: "App[AppConfig]") -> None:
-        """Register a running app instance under its own ``instance_name``, replacing any prior entry under it."""
-        self._instances[app_key][app.instance_name] = InstanceEntry(app=app, status=ResourceStatus.RUNNING)
-        self.logger.debug("Registered app '%s' instance '%s'", app_key, app.instance_name)
-
-    def unregister_app(self, app_key: str, instance_name: str | None = None) -> dict[str, "App[AppConfig]"] | None:
-        """Remove app instance(s). Returns removed running instances (failed entries are discarded)."""
-        if instance_name is None:
-            entries = self._instances.pop(app_key, None)
-            if entries is None:
-                return None
-            return {name: app for name, entry in entries.items() if (app := entry.app) is not None}
-
-        if app_key not in self._instances:
-            return None
-
-        entry = self._instances[app_key].pop(instance_name, None)
-
-        if not self._instances[app_key]:
-            del self._instances[app_key]
-
-        if entry is not None and (app := entry.app) is not None:
-            return {instance_name: app}
-
-        return None
-
-    def record_failure(self, app_key: str, instance_name: str, error: Exception) -> None:
-        """Record a failed app startup/crash, replacing any prior entry under that name."""
-        self.logger.debug("Recording failure for app '%s' instance '%s': %s", app_key, instance_name, error)
-        self._instances[app_key][instance_name] = InstanceEntry(
-            app=None,
-            status=ResourceStatus.FAILED,
-            error=error,
-            error_message=str(error),
-            error_traceback=get_traceback_string(error) if error.__traceback__ else None,
-        )
-
-    def flag_needs_restart(
+    def set_status(
         self,
         app_key: str,
         instance_name: str,
+        to: ResourceStatus,
         *,
-        class_name: str,
-        reason: str,
-        pending_tasks: Iterable[str] = (),
-    ) -> bool:
-        """Record that ``(app_key, instance_name)`` needs a hassette restart because work may still be running.
+        app: "App[AppConfig] | None" = None,
+        error: Exception | None = None,
+        needs_restart: NeedsRestartInfo | None = None,
+    ) -> StatusChange | None:
+        """Write the status of ``(app_key, instance_name)`` and return the change, or ``None`` when no event is owed.
 
-        The first record under a name stands until restart: a later flag on the same name is not merged
-        in, and returns ``False``. Survives ``unregister_app``, ``record_failure`` and config changes;
-        only ``clear_all`` (process exit, test reset) removes it.
+        The previous status comes from the entry; a missing entry reads as NOT_STARTED. A write is a change
+        when the status differs, or when it is FAILED with a different error object (compared by identity).
 
-        Returns:
-            ``True`` when this call created the record.
+        - NOT_STARTED registers ``app``, replacing whatever the name held. Onto a missing entry it changes
+          nothing, so it returns ``None``.
+        - STARTING, RUNNING and STOPPING keep the entry's ``App``.
+        - FAILED drops the ``App`` and stores ``error``. ``needs_restart`` flags the entry; the first flag on a
+          name stands until ``clear_all``, and a later FAILED write keeps it while replacing the error.
+        - STOPPED removes the entry.
+
+        Rejected writes change nothing and return ``None``: any status but NOT_STARTED or FAILED onto a missing
+        entry (DEBUG log), a live status onto an entry with no ``App`` (DEBUG log), and anything but FAILED onto
+        a flagged entry (WARNING log, since every normal path refuses a flagged name before writing).
+
+        Args:
+            app_key: The app key.
+            instance_name: The instance name.
+            to: The new status.
+            app: The instance being registered; required for NOT_STARTED, ignored otherwise.
+            error: The failure; required for FAILED, ignored otherwise.
+            needs_restart: Flags a FAILED entry needs-restart; ignored for other statuses.
         """
-        records = self._needs_restart[app_key]
-        if instance_name in records:
-            return False
-        records[instance_name] = NeedsRestartRecord(
-            class_name=class_name,
-            info=NeedsRestartInfo(reason=reason, pending_tasks=tuple(pending_tasks), flagged_at=date_utils.now()),
-        )
-        self.logger.debug("Flagged app '%s' instance '%s' needs restart: %s", app_key, instance_name, reason)
-        return True
+        if to is ResourceStatus.FAILED and error is None:
+            raise ValueError("a FAILED write needs an error")
+        if to is ResourceStatus.NOT_STARTED and app is None:
+            raise ValueError("a NOT_STARTED write needs the app being registered")
 
-    def get_needs_restart(self, app_key: str, instance_name: str) -> NeedsRestartRecord | None:
-        """The needs-restart record of ``(app_key, instance_name)``, or ``None`` when it isn't flagged."""
-        return self._needs_restart.get(app_key, {}).get(instance_name)
+        current = self._instances.get(app_key, {}).get(instance_name)
+        if current is None and to not in MISSING_ENTRY_STATUSES:
+            self.logger.debug("Dropped %s write for untracked app '%s' instance '%s'", to, app_key, instance_name)
+            return None
+        if current is not None and current.needs_restart is not None and to is not ResourceStatus.FAILED:
+            self.logger.warning(
+                "Refused %s write for app '%s' instance '%s', flagged needs-restart", to, app_key, instance_name
+            )
+            return None
+        previous_app = current.app if current is not None else None
+        if to in LIVE_STATUSES and to is not ResourceStatus.NOT_STARTED and previous_app is None:
+            self.logger.debug("Dropped %s write for failed app '%s' instance '%s'", to, app_key, instance_name)
+            return None
+
+        previous = current.status if current is not None else ResourceStatus.NOT_STARTED
+        previous_error = current.error if current is not None else None
+        is_change = previous is not to or (to is ResourceStatus.FAILED and error is not previous_error)
+        live_app = app if to is ResourceStatus.NOT_STARTED else previous_app
+
+        # The write happens even when it isn't a change: a re-registration replaces the App, and a repeat
+        # FAILED write can add the needs-restart flag.
+        if to is ResourceStatus.STOPPED:
+            self._remove(app_key, instance_name)
+        elif to is ResourceStatus.FAILED and error is not None:  # the guard above makes error set for FAILED
+            self._instances[app_key][instance_name] = InstanceEntry(
+                app=None,
+                status=ResourceStatus.FAILED,
+                error=error,
+                error_message=str(error),
+                error_traceback=get_traceback_string(error) if error.__traceback__ else None,
+                needs_restart=(current.needs_restart if current is not None else None) or needs_restart,
+            )
+        else:
+            self._instances[app_key][instance_name] = InstanceEntry(app=live_app, status=to)
+
+        if not is_change:
+            return None
+        self.logger.debug("App '%s' instance '%s': %s -> %s", app_key, instance_name, previous, to)
+        return StatusChange(
+            app_key=app_key,
+            instance_name=instance_name,
+            class_name=self._class_name(app_key, live_app or previous_app),
+            previous=previous,
+            status=to,
+            error=error if to is ResourceStatus.FAILED else None,
+        )
+
+    def _remove(self, app_key: str, instance_name: str) -> None:
+        """Remove one entry, and ``app_key``'s map with it once empty, so iteration never sees an empty map."""
+        entries = self._instances[app_key]
+        del entries[instance_name]
+        if not entries:
+            del self._instances[app_key]
+
+    def _class_name(self, app_key: str, app: "App[AppConfig] | None") -> str:
+        """The class name of an instance: its ``App``'s, else the loaded manifest's, else ``UNKNOWN_LABEL``."""
+        if app is not None:
+            return app.class_name
+        manifest = self._manifests.get(app_key)
+        return manifest.class_name if manifest is not None else UNKNOWN_LABEL
+
+    def get_needs_restart(self, app_key: str, instance_name: str) -> NeedsRestartInfo | None:
+        """The needs-restart flag of ``(app_key, instance_name)``, or ``None`` when it isn't flagged."""
+        entry = self._instances.get(app_key, {}).get(instance_name)
+        return entry.needs_restart if entry is not None else None
 
     def refusal_reason(self, app_key: str, instance_name: str) -> str | None:
         """Why an action is refused on a flagged ``(app_key, instance_name)``, or ``None`` when it isn't flagged.
@@ -162,10 +215,10 @@ class AppRegistry:
         reason until restart. For a moved name that leftover work shares an owner id with the new instance, so a
         late teardown can remove the new instance's registrations until hassette restarts.
         """
-        record = self.get_needs_restart(app_key, instance_name)
-        if record is None:
+        info = self.get_needs_restart(app_key, instance_name)
+        if info is None:
             return None
-        return f"needs a hassette restart (flagged at {record.info.flagged_at}: {record.info.reason})"
+        return f"needs a hassette restart (flagged at {info.flagged_at}: {info.reason})"
 
     def is_debug_captured(self, app_key: str, instance_name: str) -> bool:
         """Whether debug capture is on for ``(app_key, instance_name)``."""
@@ -174,8 +227,8 @@ class AppRegistry:
     def set_debug_capture(self, app_key: str, instance_names: Iterable[str], enabled: bool) -> None:
         """Turn debug capture on or off for each of ``instance_names`` under ``app_key``.
 
-        Like the needs-restart records, a pair isn't tied to an instance entry, so it survives the unregister and
-        re-register a reload does. Turning capture off for an uncaptured name is a no-op.
+        A pair isn't tied to an instance entry, so it survives the entry removal and
+        re-registration a reload does. Turning capture off for an uncaptured name is a no-op.
         """
         pairs = {(app_key, name) for name in instance_names}
         if enabled:
@@ -199,7 +252,7 @@ class AppRegistry:
         read matches its live levels until it is stopped.
         """
         configured = set(configured_names)
-        running = set(self.get_running_apps(app_key))
+        running = set(self.get_live_apps(app_key))
         stale = {name for name in self.debug_captured_names(app_key) if name not in configured and name not in running}
         self.set_debug_capture(app_key, stale, enabled=False)
 
@@ -223,42 +276,14 @@ class AppRegistry:
 
         ``manifest`` classifies the instance; it defaults to the loaded manifest for ``app_key``.
         """
-        return self._combine_instance_info(app_key, instance_name, manifest or self._manifests.get(app_key))
-
-    def _combine_instance_info(
-        self, app_key: str, instance_name: str, manifest: "AppManifest | None"
-    ) -> AppInstanceInfo | None:
-        """Combine an instance entry and its needs-restart record, the one place the two meet.
-
-        A record wins whatever the entry says: the result is FAILED with ``needs_restart`` set, and when the entry
-        holds no error message the record's reason serves as it. Without a record, the result is the entry's.
-        """
         entry = self._instances.get(app_key, {}).get(instance_name)
-        record = self.get_needs_restart(app_key, instance_name)
-        if record is None:
-            return self._info_from_entry(app_key, instance_name, entry, manifest) if entry is not None else None
-
-        if entry is not None:
-            base = self._info_from_entry(app_key, instance_name, entry, manifest)
-        else:
-            base = AppInstanceInfo(
-                app_key=app_key,
-                instance_name=instance_name,
-                class_name=record.class_name,
-                status=ResourceStatus.FAILED,
-                in_current_config=name_in_current_config(instance_name, manifest),
-                debug_capture=self.is_debug_captured(app_key, instance_name),
-            )
-        return replace(
-            base,
-            status=ResourceStatus.FAILED,
-            error_message=base.error_message or record.info.reason,
-            needs_restart=record.info,
-        )
+        if entry is None:
+            return None
+        return self._info_from_entry(app_key, instance_name, entry, manifest or self._manifests.get(app_key))
 
     def tracked_names(self, app_key: str) -> set[str]:
-        """Names with an instance entry or a needs-restart record for ``app_key``."""
-        return set(self._instances.get(app_key, {})) | set(self._needs_restart.get(app_key, {}))
+        """Names with an instance entry for ``app_key``."""
+        return set(self._instances.get(app_key, {}))
 
     def resolve_instance_infos(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[str, AppInstanceInfo]:
         """``resolve_instance_info`` for every tracked name of ``app_key``, in display order."""
@@ -266,39 +291,28 @@ class AppRegistry:
         return {
             name: info
             for name in self.display_names(app_key, manifest)
-            if (info := self._combine_instance_info(app_key, name, manifest)) is not None
+            if (info := self.resolve_instance_info(app_key, name, manifest)) is not None
         }
 
-    def prune_stale_failed(self, app_key: str, configured_names: Iterable[str]) -> dict[str, AppInstanceInfo]:
-        """Remove failed (non-running) entries whose name is no longer in the current config.
-
-        Returns what was removed, resolved to ``AppInstanceInfo`` (same as ``get_failed_instance_infos``).
-        A needs-restart record under a pruned name is kept, so its resolved snapshot stays FAILED.
+    def stale_failed_names(self, app_key: str, configured_names: Iterable[str]) -> list[str]:
+        """Names of ``app_key``'s unflagged failure entries that are no longer in the current config.
 
         Config can drop an instance without the app going through a full reload — e.g. an
         ``autostart=false`` app that isn't auto-reconciled on a config change (see
         ``AppLifecycleService.should_auto_reconcile``) and is later started manually.
-        ``AppFactory.create_instances()`` only ever touches configured names, so without this, a
+        ``AppFactory.create_instances()`` only ever touches configured names, so without pruning, a
         failed entry under a since-removed name lingers in the registry forever, misreporting the
-        app as degraded/failed even after it starts cleanly. Running entries are untouched — an
-        orphaned *running* instance needs an actual shutdown, not just a registry removal, which is
-        out of scope here.
-
-        The return value lets the caller emit a status-change event for each removed entry —
-        callers must not discard entries silently (see ``AppLifecycleService._stop_app_unlocked``
-        for why: the WS status cache never learns otherwise, and stays on FAILED forever).
+        app as degraded/failed even after it starts cleanly. The caller writes STOPPED for each name, so each
+        removal sends its own event. Running entries are left out: an orphaned *running* instance needs an
+        actual shutdown, not just a registry removal. Flagged entries are left out too: only ``clear_all``
+        removes one.
         """
-        entries = self._instances.get(app_key)
-        if not entries:
-            return {}
         configured = set(configured_names)
-        stale_names = [name for name, entry in entries.items() if not entry.is_running and name not in configured]
-        pruned = {name: info for name in stale_names if (info := self.resolve_instance_info(app_key, name))}
-        for name in stale_names:
-            del entries[name]
-        if not entries:
-            del self._instances[app_key]
-        return pruned
+        return [
+            name
+            for name, entry in self._instances.get(app_key, {}).items()
+            if not entry.holds_app and entry.needs_restart is None and name not in configured
+        ]
 
     def block_app(self, app_key: str, reason: BlockReason) -> None:
         """Record that an app was intentionally not started."""
@@ -324,10 +338,15 @@ class AppRegistry:
         return app_key in self._blocked_apps
 
     def clear_all(self) -> None:
-        """Clear all apps, blocked apps, needs-restart records and debug capture (process exit and test reset only)."""
+        """Clear all instance entries (flagged ones included), blocked apps and debug capture.
+
+        A raw reset outside ``set_status`` that sends no events. It runs only at process exit (``shutdown_all``)
+        and on test reset, after every instance registered when ``shutdown_all`` began has sent its own STOPPED or
+        FAILED, so nothing is left that anyone could act on. An instance a runtime start registers after
+        ``shutdown_all`` took its list is cleared without an event, since ``shutdown_all`` holds no app-key lock.
+        """
         self._instances.clear()
         self._blocked_apps.clear()
-        self._needs_restart.clear()
         self._debug_capture.clear()
 
     def set_manifests(self, manifests: dict[str, "AppManifest"]) -> None:
@@ -339,26 +358,29 @@ class AppRegistry:
         self._only_apps = frozenset(app_keys)
 
     def __contains__(self, app_key: str) -> bool:
-        return any(entry.is_running for entry in self._instances.get(app_key, {}).values())
+        return any(entry.holds_app for entry in self._instances.get(app_key, {}).values())
 
     def app_keys(self) -> list[str]:
-        """Get all app keys with at least one running instance."""
+        """Get all app keys with at least one entry holding its ``App`` (any live status)."""
         return [
             app_key
             for app_key, entries in self._instances.items()
-            if any(entry.is_running for entry in entries.values())
+            if any(entry.holds_app for entry in entries.values())
         ]
 
     def flagged_app_keys(self) -> list[str]:
         """Get all app keys with at least one instance flagged needs-restart.
 
-        Retention keeps these apps' manifest rows, so this must cover every removed app ``listed_apps``
-        keeps. ``_needs_restart`` is a defaultdict, so a key can hold an empty dict; ``if records`` skips it.
+        Retention keeps these apps' manifest rows, so this must cover every removed app ``listed_apps`` keeps.
         """
-        return [app_key for app_key, records in self._needs_restart.items() if records]
+        return [
+            app_key
+            for app_key, entries in self._instances.items()
+            if any(entry.needs_restart is not None for entry in entries.values())
+        ]
 
     def get(self, app_key: str, instance_name: str | None = None) -> "App[AppConfig] | None":
-        """Get a running app instance by name; with no name, the first running one in display order."""
+        """Get an instance's ``App`` by name; with no name, the first one holding an ``App`` in display order."""
         entries = self._instances.get(app_key, {})
         if instance_name is not None:
             entry = entries.get(instance_name)
@@ -376,27 +398,18 @@ class AppRegistry:
         return configured_instance_names(manifest.app_config) if manifest is not None else []
 
     def all_apps(self) -> list["App[AppConfig]"]:
-        """Get all running app instances."""
+        """Get every ``App`` the registry holds, in any live status."""
         return [
             app for entries in self._instances.values() for entry in entries.values() if (app := entry.app) is not None
         ]
 
-    def get_running_apps(self, app_key: str) -> dict[str, "App[AppConfig]"]:
-        """Get all running instances for an app key (excludes failed entries)."""
+    def get_live_apps(self, app_key: str) -> dict[str, "App[AppConfig]"]:
+        """Get every instance of an app key that holds its ``App``, in any live status (excludes failed entries)."""
         return {name: app for name, entry in self._instances.get(app_key, {}).items() if (app := entry.app) is not None}
 
     def get_instances(self, app_key: str) -> dict[str, InstanceEntry]:
         """Get all entries (running and failed) for an app key."""
         return self._instances.get(app_key, {}).copy()
-
-    def get_failed_instance_infos(self, app_key: str) -> dict[str, AppInstanceInfo]:
-        """Get resolved AppInstanceInfo for failed instances of an app key: failed entries and flagged names.
-
-        Used to emit a status-change event for failures recorded by ``AppFactory.create_instances()``
-        before an ``App`` object existed to build the event from — reuses the same class_name
-        resolution as snapshot generation so the event matches what a subsequent fetch would show.
-        """
-        return {name: info for name, info in self.resolve_instance_infos(app_key).items() if is_failed_info(info)}
 
     def _info_from_entry(
         self, app_key: str, instance_name: str, entry: InstanceEntry, manifest: "AppManifest | None" = None
@@ -408,7 +421,7 @@ class AppRegistry:
                 app_key=app_key,
                 instance_name=instance_name,
                 class_name=app.class_name,
-                status=app.status,
+                status=entry.status,
                 owner_id=app.unique_name,
                 in_current_config=in_current_config,
                 debug_capture=debug_capture,
@@ -425,13 +438,12 @@ class AppRegistry:
             error_traceback=entry.error_traceback,
             in_current_config=in_current_config,
             debug_capture=debug_capture,
+            needs_restart=entry.needs_restart,
         )
 
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
-        # Every app key with an instance entry or a needs-restart record, in first-seen order.
-        app_keys = dict.fromkeys([*self._instances, *self._needs_restart])
-        instances = [info for app_key in app_keys for info in self.resolve_instance_infos(app_key).values()]
+        instances = [info for app_key in self._instances for info in self.resolve_instance_infos(app_key).values()]
 
         return AppStatusSnapshot(
             instances=tuple(instances),
@@ -459,11 +471,11 @@ class AppRegistry:
         placeholder so it stays addressable by the CLI and visible in the web UI instead of
         silently disappearing from ``instances`` once its instance is no longer tracked. A
         tracked name outside the current config (an orphaned running instance after a removal — see
-        ``prune_stale_failed``) is still included too: this is a union of tracked and configured
+        ``stale_failed_names``) is still included too: this is a union of tracked and configured
         names (``display_names``), so a live orphan is never dropped from view.
 
         ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked names only
-        (entries and needs-restart records, through ``resolve_instance_info``) — a
+        (instance entries, through ``resolve_instance_info``) — a
         configured-but-not-yet-started app is correctly STOPPED, not DEGRADED, even though
         ``instances`` also lists its not-yet-tracked instances. A flagged name counts as failed.
         """
@@ -524,15 +536,15 @@ class AppRegistry:
         )
 
     def build_orphaned_flag_info(self, app_key: str) -> AppManifestInfo | None:
-        """Runtime fields for an app absent from the loaded config that still has needs-restart records.
+        """Runtime fields for an app absent from the loaded config that still has an instance flagged needs-restart.
 
-        Returns ``None`` when the app has no record. A record makes its name tracked, and the resolver
-        returns an info for every flagged name, so ``instances`` is never empty past the guard.
+        Returns ``None`` when no instance of the app is flagged. A flagged entry is tracked, so ``instances`` is
+        never empty past the guard. With no manifest, the class name reads ``UNKNOWN_LABEL``.
 
         ``display_name``, ``filename`` and ``enabled`` are placeholders: static metadata is the caller's
         to fill in (``overlay_runtime_state`` overrides them from the DB row).
         """
-        if not self._needs_restart.get(app_key):
+        if not any(entry.needs_restart is not None for entry in self._instances.get(app_key, {}).values()):
             return None
         instances = tuple(self.resolve_instance_infos(app_key).values())
         first_failed = next((info for info in instances if is_failed_info(info)), None)

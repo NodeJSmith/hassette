@@ -277,7 +277,7 @@ class TestStartApps:
         mock_registry.autostart_manifests = autostart_manifests
         mock_registry.active_manifests = active_manifests
         mock_registry.get_manifest = Mock(side_effect=active_manifests.get)
-        mock_registry.get_running_apps = Mock(return_value={})
+        mock_registry.get_live_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 

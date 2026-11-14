@@ -1,6 +1,6 @@
 """Unit tests for AppFactory."""
 
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import Mock, patch
 
 from pydantic import field_validator
 
@@ -11,7 +11,7 @@ from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.schemas.app_outcomes import OutcomeResult
 from tests.support.outcomes import AnyNameOutcomes
 
-from .conftest import as_app_class, flag_names, make_app_class, registered
+from .conftest import as_app_class, created_names, failures, flag_names, make_app_class
 
 
 class TestAppFactoryInit:
@@ -35,10 +35,10 @@ class TestAppFactoryCreateInstances:
         """Successfully creates single app instance from dict config."""
         mock_load_class.return_value = mock_app_class = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
         mock_app_class.assert_called_once()
-        assert registered(mock_registry) == [("test_app", "test_instance")]
+        assert created_names(results) == ["test_instance"]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_success_multiple_configs(
@@ -51,11 +51,11 @@ class TestAppFactoryCreateInstances:
             {"instance_name": "instance_1"},
         ]
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
         assert mock_app_class.call_count == 2
-        assert mock_registry.register_app.call_count == 2
-        assert registered(mock_registry) == [("test_app", "instance_0"), ("test_app", "instance_1")]
+        assert len(created_names(results)) == 2
+        assert created_names(results) == ["instance_0", "instance_1"]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_empty_config(
@@ -65,10 +65,10 @@ class TestAppFactoryCreateInstances:
         mock_manifest.app_config = None
         mock_load_class.return_value = mock_app_class = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
         mock_app_class.assert_not_called()
-        mock_registry.register_app.assert_not_called()
+        assert not created_names(results)
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
@@ -79,10 +79,10 @@ class TestAppFactoryCreateInstances:
         cached_error = ValueError("Failed to load")
         mock_get_error.return_value = cached_error
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", cached_error)
-        mock_registry.register_app.assert_not_called()
+        assert failures(results) == {"test_instance": cached_error}
+        assert not created_names(results)
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
@@ -104,10 +104,10 @@ class TestAppFactoryCreateInstances:
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_0" else None)
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "instance_1", cached_error)
-        mock_registry.register_app.assert_not_called()
+        assert failures(results) == {"instance_1": cached_error}
+        assert not created_names(results)
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
@@ -123,10 +123,10 @@ class TestAppFactoryCreateInstances:
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
         mock_registry.get = Mock(return_value=Mock())
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_not_called()
-        mock_registry.register_app.assert_not_called()
+        assert not failures(results)
+        assert not created_names(results)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_validation_failure(
@@ -139,10 +139,10 @@ class TestAppFactoryCreateInstances:
         mock_app_class.app_config_cls.model_validate.side_effect = validation_error
         mock_load_class.return_value = mock_app_class
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", validation_error)
-        mock_registry.register_app.assert_not_called()
+        assert failures(results) == {"test_instance": validation_error}
+        assert not created_names(results)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_app_create_failure(
@@ -154,10 +154,10 @@ class TestAppFactoryCreateInstances:
 
         mock_app_class.side_effect = create_error
         mock_load_class.return_value = mock_app_class
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", create_error)
-        mock_registry.register_app.assert_not_called()
+        assert failures(results) == {"test_instance": create_error}
+        assert not created_names(results)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_passes_manifest_to_constructor(self, mock_load_class, factory: AppFactory, mock_manifest):
@@ -202,7 +202,7 @@ class TestAppFactoryCreateInstances:
     def test_create_instances_registers_each_app(
         self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
-        """Verifies registry.register_app() called for each successful instance."""
+        """Returns an App for each successful instance."""
         mock_manifest.app_config = [
             {"instance_name": "instance_0"},
             {"instance_name": "instance_1"},
@@ -210,9 +210,9 @@ class TestAppFactoryCreateInstances:
         ]
         mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        assert mock_registry.register_app.call_count == 3
+        assert len(created_names(results)) == 3
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     @patch("hassette.core.app_factory.class_already_loaded", return_value=True)
@@ -242,7 +242,7 @@ class TestAppFactoryCreateInstances:
         # "instance_0" is already running; "instance_1" is not.
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_0" else None)
-        mock_registry.get_running_apps = Mock(return_value={"instance_0": existing_app})
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": existing_app})
         mock_load_class.return_value = make_app_class()
 
         factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
@@ -261,13 +261,13 @@ class TestAppFactoryCreateInstances:
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
         existing_app = Mock()
         mock_registry.get = Mock(return_value=existing_app)
-        mock_registry.get_running_apps = Mock(return_value={"instance_0": existing_app})
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": existing_app})
         mock_load_class.return_value = make_app_class()
 
-        created = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
 
         mock_load_class.assert_not_called()
-        assert created == set()
+        assert results == {}
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_for_unconfigured_running_orphan(
@@ -275,7 +275,7 @@ class TestAppFactoryCreateInstances:
     ):
         """force_reload=True must also be downgraded when the only running instance of this
         app_key is under a name the *current* config no longer has (e.g. the config shrank
-        from 2 instances to 1, leaving "instance_1" running as an orphan -- prune_stale_failed()
+        from 2 instances to 1, leaving "instance_1" running as an orphan -- the stale-failed prune
         only prunes stale failed entries, never running ones). The configured-name check alone
         would miss this and let the reload proceed, splitting the orphan and any newly-created
         configured instance across two class versions (Codex P2 finding on #2245, round 2).
@@ -283,7 +283,7 @@ class TestAppFactoryCreateInstances:
         mock_manifest.app_config = [{"instance_name": "instance_0"}]  # config shrank to 1 instance
         orphan = Mock()
         mock_registry.get = Mock(return_value=None)  # "instance_0" (the only configured name) is not live
-        mock_registry.get_running_apps = Mock(return_value={"instance_1": orphan})  # not configured: an orphan
+        mock_registry.get_live_apps = Mock(return_value={"instance_1": orphan})  # not configured: an orphan
         mock_load_class.return_value = make_app_class()
 
         factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
@@ -295,7 +295,7 @@ class TestAppFactoryCreateInstances:
         self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """create_instances skips names that already have a live registry entry, rather
-        than overwriting them via register_app() and orphaning the originals' listeners,
+        than overwriting them with a new registration and orphaning the originals' listeners,
         scheduler jobs, and tasks (#1688). Only names without a live entry are created.
         """
         mock_load_class.return_value = mock_app_class = make_app_class()
@@ -308,13 +308,13 @@ class TestAppFactoryCreateInstances:
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_1" else None)
 
-        created = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
         # Only "instance_0" and "instance_2" should be created (2 calls, not 3).
-        assert created == {"instance_0", "instance_2"}
+        assert set(results) == {"instance_0", "instance_2"}
         assert mock_app_class.call_count == 2
-        assert mock_registry.register_app.call_count == 2
-        assert registered(mock_registry) == [("test_app", "instance_0"), ("test_app", "instance_2")]
+        assert len(created_names(results)) == 2
+        assert created_names(results) == ["instance_0", "instance_2"]
 
 
 class TestAppFactoryNeedsRestartGate:
@@ -334,10 +334,10 @@ class TestAppFactoryNeedsRestartGate:
         flag_names(mock_registry, "instance_1")
         outcomes = ActionOutcomes(["instance_0", "instance_1", "instance_2"])
 
-        created = factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
+        results = factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
 
-        assert created == {"instance_0", "instance_2"}
-        assert sorted(registered(mock_registry)) == [("test_app", "instance_0"), ("test_app", "instance_2")]
+        assert set(results) == {"instance_0", "instance_2"}
+        assert sorted(created_names(results)) == ["instance_0", "instance_2"]
         assert [(o.instance_name, o.result, o.needs_restart, o.reason) for o in outcomes.snapshot()] == [
             ("instance_1", OutcomeResult.REFUSED, True, "refused instance_1")
         ]
@@ -355,11 +355,11 @@ class TestAppFactoryNeedsRestartGate:
 
         outcomes = AnyNameOutcomes()
 
-        created = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=outcomes)
+        results = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=outcomes)
 
-        assert created == set()
+        assert results == {}
         mock_load_class.assert_not_called()
-        mock_registry.record_failure.assert_not_called()
+        assert not failures(results)
         assert [o.result for o in outcomes.snapshot()] == [OutcomeResult.REFUSED, OutcomeResult.REFUSED]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
@@ -373,16 +373,16 @@ class TestAppFactoryNeedsRestartGate:
         mock_manifest.app_config = list(self.THREE_INSTANCES[:2])
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_0" else None)
-        mock_registry.get_running_apps = Mock(return_value={"instance_0": existing_app})
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": existing_app})
         flag_names(mock_registry, "instance_1")
 
         outcomes = AnyNameOutcomes()
 
-        created = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=outcomes)
+        results = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=outcomes)
 
-        assert created == set()
+        assert results == {}
         mock_load_class.assert_not_called()
-        mock_registry.record_failure.assert_not_called()
+        assert not failures(results)
         assert [(o.result, o.reason) for o in outcomes.snapshot()] == [
             (OutcomeResult.SUCCEEDED, "already running"),
             (OutcomeResult.REFUSED, "refused instance_1"),
@@ -401,9 +401,9 @@ class TestAppFactoryNeedsRestartGate:
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_1" else None)
         flag_names(mock_registry, "instance_0")
 
-        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "instance_2", cached_error)
+        assert failures(results) == {"instance_2": cached_error}
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
@@ -441,60 +441,56 @@ class TestAppFactoryCreateSingleInstance:
         app_class.__name__ = "TestApp"
         outcomes = ActionOutcomes(["test_instance"])
 
-        created = factory.create_single_instance(
+        result = factory.create_single_instance(
             "test_app", mock_manifest, "test_instance", as_app_class(app_class), outcomes=outcomes
         )
 
-        assert created is False
-        mock_registry.register_app.assert_not_called()
-        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", ANY)
+        assert isinstance(result, ValueError)
         assert [(o.instance_name, o.result) for o in outcomes.snapshot()] == [("test_instance", OutcomeResult.FAILED)]
 
     def test_create_single_instance_success(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
-        """Registers the instance under the given name on success."""
+        """Returns the instance built under the given name on success."""
         mock_app_class = make_app_class()
         mock_manifest.app_config = [{"instance_name": "first"}, {"instance_name": "second"}]
 
-        factory.create_single_instance(
+        result = factory.create_single_instance(
             "test_app", mock_manifest, "second", as_app_class(mock_app_class), outcomes=AnyNameOutcomes()
         )
 
         mock_app_class.assert_called_once()
         assert mock_app_class.call_args.kwargs["app_config"].instance_name == "second"
-        assert registered(mock_registry) == [("test_app", "second")]
-        mock_registry.record_failure.assert_not_called()
+        assert not isinstance(result, Exception)
+        assert result.instance_name == "second"
 
     def test_create_single_instance_validation_failure_records_the_name(
         self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
-        """Records the failure under the instance's name when Pydantic validation fails."""
+        """Returns the validation error when Pydantic validation fails."""
         mock_app_class = Mock(__name__="TestApp")
         validation_error = ValueError("Validation failed")
         mock_app_class.app_config_cls.model_validate.side_effect = validation_error
         mock_manifest.app_config = [{"instance_name": "first"}, {"instance_name": "second"}]
 
-        factory.create_single_instance(
+        result = factory.create_single_instance(
             "test_app", mock_manifest, "second", as_app_class(mock_app_class), outcomes=AnyNameOutcomes()
         )
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "second", validation_error)
-        mock_registry.register_app.assert_not_called()
+        assert result is validation_error
 
     def test_create_single_instance_app_create_failure_records_the_name(
         self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
-        """Records the failure under the instance's name when the App() constructor raises."""
+        """Returns the constructor's error when the App() constructor raises."""
         create_error = RuntimeError("Create failed")
         mock_app_class = make_app_class(__name__="TestApp")
         mock_app_class.side_effect = create_error
         mock_manifest.app_config = [{"instance_name": "first"}, {"instance_name": "second"}]
 
-        factory.create_single_instance(
+        result = factory.create_single_instance(
             "test_app", mock_manifest, "second", as_app_class(mock_app_class), outcomes=AnyNameOutcomes()
         )
 
-        mock_registry.record_failure.assert_called_once_with("test_app", "second", create_error)
-        mock_registry.register_app.assert_not_called()
+        assert result is create_error
 
 
 class TestAppFactoryLoadClass:

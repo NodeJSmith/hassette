@@ -151,7 +151,7 @@ class AppHandler(Service):
         registered until their teardown finishes.
         """
         instances = [
-            inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()
+            inst for app_key in self.registry.app_keys() for inst in self.registry.get_live_apps(app_key).values()
         ]
         unfinished = [inst for inst in instances if not inst.shutdown_completed]
         if unfinished:

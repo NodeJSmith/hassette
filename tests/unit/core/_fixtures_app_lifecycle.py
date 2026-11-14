@@ -12,7 +12,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.core.app_registry import AppRegistry
+from hassette.core.app_registry import AppRegistry, StatusChange
 from hassette.resources.shutdown_outcome import ShutdownOutcome
 from hassette.testing import EventCapture
 from hassette.types import Topic
@@ -135,12 +135,12 @@ def set_registry_apps(registry: MagicMock, apps: dict[str, dict[str, Any]]) -> N
     """Configure a mock AppRegistry's app-lookup methods from an apps-shaped dict.
 
     Mirrors the real AppRegistry's `__contains__`, `app_keys()`, and
-    `get_running_apps()` behavior so lifecycle-service code exercising those
+    `get_live_apps()` behavior so lifecycle-service code exercising those
     methods sees consistent state.
     """
     registry.__contains__ = Mock(side_effect=lambda key: key in apps)
     registry.app_keys = Mock(side_effect=lambda: list(apps.keys()))
-    registry.get_running_apps = Mock(side_effect=lambda key: apps.get(key, {}).copy())
+    registry.get_live_apps = Mock(side_effect=lambda key: apps.get(key, {}).copy())
     registry.get = Mock(
         side_effect=lambda key, instance_name=None: (
             next(iter(apps.get(key, {}).values()), None)
@@ -150,17 +150,46 @@ def set_registry_apps(registry: MagicMock, apps: dict[str, dict[str, Any]]) -> N
     )
 
 
+def fake_set_status(
+    app_key: str,
+    instance_name: str,
+    to: ResourceStatus,
+    *,
+    error: Exception | None = None,
+    **_kwargs: Any,
+) -> StatusChange:
+    """A mock registry's ``set_status``: every write is a change from an unknown status, so each one emits."""
+    return StatusChange(
+        app_key=app_key,
+        instance_name=instance_name,
+        class_name="TestApp",
+        previous=None,
+        status=to,
+        error=error if to is ResourceStatus.FAILED else None,
+    )
+
+
+def status_writes(registry: MagicMock) -> list[tuple[str, ResourceStatus]]:
+    """The ``(instance_name, status)`` pairs written through a mock registry's ``set_status``, in order."""
+    return [(c.args[1], c.args[2]) for c in registry.set_status.call_args_list]
+
+
+def failure_writes(registry: MagicMock) -> list[Any]:
+    """The ``set_status`` calls that wrote FAILED through a mock registry, in order."""
+    return [c for c in registry.set_status.call_args_list if c.args[2] is ResourceStatus.FAILED]
+
+
 @pytest.fixture
 def mock_registry() -> MagicMock:
     """Create a mock AppRegistry instance."""
     registry = MagicMock()
-    registry.record_failure = Mock()
+    registry.set_status = Mock(side_effect=fake_set_status)
+    registry.get_needs_restart = Mock(return_value=None)
+    registry.get_instances = Mock(return_value={})
     registry.all_apps = Mock(return_value=[])
     registry.clear_all = Mock()
     registry.get_manifest = Mock(return_value=None)
     registry.refusal_reason = Mock(return_value=None)
-    registry.register_app = Mock()
-    registry.unregister_app = Mock(return_value=None)
     registry.set_manifests = Mock()
     registry.set_only_apps = Mock()
     set_registry_apps(registry, {})
@@ -170,8 +199,7 @@ def mock_registry() -> MagicMock:
     registry.autostart_manifests = {}
     registry.only_apps = frozenset()
     registry.get_snapshot = Mock()
-    registry.get_failed_instance_infos = Mock(return_value={})
-    registry.prune_stale_failed = Mock(return_value={})
+    registry.stale_failed_names = Mock(return_value=[])
     registry.display_names = Mock(return_value=["test_instance"])
     registry.tracked_names = Mock(return_value=set())
     registry.block_app = Mock()
@@ -184,12 +212,12 @@ def mock_registry() -> MagicMock:
 def mock_factory() -> MagicMock:
     """Create a mock AppFactory.
 
-    ``create_instances`` returns the default instance name, so it is treated as newly created — the
-    "fresh start" default.  Tests verifying the pre-existing guard override this with a specific return
-    value (e.g. ``Mock(return_value={"other"})``).
+    ``create_instances`` returns a new App under the default instance name, so it is treated as newly
+    created — the "fresh start" default.  Tests verifying the pre-existing guard override this with a
+    specific return value (e.g. ``Mock(return_value={"other": app})``).
     """
     factory = MagicMock()
-    factory.create_instances = Mock(return_value={"test_instance"})
+    factory.create_instances = Mock(return_value={"test_instance": make_mock_app_instance()})
     return factory
 
 

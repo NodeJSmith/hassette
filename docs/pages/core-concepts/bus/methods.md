@@ -286,7 +286,7 @@ The first `wait_for` uses `~P.StateTo("idle")` — anything other than idle — 
 
 ### `on_app_state_changed` and shorthands
 
-`on_app_state_changed` fires when any app instance transitions to a new [`ResourceStatus`][hassette.ResourceStatus] (e.g., `RUNNING`, `STOPPING`, `STOPPED`, `FAILED`). Two shorthands cover the most common cases.
+`on_app_state_changed` fires when any app instance transitions to a new [`ResourceStatus`][hassette.ResourceStatus]. An instance reports `STARTING` when its initialization begins, then `RUNNING`, `STOPPING`, `STOPPED` or `FAILED`. A failed instance that is started again reports `NOT_STARTED` first. Each event's `previous_status` is the status the instance held just before. Two shorthands cover the most common cases.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_app_events.py:app_state_changed"

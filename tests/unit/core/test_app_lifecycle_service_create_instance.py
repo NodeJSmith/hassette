@@ -14,10 +14,10 @@ from hassette.exceptions import AppBlockedError
 from hassette.schemas.app_outcomes import OutcomeResult
 from hassette.testing import EventCapture
 from hassette.types.enums import BlockReason
+from tests.support.app_registry_helpers import seed_failed
 from tests.support.outcomes import AnyNameOutcomes
-from tests.support.web_manifest_helpers import make_app_instance_info
 
-from .conftest import app_state_payloads, make_mock_app_instance
+from .conftest import app_state_payloads, failure_writes, make_mock_app_instance
 
 
 class TestCreateInstanceUnlockedSynchronousFailure:
@@ -32,25 +32,15 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         event_capture: EventCapture,
     ) -> None:
         # dup-ignore-end
-        """create_single_instance() can register a failure synchronously (e.g. a config
-        validation error at instance-creation time, not a class-load error) without raising.
-        _create_instance_unlocked must notice that nothing was registered, emit the
-        recorded failure, and return early rather than proceeding to initialize_instances().
+        """create_single_instance() can return a failure (e.g. a config validation error at
+        instance-creation time, not a class-load error) without raising. _create_instance_unlocked
+        must write it as FAILED, which sends its event, and return early rather than proceeding to
+        initialize_instances().
         """
         event_capture.install(mock_hassette)
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_factory.load_class = Mock(return_value=MagicMock())
-
-        failure_info = make_app_instance_info(
-            app_key="test_app",
-            instance_name="a",
-            class_name="TestApp",
-            status=ResourceStatus.FAILED,
-            error=ValueError("bad config"),
-            error_message="bad config",
-            error_traceback="Traceback...",
-        )
-        mock_registry.get_failed_instance_infos = Mock(return_value={"a": failure_info})
+        mock_factory.create_single_instance = Mock(return_value=ValueError("bad config"))
 
         lifecycle_service.initialize_instances = AsyncMock()
 
@@ -60,43 +50,11 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         lifecycle_service.initialize_instances.assert_not_called()
 
         failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
-        assert len(failed_payloads) == 1
+        assert [p.exception for p in failed_payloads] == ["bad config"]
 
 
 class TestCreateInstanceUnlockedPostRegistrationFailure:
     # dup-ignore-start: pytest test function signature
-    async def test_never_started_phantom_is_shut_down_with_its_own_hooks_skipped(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-        mock_manifest: MagicMock,
-        mock_hassette: MagicMock,
-    ) -> None:
-        # dup-ignore-end
-        """If send_event raises after create_single_instance registered the app but before its
-        initialization started, the phantom is shut down with the exception as its cause and its
-        own shutdown hooks skipped — an app that never initialized must not run ``on_shutdown``.
-        """
-        mock_manifest.app_config = [{"instance_name": "a"}]
-        mock_factory.load_class = Mock(return_value=MagicMock())
-
-        mock_inst = make_mock_app_instance()
-        mock_registry.get = Mock(return_value=mock_inst)
-
-        failure = RuntimeError("event bus failure")
-        mock_hassette.send_event = AsyncMock(side_effect=failure)
-        lifecycle_service.shutdown_instance = AsyncMock()
-
-        with pytest.raises(RuntimeError, match="event bus failure"):
-            await lifecycle_service._create_instance_unlocked(
-                "test_app", "a", mock_manifest, outcomes=AnyNameOutcomes()
-            )
-
-        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, cause=failure, outcomes=ANY)
-        assert mock_inst._skip_own_shutdown_hooks is True
-
-    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_initialized_phantom_is_shut_down_with_its_own_hooks(
         self,
         lifecycle_service: AppLifecycleService,
@@ -141,9 +99,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_factory.load_class = Mock(return_value=MagicMock())
 
-        mock_inst = make_mock_app_instance()
-        lookups = iter([mock_inst])
-        mock_registry.get = Mock(side_effect=lambda _key, _name=None: next(lookups, None))
+        mock_registry.get = Mock(return_value=None)
         lifecycle_service.initialize_instances = AsyncMock(side_effect=RuntimeError("reconcile failed"))
         lifecycle_service.shutdown_instance = AsyncMock()
 
@@ -153,8 +109,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
             )
 
         lifecycle_service.shutdown_instance.assert_not_called()
-        mock_registry.record_failure.assert_called_once()
-        assert mock_registry.record_failure.call_args.args[:2] == ("test_app", "a")
+        assert [w.args[:2] for w in failure_writes(mock_registry)] == [("test_app", "a")]
 
 
 class TestCreateInstanceUnlockedNeedsRestartGate:
@@ -169,7 +124,7 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         module isn't re-imported, and no class-load failure is recorded over the flag.
         """
         registry = real_registry_service.registry
-        registry.flag_needs_restart("test_app", "zombie", class_name="TestApp", reason="work still running")
+        seed_failed(registry, "test_app", "zombie", RuntimeError("zombie failed"), needs_restart="work still running")
         outcomes = AnyNameOutcomes()
 
         await real_registry_service._create_instance_unlocked(
@@ -178,7 +133,8 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
 
         mock_factory.load_class.assert_not_called()
         mock_factory.create_single_instance.assert_not_called()
-        assert registry.get_instances("test_app") == {}
+        assert registry.get_needs_restart("test_app", "zombie") is not None
+        assert registry.get_instances("test_app")["zombie"].error_message == "zombie failed"
         assert [(o.result, o.reason) for o in outcomes.snapshot()] == [
             (OutcomeResult.REFUSED, registry.refusal_reason("test_app", "zombie"))
         ]
@@ -191,7 +147,7 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
     ) -> None:
         """A blocked app still raises AppBlockedError even when the instance is also flagged."""
         registry = real_registry_service.registry
-        registry.flag_needs_restart("test_app", "zombie", class_name="TestApp", reason="work still running")
+        seed_failed(registry, "test_app", "zombie", needs_restart="work still running")
         registry.block_app("test_app", BlockReason.ONLY_APP)
 
         with pytest.raises(AppBlockedError):
@@ -209,7 +165,7 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         registry = real_registry_service.registry
         registry.set_manifests({"test_app": mock_manifest})
         real_registry_service._instance_in_config = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
-        registry.flag_needs_restart("test_app", "zombie", class_name="TestApp", reason="work still running")
+        seed_failed(registry, "test_app", "zombie", needs_restart="work still running")
 
         outcomes = await real_registry_service.start_instance("test_app", "zombie")
 
@@ -217,3 +173,36 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
             (OutcomeResult.REFUSED, True, registry.refusal_reason("test_app", "zombie"))
         ]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+class TestCreateInstanceUnlockedRefusedRegistration:
+    async def test_name_flagged_after_the_refusal_check_is_not_initialized(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """Process exit can flag a name without the app-key lock, after the refusal check but before the
+        registration write. The registry refuses that write, so the new App must not be initialized: it would
+        run unregistered, with nothing able to stop it. The name is recorded as refused.
+        """
+        registry = real_registry_service.registry
+        new_app = make_mock_app_instance(instance_name="zombie")
+
+        def flag_then_create(*_args: object, **_kwargs: object) -> MagicMock:
+            seed_failed(registry, "test_app", "zombie", RuntimeError("hung"), needs_restart="work still running")
+            return new_app
+
+        mock_factory.load_class = Mock(return_value=MagicMock())
+        mock_factory.create_single_instance = Mock(side_effect=flag_then_create)
+        real_registry_service.initialize_instances = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        outcomes = AnyNameOutcomes()
+
+        await real_registry_service._create_instance_unlocked("test_app", "zombie", mock_manifest, outcomes=outcomes)
+
+        real_registry_service.initialize_instances.assert_not_called()
+        assert registry.get("test_app", "zombie") is None
+        assert registry.get_needs_restart("test_app", "zombie") is not None
+        assert [(o.result, o.reason) for o in outcomes.snapshot()] == [
+            (OutcomeResult.REFUSED, registry.refusal_reason("test_app", "zombie"))
+        ]

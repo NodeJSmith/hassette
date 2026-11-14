@@ -223,7 +223,7 @@ class TestReloadApp:
         mock_registry.tracked_names = Mock(return_value={"test_instance"})
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         # The stop sees the running instance; the start afterwards sees none left.
-        mock_registry.get_running_apps = Mock(side_effect=[{"test_instance": running}, {}])
+        mock_registry.get_live_apps = Mock(side_effect=[{"test_instance": running}, {}])
         lifecycle_service.shutdown_instances = AsyncMock()
 
         await lifecycle_service.reload_app("test_app")
@@ -249,7 +249,7 @@ class TestReloadApp:
         running = MagicMock()
         mock_registry.tracked_names = Mock(return_value={"test_instance"})
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_running_apps = Mock(side_effect=[{"test_instance": running}, {}])
+        mock_registry.get_live_apps = Mock(side_effect=[{"test_instance": running}, {}])
         mock_registry.is_blocked = Mock(return_value=True)
         lifecycle_service.shutdown_instances = AsyncMock()
 
@@ -275,9 +275,8 @@ class TestReloadAppLocking:
         non-reentrant asyncio.Lock — the helper's asyncio.wait_for turns that hang into a
         test failure instead of a stuck test run.
         """
-        mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_running_apps = Mock(return_value={})
+        mock_registry.get_live_apps = Mock(return_value={})
 
         await assert_acquires_app_key_lock_once(
             lifecycle_service, "test_app", lambda: lifecycle_service.reload_app("test_app")
@@ -367,16 +366,12 @@ class TestApplyChangesPerInstanceRestart:
 
         mock_factory.load_class = Mock(return_value=MagicMock())
         mock_registry.get_manifest = Mock(return_value=new_manifest)
-        mock_registry.get_failed_instance_infos = Mock(return_value={})
-
         app1 = MagicMock(instance_name="b")
-        # The stop finds the old "b"; after create_single_instance (mocked) nothing is
-        # registered there, so the create path sees None.
-        lookups = iter([app1])
-        mock_registry.get = Mock(side_effect=lambda _app_key, name=None: next(lookups, None) if name == "b" else None)
+        mock_registry.get = Mock(side_effect=lambda _app_key, name=None: app1 if name == "b" else None)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
         lifecycle_service.shutdown_instance = AsyncMock()
+        lifecycle_service.initialize_instances = AsyncMock()
 
         changes = make_change_set(reload_apps={"app_a"})
 

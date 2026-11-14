@@ -12,6 +12,7 @@ from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, A
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.helpers import create_app_manifest
 from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_listener_summary_row
@@ -590,8 +591,8 @@ class TestAppListEndpoint:
         running_app.class_name = manifest.class_name
         running_app.status = ResourceStatus.RUNNING
         running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
-        registry.register_app(manifest.app_key, running_app)
-        registry.record_failure(manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
+        seed_running(registry, manifest.app_key, running_app)
+        seed_failed(registry, manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
         mock_hassette._app_handler.registry = registry
 
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(

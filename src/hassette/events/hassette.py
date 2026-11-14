@@ -5,12 +5,11 @@ from typing import TYPE_CHECKING
 from hassette_wire import ExecutionKind, ExecutionStatus, ResourceStatus
 
 from hassette.events.base import Event, HassettePayload
-from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.types import ResourceRole, Topic
 from hassette.utils import get_traceback_string
 
 if TYPE_CHECKING:
-    from hassette import App
+    from hassette.core.app_registry import StatusChange
 
 
 def extract_exception_fields(
@@ -161,72 +160,25 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
     """Event emitted when an app instance changes state."""
 
     @classmethod
-    def from_app(
-        cls,
-        app: "App",
-        status: ResourceStatus,
-        previous_status: ResourceStatus | None = None,
-        exception: BaseException | None = None,
-    ) -> "HassetteAppStateEvent":
-        """Build an app state-change event from a live ``App`` instance.
+    def from_change(cls, change: "StatusChange") -> "HassetteAppStateEvent":
+        """Build an app state-change event from a transition ``AppRegistry.set_status`` applied.
 
-        The app's key, instance name, and class name fill the payload's identity fields.
+        Identity and class name come from the change. Exception fields are filled from ``change.error``, which
+        only a FAILED change carries.
 
         Args:
-            app: The app instance whose status changed.
-            status: The new status.
-            previous_status: The status before this change, if known.
-            exception: The exception behind a failure, flattened into string, type, and traceback fields.
+            change: The transition to report.
 
         Returns:
             The event, ready to send on the bus.
         """
-        exc_str, exc_type, exc_tb = extract_exception_fields(exception)
+        exc_str, exc_type, exc_tb = extract_exception_fields(change.error)
         payload = AppStateChangePayload(
-            app_key=app.app_key,
-            instance_name=app.instance_name,
-            status=status,
-            previous_status=previous_status,
-            class_name=type(app).__name__,
-            exception=exc_str,
-            exception_type=exc_type,
-            exception_traceback=exc_tb,
-        )
-        return cls(
-            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
-            payload=HassettePayload(data=payload),
-        )
-
-    @classmethod
-    def from_instance_info(
-        cls,
-        info: AppInstanceInfo,
-        status: ResourceStatus | None = None,
-        previous_status: ResourceStatus | None = None,
-    ) -> "HassetteAppStateEvent":
-        """Build a state-change event from a registry snapshot entry, for paths where no ``App`` object exists.
-
-        Exception fields are populated only when the resolved status is FAILED, so a STOPPED event for a
-        removed failed entry doesn't look like a failed stop.
-
-        Args:
-            info: The registry entry for the app instance.
-            status: The status to emit. Defaults to ``info.status``; pass it explicitly when the emitted
-                status differs from the recorded one.
-            previous_status: The status before this change, if known.
-
-        Returns:
-            The event, ready to send on the bus.
-        """
-        resolved_status = status if status is not None else info.status
-        include_exception = resolved_status == ResourceStatus.FAILED
-        exc_str, exc_type, exc_tb = extract_exception_fields(info.error if include_exception else None)
-        payload = AppStateChangePayload(
-            app_key=info.app_key,
-            instance_name=info.instance_name,
-            status=resolved_status,
-            previous_status=previous_status,
-            class_name=info.class_name,
+            app_key=change.app_key,
+            instance_name=change.instance_name,
+            status=change.status,
+            previous_status=change.previous,
+            class_name=change.class_name,
             exception=exc_str,
             exception_type=exc_type,
             exception_traceback=exc_tb,

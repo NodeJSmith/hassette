@@ -12,6 +12,7 @@ instance/all-app shutdown outcomes.
 
 import asyncio
 import re
+import typing
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
@@ -26,13 +27,20 @@ from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
 from hassette.types import Topic
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.factories import make_mock_parent
 from tests.support.helpers import noop
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.outcomes import AnyNameOutcomes
 from tests.support.task_buckets import sealed_fallback_task_factory
 
-from .conftest import app_state_payloads, make_mock_app_instance, set_registry_apps
+from .conftest import (
+    app_state_payloads,
+    failure_writes,
+    fake_set_status,
+    make_mock_app_instance,
+    set_registry_apps,
+)
 
 if TYPE_CHECKING:
     from hassette.app.app import App
@@ -90,9 +98,10 @@ class TestInitializeInstances:
 
         mock_app_instance.shutdown.assert_awaited_once()
         assert mock_app_instance._skip_own_shutdown_hooks is True
-        mock_registry.unregister_app.assert_called_once_with("test_app", "test_instance")
-        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", error)
-        mock_registry.flag_needs_restart.assert_not_called()
+        [write] = failure_writes(mock_registry)
+        assert write.args[:2] == ("test_app", "test_instance")
+        assert write.kwargs["error"] is error
+        assert write.kwargs.get("needs_restart") is None
 
     async def test_failed_init_whose_work_may_still_run_is_flagged(
         self,
@@ -108,25 +117,29 @@ class TestInitializeInstances:
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyNameOutcomes())
 
-        mock_registry.flag_needs_restart.assert_called_once()
-        assert mock_registry.flag_needs_restart.call_args.args == ("test_app", "test_instance")
+        [write] = failure_writes(mock_registry)
+        assert write.args[:2] == ("test_app", "test_instance")
+        assert write.kwargs["needs_restart"] is not None
 
     async def test_failed_init_event_is_failed_from_starting(
         self,
-        lifecycle_service: AppLifecycleService,
+        real_registry_service: AppLifecycleService,
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
-        """No STOPPING event is sent for a failed init; its FAILED event comes from STARTING."""
+        """STARTING is sent before init; no STOPPING event is sent for a failed init, and FAILED comes from STARTING."""
         event_capture.install(mock_hassette)
         mock_app_instance.initialize.side_effect = ValueError("boom")
+        seed_running(real_registry_service.registry, "test_app", mock_app_instance, status=ResourceStatus.NOT_STARTED)
 
-        await lifecycle_service.initialize_instances(
+        await real_registry_service.initialize_instances(
             "test_app", {"test_instance": mock_app_instance}, mock_manifest, outcomes=AnyNameOutcomes()
         )
 
+        starting = app_state_payloads(event_capture, ResourceStatus.STARTING)
+        assert [p.previous_status for p in starting] == [ResourceStatus.NOT_STARTED]
         assert app_state_payloads(event_capture, ResourceStatus.STOPPING) == []
         failed = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert [p.previous_status for p in failed] == [ResourceStatus.STARTING]
@@ -151,7 +164,7 @@ class TestInitializeInstances:
 
         app0.shutdown.assert_not_awaited()
         app1.initialize.assert_awaited_once()
-        mock_registry.record_failure.assert_not_called()
+        assert failure_writes(mock_registry) == []
 
     async def test_exception_traceback_shows_app_frame_not_just_call_site(
         self,
@@ -332,26 +345,30 @@ class TestShutdownInstance:
 
         failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
-        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", error)
-        mock_registry.flag_needs_restart.assert_called_once()
+        [write] = failure_writes(mock_registry)
+        assert write.kwargs["error"] is error
+        assert write.kwargs["needs_restart"] is not None
 
-    async def test_unregisters_after_the_teardown_and_before_recording_the_outcome(
+    async def test_writes_the_outcome_status_only_after_the_teardown(
         self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_registry: MagicMock
     ) -> None:
-        """Unregistering after the outcome would discard the failure entry the outcome just wrote."""
-        order: list[str] = []
+        """The instance stays registered through its teardown, so readers see STOPPING rather than a placeholder."""
+        order: list[object] = []
 
         async def teardown() -> ShutdownOutcome:
             order.append("teardown")
             return ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="hook")
 
+        def record_write(*args: object, **kwargs: object) -> object:
+            order.append(args[2])
+            return fake_set_status(*args, **kwargs)  # pyright: ignore[reportArgumentType]
+
         mock_app_instance.shutdown = AsyncMock(side_effect=teardown)
-        mock_registry.unregister_app.side_effect = lambda *_args: order.append("unregister")
-        mock_registry.record_failure.side_effect = lambda *_args: order.append("record_failure")
+        mock_registry.set_status.side_effect = record_write
 
         await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
-        assert order == ["teardown", "unregister", "record_failure"]
+        assert order == ["teardown", ResourceStatus.FAILED]
 
     async def test_emits_stopped_event(
         self,
@@ -427,12 +444,10 @@ class TestShutdownInstanceEntryDeadline:
         mock_app_instance._force_terminal.assert_called_once()
         mock_app_instance.bus.remove_all_listeners.assert_called_once()
         mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
-        mock_registry.record_failure.assert_called_once()
-        app_key, name, exc = mock_registry.record_failure.call_args.args
-        assert (app_key, name) == (mock_app_instance.app_key, "test_instance")
-        assert isinstance(exc, TimeoutError)
-        mock_registry.flag_needs_restart.assert_called_once()
-        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        [write] = failure_writes(mock_registry)
+        assert write.args[:2] == (mock_app_instance.app_key, "test_instance")
+        assert isinstance(write.kwargs["error"], TimeoutError)
+        reason = write.kwargs["needs_restart"].reason
         assert "timed out" in reason
         assert "app was force-terminated; work may still be running" in reason
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
@@ -467,7 +482,7 @@ class TestShutdownInstanceEntryDeadline:
         )
 
         mock_app_instance._force_terminal.assert_called_once()
-        mock_registry.record_failure.assert_called_once()
+        assert len(failure_writes(mock_registry)) == 1
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_timed_out_hook_reports_failed_without_walking_away(
@@ -487,9 +502,9 @@ class TestShutdownInstanceEntryDeadline:
         await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
         mock_app_instance._force_terminal.assert_not_called()
-        mock_registry.record_failure.assert_called_once()
-        assert isinstance(mock_registry.record_failure.call_args.args[2], TimeoutError)
-        mock_registry.flag_needs_restart.assert_not_called()
+        [write] = failure_writes(mock_registry)
+        assert isinstance(write.kwargs["error"], TimeoutError)
+        assert write.kwargs.get("needs_restart") is None
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
 
     async def test_a_timed_out_hook_with_incomplete_evidence_is_worded_by_its_reason(
@@ -506,9 +521,9 @@ class TestShutdownInstanceEntryDeadline:
 
         await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
-        exc = mock_registry.record_failure.call_args.args[2]
-        assert not isinstance(exc, TimeoutError)
-        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        [write] = failure_writes(mock_registry)
+        assert not isinstance(write.kwargs["error"], TimeoutError)
+        reason = write.kwargs["needs_restart"].reason
         assert reason == "stopped, but app's shutdown body raised RuntimeError; work may still be running"
 
     @pytest.mark.parametrize(
@@ -542,7 +557,7 @@ class TestShutdownInstanceEntryDeadline:
 
         await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
-        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        reason = failure_writes(mock_registry)[0].kwargs["needs_restart"].reason
         assert re.fullmatch(expected_pattern, reason), reason
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
@@ -561,12 +576,11 @@ class TestShutdownInstanceEntryDeadline:
 
         await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
-        app_key, name, exc = mock_registry.record_failure.call_args.args
-        assert (app_key, name) == ("test_app", "test_instance")
-        assert not isinstance(exc, TimeoutError)
-        assert "app:poller" in str(exc)
-        mock_registry.flag_needs_restart.assert_called_once()
-        assert mock_registry.flag_needs_restart.call_args.kwargs["pending_tasks"] == ("app:poller",)
+        [write] = failure_writes(mock_registry)
+        assert write.args[:2] == ("test_app", "test_instance")
+        assert not isinstance(write.kwargs["error"], TimeoutError)
+        assert "app:poller" in str(write.kwargs["error"])
+        assert write.kwargs["needs_restart"].pending_tasks == ("app:poller",)
         assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
 
@@ -577,7 +591,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_hassette: MagicMock,
         mock_registry: MagicMock,
     ) -> None:
-        """The outcome is recorded before its event; a send failure doesn't re-record it or re-flag it."""
+        """The outcome is written before its event; a send failure doesn't re-write it or re-flag it."""
         mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(still_running=("app:poller",)))
         mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus down"))
 
@@ -585,8 +599,8 @@ class TestShutdownInstanceEntryDeadline:
 
         assert outcome is not None
         assert outcome.still_running == ("app:poller",)
-        mock_registry.record_failure.assert_called_once()
-        mock_registry.flag_needs_restart.assert_called_once()
+        [write] = failure_writes(mock_registry)
+        assert write.kwargs["needs_restart"] is not None
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_raised_hook_still_reports_stopped(
@@ -604,7 +618,7 @@ class TestShutdownInstanceEntryDeadline:
 
         await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
-        mock_registry.record_failure.assert_not_called()
+        assert failure_writes(mock_registry) == []
         assert len(app_state_payloads(event_capture, ResourceStatus.STOPPED)) == 1
 
 
@@ -635,7 +649,7 @@ class TestShutdownInstances:
         assert elapsed < stop_seconds * 2, f"instances stopped one after another ({elapsed:.2f}s)"
 
     async def test_a_raising_stop_waits_for_its_siblings_before_raising(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
         """A stop that raises doesn't leave its sibling stops running detached."""
         finished: list[str] = []
@@ -648,9 +662,16 @@ class TestShutdownInstances:
         mocks = [make_mock_app_instance(instance_name=f"inst_{idx}") for idx in range(2)]
         mocks[1].shutdown = AsyncMock(side_effect=slow_stop)
         instances: list[App] = list(mocks)
-        mock_hassette.send_event = AsyncMock(side_effect=[RuntimeError("event bus down"), None, None, None])
+        first_write = [True]
 
-        with pytest.raises(RuntimeError, match="event bus down"):
+        def raise_first(*args: object, **kwargs: object) -> object:
+            if first_write.pop() if first_write else False:
+                raise RuntimeError("registry write failed")
+            return fake_set_status(*args, **kwargs)  # pyright: ignore[reportArgumentType]
+
+        mock_registry.set_status.side_effect = raise_first
+
+        with pytest.raises(RuntimeError, match="registry write failed"):
             await lifecycle_service.shutdown_instances(instances, outcomes=AnyNameOutcomes())
 
         assert finished == ["inst_1"]
@@ -726,3 +747,46 @@ class TestShutdownAll:
         await lifecycle_service.shutdown_all()
 
         mock_registry.clear_all.assert_called_once()
+
+    async def test_sends_no_event_for_entries_it_clears(
+        self, real_registry_service: AppLifecycleService, mock_hassette: MagicMock, event_capture: EventCapture
+    ) -> None:
+        """The registry reset at exit is raw: failures still standing get no closing event (spec 154 D7)."""
+        event_capture.install(mock_hassette)
+        registry = real_registry_service.registry
+        seed_failed(registry, "test_app", "failed", ValueError("boom"))
+        seed_failed(registry, "test_app", "flagged", ValueError("hung"), needs_restart="work still running")
+
+        await real_registry_service.shutdown_all()
+
+        assert event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED) == []
+        assert registry.get_instances("test_app") == {}
+
+
+class TestStartingIsOutsideTheStartupTimeout:
+    async def test_a_slow_starting_send_does_not_count_against_the_startup_timeout(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """STARTING is written and sent before the startup timeout opens, so a slow bus never fails the app (D4)."""
+        monkeypatch.setattr(AppLifecycleService, "startup_timeout", property(lambda _self: 0.05))
+        sends: list[ResourceStatus] = []
+
+        async def slow_send(event: typing.Any) -> None:
+            sends.append(event.payload.data.status)
+            if event.payload.data.status is ResourceStatus.STARTING:
+                await asyncio.sleep(0.2)
+
+        mock_hassette.send_event = AsyncMock(side_effect=slow_send)
+        registry = real_registry_service.registry
+        seed_running(registry, "test_app", mock_app_instance, status=ResourceStatus.NOT_STARTED)
+        outcomes = AnyNameOutcomes()
+
+        await real_registry_service.initialize_instance(mock_app_instance, "TestApp", outcomes=outcomes)
+
+        assert sends == [ResourceStatus.STARTING, ResourceStatus.RUNNING]
+        mock_app_instance.shutdown.assert_not_awaited()
+        assert registry.get_instances("test_app")["test_instance"].status is ResourceStatus.RUNNING

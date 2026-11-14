@@ -67,8 +67,32 @@ def create_app(
 ) -> dict[str, "App[AppConfig]"]:
     """Register ``manifest``, create its instances, and return the running ones."""
     app_registry.set_manifests({manifest.app_key: manifest})
-    app_factory.create_instances(manifest.app_key, manifest, outcomes=AnyNameOutcomes())
-    return app_registry.get_running_apps(manifest.app_key)
+    create_instances(app_factory, app_registry, manifest)
+    return app_registry.get_live_apps(manifest.app_key)
+
+
+def create_instances(
+    app_factory: AppFactory, app_registry: AppRegistry, manifest: AppManifest, *, force_reload: bool = False
+) -> None:
+    """Create ``manifest``'s instances and write each result to the registry, as the lifecycle does.
+
+    A sync twin of ``AppStartStopMixin._record_created`` that writes straight to the registry and sends no
+    events, so these factory tests need no running lifecycle. Keep the result-to-status mapping in step with it.
+    """
+    results = app_factory.create_instances(
+        manifest.app_key, manifest, force_reload=force_reload, outcomes=AnyNameOutcomes()
+    )
+    for name, result in results.items():
+        if isinstance(result, Exception):
+            app_registry.set_status(manifest.app_key, name, ResourceStatus.FAILED, error=result)
+        else:
+            app_registry.set_status(manifest.app_key, name, ResourceStatus.NOT_STARTED, app=result)
+
+
+def remove_app(app_registry: AppRegistry, app_key: str) -> None:
+    """Drop every entry of ``app_key`` from the registry, keeping the class cache."""
+    for name in app_registry.get_instances(app_key):
+        app_registry.set_status(app_key, name, ResourceStatus.STOPPED)
 
 
 async def bring_up_app(
@@ -189,7 +213,7 @@ class TestAppFactoryIntegration:
 
         create_app(app_factory, app_registry, manifest)
 
-        assert len(app_registry.get_running_apps("multi_instance")) == 2
+        assert len(app_registry.get_live_apps("multi_instance")) == 2
         assert app_registry.get("multi_instance", "instance_0") is not None
         assert app_registry.get("multi_instance", "instance_1") is not None
 
@@ -247,7 +271,7 @@ class TestAppFactoryIntegration:
         create_app(app_factory, app_registry, manifest)
 
         # Should fail validation
-        assert "my_app" not in app_registry or len(app_registry.get_running_apps("my_app")) == 0
+        assert "my_app" not in app_registry or len(app_registry.get_live_apps("my_app")) == 0
         failed = get_failed_by_key(app_registry, "my_app")
         assert len(failed) == 1
 
@@ -260,9 +284,9 @@ class TestAppFactoryIntegration:
         first_class = first_instance.__class__
 
         # Clear registry but keep class cache
-        app_registry.unregister_app("my_app")
+        remove_app(app_registry, "my_app")
 
-        app_factory.create_instances("my_app", manifest, outcomes=AnyNameOutcomes())
+        create_instances(app_factory, app_registry, manifest)
         second_instance = get_app(app_registry, "my_app")
         second_class = second_instance.__class__
 
@@ -277,9 +301,9 @@ class TestAppFactoryIntegration:
         first_class = first_instance.__class__
 
         # Clear registry
-        app_registry.unregister_app("my_app")
+        remove_app(app_registry, "my_app")
 
-        app_factory.create_instances("my_app", manifest, force_reload=True, outcomes=AnyNameOutcomes())
+        create_instances(app_factory, app_registry, manifest, force_reload=True)
         second_instance = get_app(app_registry, "my_app")
         second_class = second_instance.__class__
 
@@ -306,7 +330,7 @@ class TestAppFactoryIntegration:
             assert cache_key in app_utils.FAILED_TO_LOAD_CLASSES
 
             # With force_reload the failure is evicted and the app loads from disk.
-            app_factory.create_instances("my_app", manifest, force_reload=True, outcomes=AnyNameOutcomes())
+            create_instances(app_factory, app_registry, manifest, force_reload=True)
             assert "my_app" in app_registry
             assert cache_key not in app_utils.FAILED_TO_LOAD_CLASSES
         finally:
@@ -463,15 +487,15 @@ class TestAppLifecycleServiceIntegration:
         """Other instances still initialize after one fails."""
         # Create failing app first
         app_registry.set_manifests({"failing": failing_manifest})
-        app_factory.create_instances("failing", failing_manifest, outcomes=AnyNameOutcomes())
+        create_instances(app_factory, app_registry, failing_manifest)
 
         # Create succeeding app
         app_registry.set_manifests({"failing": failing_manifest, "multi_instance": multi_instance_manifest})
-        app_factory.create_instances("multi_instance", multi_instance_manifest, outcomes=AnyNameOutcomes())
+        create_instances(app_factory, app_registry, multi_instance_manifest)
 
         # Initialize all together
-        failing_instances = app_registry.get_running_apps("failing")
-        success_instances = app_registry.get_running_apps("multi_instance")
+        failing_instances = app_registry.get_live_apps("failing")
+        success_instances = app_registry.get_live_apps("multi_instance")
 
         await app_lifecycle.initialize_instances(
             "failing", failing_instances, failing_manifest, outcomes=AnyNameOutcomes()
@@ -604,15 +628,15 @@ class TestFullIntegrationFlow:
         app_registry.set_manifests({"multi1": manifest1, "my_app": manifest2})
 
         # Create both
-        app_factory.create_instances("multi1", manifest1, outcomes=AnyNameOutcomes())
-        app_factory.create_instances("my_app", manifest2, outcomes=AnyNameOutcomes())
+        create_instances(app_factory, app_registry, manifest1)
+        create_instances(app_factory, app_registry, manifest2)
 
         assert "multi1" in app_registry
         assert "my_app" in app_registry
 
         # Initialize both
-        instances1 = app_registry.get_running_apps("multi1")
-        instances2 = app_registry.get_running_apps("my_app")
+        instances1 = app_registry.get_live_apps("multi1")
+        instances2 = app_registry.get_live_apps("my_app")
         await app_lifecycle.initialize_instances("multi1", instances1, manifest1, outcomes=AnyNameOutcomes())
         await app_lifecycle.initialize_instances("my_app", instances2, manifest2, outcomes=AnyNameOutcomes())
 

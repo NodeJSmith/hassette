@@ -20,6 +20,7 @@ from hassette.events.hassette import (
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.types.enums import BlockReason, ResourceRole
 from hassette.utils import get_version
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.helpers import create_app_manifest
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
@@ -138,7 +139,7 @@ class TestPreBootstrapAppState:
         running = create_app_manifest("running_app", tmp_path)
         not_started = create_app_manifest("not_started_app", tmp_path)
         registry.set_manifests({running.app_key: running, not_started.app_key: not_started})
-        registry.register_app(running.app_key, MagicMock(instance_name=running.app_key))
+        seed_running(registry, running.app_key, MagicMock(instance_name=running.app_key))
         runtime.hassette.app_handler.get_status_snapshot = registry.get_snapshot
 
         status = runtime.get_system_status()
@@ -234,8 +235,8 @@ class TestPreBootstrapAppState:
         running_app.class_name = manifest.class_name
         running_app.status = ResourceStatus.RUNNING
         running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
-        registry.register_app(manifest.app_key, running_app)
-        registry.record_failure(manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
+        seed_running(registry, manifest.app_key, running_app)
+        seed_failed(registry, manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
 
         runtime.hassette.app_handler.registry = registry
 
@@ -267,7 +268,7 @@ class TestConcurrentAppHandlerTeardown:
         app.class_name = "TeardownApp"
         app.status = ResourceStatus.RUNNING
         app.unique_name = "TeardownApp[0]"
-        registry.register_app(manifest.app_key, app)
+        seed_running(registry, manifest.app_key, app)
 
         runtime.hassette.app_handler.registry = registry
         runtime.hassette.app_handler.get_status_snapshot = Mock(side_effect=registry.get_snapshot)
@@ -315,12 +316,8 @@ class TestConcurrentAppHandlerTeardown:
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
         registry = AppRegistry()
-        registry.flag_needs_restart(
-            "stuck_app",
-            "StuckApp[0]",
-            class_name="StuckApp",
-            reason="1 task still pending",
-            pending_tasks=["StuckApp.poll"],
+        seed_failed(
+            registry, "stuck_app", "StuckApp[0]", needs_restart="1 task still pending", pending_tasks=("StuckApp.poll",)
         )
         runtime.hassette.app_handler.registry = registry
 
