@@ -15,15 +15,14 @@ from hassette.exceptions import AppBlockedError, AppRemovedError
 from hassette.testing import EventCapture, wait_for
 from tests.support.outcomes import AnyNameOutcomes
 
-from .conftest import app_state_payloads, assert_acquires_app_key_lock_once, failure_writes, status_writes
+from .conftest import app_state_payloads, assert_acquires_app_key_lock_once, status_writes
 
 
 class TestReloadInstanceEvents:
     # dup-ignore-start: pytest test function signature
     async def test_reload_instance_emits_state_event_scoped_to_failed_instance(
         self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        real_registry_service: AppLifecycleService,
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
@@ -35,22 +34,21 @@ class TestReloadInstanceEvents:
         """
         event_capture.install(mock_hassette)
         mock_manifest.app_config = [{"instance_name": "inst_0"}, {"instance_name": "inst_1"}]
-        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        registry = real_registry_service.registry
+        registry.set_manifests({"app_a": mock_manifest})
         mock_factory.load_class = Mock(return_value=None)
-        load_error = ValueError("boom")
-        mock_factory.get_load_error = Mock(return_value=load_error)
+        mock_factory.get_load_error = Mock(return_value=ValueError("boom"))
 
-        await lifecycle_service.reload_instance("app_a", "inst_1")
-
-        [write] = failure_writes(mock_registry)
-        assert write.args[:2] == ("app_a", "inst_1")
-        assert write.kwargs["error"] is load_error
+        await real_registry_service.reload_instance("app_a", "inst_1")
 
         failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_payloads) == 1
         payload = failed_payloads[0]
         assert payload.app_key == "app_a"
         assert payload.instance_name == "inst_1"
+        assert payload.previous_status is ResourceStatus.NOT_STARTED
+        assert payload.exception == "boom"
+        assert registry.tracked_names("app_a") == {"inst_1"}
 
 
 class TestStopInstanceFailure:

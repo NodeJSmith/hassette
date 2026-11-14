@@ -232,11 +232,12 @@ class TestNeedsRestart:
     ) -> None:
         """Only clear_all removes a flagged entry; a write that tries is a bug, so it logs a WARNING."""
         seed_failed(registry, APP_KEY, NAME, ValueError("hung"), needs_restart="work still running")
+        before = registry.get_instances(APP_KEY)[NAME]
 
         with caplog.at_level(logging.WARNING):
             assert registry.set_status(APP_KEY, NAME, to, app=app) is None
 
-        assert registry.get_needs_restart(APP_KEY, NAME) is not None
+        assert registry.get_instances(APP_KEY)[NAME] is before
         assert any("flagged needs-restart" in r.getMessage() for r in caplog.records if r.levelname == "WARNING")
 
     def test_clear_all_removes_flagged_entries(self, registry: AppRegistry) -> None:

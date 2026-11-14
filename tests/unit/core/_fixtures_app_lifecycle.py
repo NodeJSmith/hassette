@@ -174,6 +174,14 @@ def status_writes(registry: MagicMock) -> list[tuple[str, ResourceStatus]]:
     return [(c.args[1], c.args[2]) for c in registry.set_status.call_args_list]
 
 
+def last_written_status(registry: MagicMock, app_key: str, instance_name: str) -> ResourceStatus:
+    """A mock registry's ``get_status``: the last status written for the instance, NOT_STARTED before any write."""
+    for c in reversed(registry.set_status.call_args_list):
+        if c.args[0] == app_key and c.args[1] == instance_name:
+            return c.args[2]
+    return ResourceStatus.NOT_STARTED
+
+
 def failure_writes(registry: MagicMock) -> list[Any]:
     """The ``set_status`` calls that wrote FAILED through a mock registry, in order."""
     return [c for c in registry.set_status.call_args_list if c.args[2] is ResourceStatus.FAILED]
@@ -190,7 +198,8 @@ def mock_registry() -> MagicMock:
     registry.clear_all = Mock()
     registry.get_manifest = Mock(return_value=None)
     registry.refusal_reason = Mock(return_value=None)
-    registry.get_status = Mock(return_value=ResourceStatus.NOT_STARTED)
+    registry.get_status = Mock(side_effect=lambda app_key, name: last_written_status(registry, app_key, name))
+    registry.is_debug_captured = Mock(return_value=False)
     registry.set_manifests = Mock()
     registry.set_only_apps = Mock()
     set_registry_apps(registry, {})

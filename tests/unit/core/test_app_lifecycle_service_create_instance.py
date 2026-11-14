@@ -24,8 +24,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
     # dup-ignore-start: pytest test function signature
     async def test_returns_early_without_initializing_when_create_single_instance_fails_synchronously(
         self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        real_registry_service: AppLifecycleService,
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
@@ -42,15 +41,18 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         mock_factory.load_class = Mock(return_value=MagicMock())
         mock_factory.create_single_instance = Mock(return_value=ValueError("bad config"))
 
-        lifecycle_service.initialize_instances = AsyncMock()
+        real_registry_service.initialize_instances = AsyncMock()
 
-        await lifecycle_service._create_instance_unlocked("test_app", "a", mock_manifest, outcomes=AnyNameOutcomes())
+        await real_registry_service._create_instance_unlocked(
+            "test_app", "a", mock_manifest, outcomes=AnyNameOutcomes()
+        )
 
         mock_factory.create_single_instance.assert_called_once()
-        lifecycle_service.initialize_instances.assert_not_called()
+        real_registry_service.initialize_instances.assert_not_called()
 
         failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert [p.exception for p in failed_payloads] == ["bad config"]
+        assert [p.previous_status for p in failed_payloads] == [ResourceStatus.NOT_STARTED]
 
 
 class TestCreateInstanceUnlockedPostRegistrationFailure:
