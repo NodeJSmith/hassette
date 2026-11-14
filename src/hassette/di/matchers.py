@@ -112,7 +112,8 @@ class AnnotatedMatcher:
             details = AnnotationDetails(extractor=metadata)
         else:
             warn(
-                f"Invalid Annotated metadata: {metadata} is not AnnotationDetails or callable extractor",
+                f"Invalid Annotated metadata on parameter {param.name!r}: {metadata!r} is not AnnotationDetails"
+                " or a callable extractor",
                 stacklevel=2,
             )
             return None

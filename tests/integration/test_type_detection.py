@@ -74,7 +74,8 @@ class TestExtractFromAnnotated:
         signature = get_typed_signature(handler)
 
         with pytest.warns(
-            UserWarning, match="Invalid Annotated metadata: not_callable is not AnnotationDetails or callable extractor"
+            UserWarning,
+            match="Invalid Annotated metadata on parameter 'value': 'not_callable' is not AnnotationDetails",
         ):
             result = AnnotatedMatcher(source_type=Event).match(signature.parameters["value"])
 

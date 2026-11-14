@@ -186,7 +186,7 @@ class TestAnnotatedMatcher:
 
         matcher = AnnotatedMatcher(source_type=Event)
 
-        with pytest.warns(UserWarning, match="Invalid Annotated metadata"):
+        with pytest.warns(UserWarning, match="Invalid Annotated metadata on parameter 'value'"):
             result = match_param(matcher, handler, "value")
 
         assert result is None
