@@ -29,7 +29,6 @@ from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import AnyEvent, HassPayload
-from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
@@ -526,35 +525,16 @@ class BusService(Service):
         ]
 
     def read_entity_state(self, entity_id: str) -> "HassStateDict | None":
-        """Read entity state from StateProxy; returns None on any error.
-
-        Absorbs ``ResourceNotReadyError`` and unexpected exceptions so the
-        caller (DurationHoldManager) never needs to handle state-read failures.
-        """
-        try:
-            state_proxy = self.hassette.try_state_proxy()
-            if state_proxy is None:
-                self.logger.debug("read_entity_state: StateProxy not available for entity %s, skipping", entity_id)
-                return None
-            current_state = state_proxy.states.get(entity_id)
-            if current_state is None:
-                self.logger.debug("read_entity_state: entity %s not found in StateProxy, skipping", entity_id)
-                return None
-            return current_state
-        except ResourceNotReadyError as exc:
-            self.logger.error(
-                "read_entity_state: ResourceNotReadyError for entity %s (sequencing violation).",
-                entity_id,
-                exc_info=exc,
-            )
+        """Read entity state from StateProxy; returns None when StateProxy or the entity is unavailable."""
+        state_proxy = self.hassette.try_state_proxy()
+        if state_proxy is None:
+            self.logger.debug("read_entity_state: StateProxy not available for entity %s, skipping", entity_id)
             return None
-        except Exception as exc:
-            self.logger.warning(
-                "read_entity_state: unexpected error reading state for entity %s.",
-                entity_id,
-                exc_info=exc,
-            )
+        current_state = state_proxy.states.get(entity_id)
+        if current_state is None:
+            self.logger.debug("read_entity_state: entity %s not found in StateProxy, skipping", entity_id)
             return None
+        return current_state
 
     @property
     def duration_timers_active(self) -> int:
@@ -655,17 +635,6 @@ class BusService(Service):
         listener = delivery.listener
         if listener.entity_watch is not None and listener.entity_watch.duration is not None:
             if listener.is_cancelled:
-                return
-
-            entity_watch = listener.entity_watch
-            entity_id = entity_watch.entity_id
-            if not entity_id:
-                self.logger.error(
-                    "duration_fire: listener has no entity_id — construction invariant violated. "
-                    "Listener owner=%s topic=%s",
-                    listener.identity.owner_id,
-                    listener.topic,
-                )
                 return
 
             self._duration_hold.start_duration_timer(delivery)

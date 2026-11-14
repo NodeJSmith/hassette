@@ -13,7 +13,7 @@ paths, and reconcile_app_registrations' degraded-mode fallbacks.
 """
 
 import asyncio
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -561,32 +561,44 @@ async def reconcile_one_instance(
 
 
 class TestReconcileAppRegistrationsDegradedPaths:
-    async def test_listener_collection_failure_is_non_fatal(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
+    @pytest.mark.parametrize(
+        "break_read",
+        [
+            pytest.param(
+                lambda _hassette, inst: setattr(inst.bus, "get_listeners", Mock(side_effect=RuntimeError("bus"))),
+                id="bus_listeners",
+            ),
+            pytest.param(
+                lambda hassette, _inst: setattr(
+                    hassette.bus_service.router, "get_listeners_by_owner", Mock(side_effect=RuntimeError("router"))
+                ),
+                id="router_listeners",
+            ),
+            pytest.param(
+                lambda _hassette, inst: setattr(
+                    inst.scheduler, "get_job_db_ids", Mock(side_effect=RuntimeError("scheduler"))
+                ),
+                id="scheduler_jobs",
+            ),
+        ],
+    )
+    async def test_failed_live_id_read_skips_reconcile(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_app_instance: AsyncMock,
+        break_read: Callable[[MagicMock, AsyncMock], None],
     ) -> None:
-        """A failure collecting listener IDs from one instance leaves live_listener_ids empty."""
-        mock_app_instance.bus.get_listeners = Mock(side_effect=RuntimeError("bus unavailable"))
+        """A failed live-ID read skips the reconcile instead of retiring rows from a partial set."""
+        mock_app_instance.bus.get_listeners = Mock(return_value=[MagicMock(db_id=1)])
+        mock_hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])
+        mock_app_instance.scheduler.get_job_db_ids = Mock(return_value=[7])
+        break_read(mock_hassette, mock_app_instance)
 
-        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
-        assert call_kwargs.args[1] == []
+        await lifecycle_service.reconcile_app_registrations("test_app", {"test_instance": mock_app_instance})
+        mock_hassette.command_executor.reconcile_registrations.assert_not_called()
 
-    # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
-    # collaborator to fail (or succeed) and asserting a different slice of the resulting
-    # executor call; the shared arrange/act/assert shape is already down to three lines and
-    # parametrizing it would need a setup callable per row to say less than the bodies do.
-    async def test_router_safety_guard_failure_is_non_fatal(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
-    ) -> None:
-        """Router guard failure still leaves the directly-collected listener IDs intact."""
-        mock_app_instance.bus.get_listeners = Mock(return_value=[MagicMock(db_id=99)])
-        mock_hassette.bus_service.router.get_listeners_by_owner = Mock(side_effect=RuntimeError("router down"))
-
-        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
-        # Router union failed, but the bus-collected ID (99) survives.
-        assert set(call_kwargs.args[1]) == {99}
-        # dup-ignore-end
-
-    # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
+    # dup-ignore-start: reconcile_app_registrations ID-collection tests, each arranging one
     # collaborator to fail (or succeed) and asserting a different slice of the resulting
     # executor call; the shared arrange/act/assert shape is already down to three lines and
     # parametrizing it would need a setup callable per row to say less than the bodies do.
@@ -604,16 +616,7 @@ class TestReconcileAppRegistrationsDegradedPaths:
         assert set(call_kwargs.args[1]) == {1, 2}
         # dup-ignore-end
 
-    async def test_job_id_collection_failure_is_non_fatal(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
-    ) -> None:
-        """A failure collecting job IDs from one instance leaves live_job_ids empty."""
-        mock_app_instance.scheduler.get_job_db_ids = Mock(side_effect=RuntimeError("scheduler unavailable"))
-
-        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
-        assert call_kwargs.args[2] == []
-
-    # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
+    # dup-ignore-start: reconcile_app_registrations ID-collection tests, each arranging one
     # collaborator to fail (or succeed) and asserting a different slice of the resulting
     # executor call; the shared arrange/act/assert shape is already down to three lines and
     # parametrizing it would need a setup callable per row to say less than the bodies do.
