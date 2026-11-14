@@ -205,28 +205,6 @@ class TestIdempotencyAndLeak:
         assert second is True
         assert time.sleep is not _REAL_SLEEP
 
-    def test_uninstall_by_non_owner_is_noop(self) -> None:
-        """A non-owning instance cannot uninstall the owner's process-global patches.
-
-        Tier 2 has a single owner. If a second Hassette instance's shutdown called uninstall,
-        it would disable call-site interception for the still-running owner. Passing the caller
-        to uninstall() makes it no-op when the caller is not the owner.
-        """
-        owner = make_blocking_io_hassette()
-        other = make_blocking_io_hassette()
-        ex = make_marker_executor()
-        install(owner, loop_thread_id=threading.get_ident(), executor=ex)
-
-        # Non-owner uninstall is refused — patches stay live for the owner.
-        assert uninstall(other) is False
-        assert is_installed()
-        assert time.sleep is not _REAL_SLEEP
-
-        # The owner can still uninstall its own patches.
-        assert uninstall(owner) is True
-        assert not is_installed()
-        assert time.sleep is _REAL_SLEEP
-
     def test_is_installed_reflects_state(self) -> None:
         """is_installed() tracks install/uninstall state correctly."""
         assert not is_installed()
