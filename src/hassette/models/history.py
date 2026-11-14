@@ -21,7 +21,8 @@ def normalize_history(entries: Any) -> list[list[dict[str, Any]]]:
     """Expand Home Assistant history responses into complete per-entity entry lists.
 
     Minimal responses only carry changed keys after the first entry, so each later entry is
-    merged over the entity's first entry. A single entity's list is wrapped as one group, and
+    merged over the entity's first entry, taking ``last_updated`` from the entry's own
+    ``last_changed`` when it carries none. A single entity's list is wrapped as one group, and
     empty groups are dropped.
 
     Args:
@@ -53,6 +54,9 @@ def normalize_history(entries: Any) -> list[list[dict[str, Any]]]:
                 continue
 
             merged = base_entry.copy() | delta_entry
+            # Minimal entries are state changes, which set both timestamps; without this the
+            # merged entry would keep the first entry's last_updated.
+            merged["last_updated"] = delta_entry.get("last_updated", delta_entry["last_changed"])
             normalized_list.append(merged)
 
         if normalized_list:
