@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.commands import ExecuteJob
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import ExecutionRecord
+from hassette.utils.warn_pacer import WarnPacer
 from tests.support.factories import make_execution_record
 
 # Shared fixture/factory config values — named so re-tuning is a single-site edit.
@@ -37,8 +38,8 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     executor._dropped_shutdown = 0
     executor._dropped_filtered = 0
     executor._error_handler_failures = 0
-    executor._last_capacity_warn_ts = 0.0
-    executor._last_unowned_warn_ts = None
+    executor.capacity_warn_pacer = WarnPacer()
+    executor.unowned_warn_pacer = WarnPacer()
     executor._timeout_warn_timestamps = {}
     executor._clock = time.monotonic
     executor.current_execution = None
@@ -78,8 +79,8 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor._dropped_shutdown = 0
     executor._dropped_filtered = 0
     executor._error_handler_failures = 0
-    executor._last_capacity_warn_ts = None
-    executor._last_unowned_warn_ts = None
+    executor.capacity_warn_pacer = WarnPacer()
+    executor.unowned_warn_pacer = WarnPacer()
     executor._timeout_warn_timestamps = {}
     executor._clock = time.monotonic
     executor.current_execution = None

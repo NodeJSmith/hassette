@@ -108,6 +108,15 @@ async def seed_recent_blocking_event(db: aiosqlite.Connection, app_key: str) -> 
     )
 
 
+async def seed_recent_lifecycle_event(db: aiosqlite.Connection, app_key: str) -> None:
+    cursor = await db.execute("INSERT INTO sessions (started_at) VALUES (?)", (RECENT_TS,))
+    await db.execute(
+        "INSERT INTO lifecycle_events (session_id, kind, app_key, to_status, details, ts)"
+        " VALUES (?, 'block', ?, 'blocked', '{}', ?)",
+        (cursor.lastrowid, app_key, RECENT_TS),
+    )
+
+
 async def retired_at_values(db: aiosqlite.Connection, table: str) -> list[float | None]:
     cursor = await db.execute(f"SELECT retired_at FROM {table}")
     return [row[0] for row in await cursor.fetchall()]
@@ -151,8 +160,14 @@ async def test_app_in_current_config_is_never_pruned(
 
 @pytest.mark.parametrize(
     "seed",
-    [seed_recent_execution, seed_recent_job_execution, seed_recent_log_record, seed_recent_blocking_event],
-    ids=["execution", "scheduled_job", "log_record", "blocking_event"],
+    [
+        seed_recent_execution,
+        seed_recent_job_execution,
+        seed_recent_log_record,
+        seed_recent_blocking_event,
+        seed_recent_lifecycle_event,
+    ],
+    ids=["execution", "scheduled_job", "log_record", "blocking_event", "lifecycle_event"],
 )
 async def test_removed_app_kept_while_telemetry_remains(
     db: aiosqlite.Connection,
@@ -432,8 +447,14 @@ def test_live_app_keys_counts_only_apps_with_a_running_instance(
 
 @pytest.mark.parametrize(
     "seed",
-    [seed_recent_execution, seed_recent_job_execution, seed_recent_log_record, seed_recent_blocking_event],
-    ids=["execution", "scheduled_job", "log_record", "blocking_event"],
+    [
+        seed_recent_execution,
+        seed_recent_job_execution,
+        seed_recent_log_record,
+        seed_recent_blocking_event,
+        seed_recent_lifecycle_event,
+    ],
+    ids=["execution", "scheduled_job", "log_record", "blocking_event", "lifecycle_event"],
 )
 async def test_other_apps_telemetry_does_not_block_pruning(
     db: aiosqlite.Connection,

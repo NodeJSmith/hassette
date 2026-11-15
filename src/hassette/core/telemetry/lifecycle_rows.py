@@ -76,9 +76,9 @@ LifecycleDetails = AppDetails | ConnectionDetails | BlockDetails
 
 @dataclass(frozen=True, slots=True)
 class LifecycleChange:
-    """What an owner reports about one change, before it becomes a ``LifecycleRow``.
+    """What an owner reports about one change: every ``lifecycle_events`` column but the id, session and time.
 
-    ``SessionManager.write_lifecycle_row`` adds the session id and time and serializes ``details``.
+    ``SessionManager.write_lifecycle_row`` adds the session id and time, and serializes ``details``.
     """
 
     kind: LifecycleKind
@@ -87,21 +87,6 @@ class LifecycleChange:
     details: LifecycleDetails
     app_key: str | None = None
     instance_name: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class LifecycleRow:
-    """The columns of a new ``lifecycle_events`` row."""
-
-    session_id: int
-    kind: LifecycleKind
-    app_key: str | None
-    instance_name: str | None
-    from_status: str | None
-    to_status: str
-    details: str
-    """The details model serialized as a JSON object, absent fields left out."""
-    ts: float
 
 
 def record_app_change(hassette: "Hassette", change: "StatusChange") -> None:

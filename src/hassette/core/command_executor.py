@@ -34,6 +34,7 @@ from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.schemas.log_models import BlockingEvent
 from hassette.utils.execution import ExecutionResult, track_execution
+from hassette.utils.warn_pacer import WarnPacer
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -138,11 +139,11 @@ class CommandExecutor(Service):
     _error_handler_failures: int
     """Count of user-registered error handler invocations that raised an exception or timed out."""
 
-    _last_capacity_warn_ts: float | None
-    """Monotonic timestamp of the last capacity warning, or None if no warning has fired yet."""
+    capacity_warn_pacer: WarnPacer
+    """Paces the write-queue capacity WARNING, at most one per ``command_executor_capacity_warn_rate_limit_seconds``."""
 
-    _last_unowned_warn_ts: float | None
-    """Monotonic timestamp of the last empty-app_key completion warning, or None before first warning."""
+    unowned_warn_pacer: WarnPacer
+    """Paces the empty-app_key completion WARNING, on ``_clock``."""
 
     _timeout_warn_timestamps: dict[int, float]
     """Per-entity timeout warning rate limiter.
@@ -175,8 +176,8 @@ class CommandExecutor(Service):
         self._dropped_shutdown = 0
         self._dropped_filtered = 0
         self._error_handler_failures = 0
-        self._last_capacity_warn_ts = None
-        self._last_unowned_warn_ts = None
+        self.capacity_warn_pacer = WarnPacer()
+        self.unowned_warn_pacer = WarnPacer()
         self._timeout_warn_timestamps = {}
         self._clock = time.monotonic
         self.current_execution: ExecutionMarker | None = None

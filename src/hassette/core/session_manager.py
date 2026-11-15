@@ -8,10 +8,11 @@ from typing import ClassVar
 from hassette_wire import LogLevel
 
 from hassette.core.pipeline_counters import PipelineCounter
-from hassette.core.telemetry.lifecycle_rows import LifecycleChange, LifecycleRow
+from hassette.core.telemetry.lifecycle_rows import LifecycleChange
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
+from hassette.utils.warn_pacer import WarnPacer
 
 SESSION_STATUS_RUNNING = "running"
 SESSION_STATUS_SUCCESS = "success"
@@ -44,7 +45,7 @@ class SessionManager(Resource):
         self._database_service = database_service
         self._session_id: int | None = None
         self._repository = TelemetryRepository(database_service)
-        self._last_lifecycle_drop_warn_ts: float | None = None
+        self.lifecycle_drop_warn_pacer = WarnPacer()
 
     async def on_initialize(self) -> None:
         """Signal readiness."""
@@ -76,22 +77,18 @@ class SessionManager(Resource):
         not counted.
         """
         try:
-            entry = build()
             if self._session_id is None:
                 self.count_lifecycle_drop("no session")
                 return
-            row = LifecycleRow(
+            change = build()
+            insert_coro = self._repository.insert_lifecycle_event(
+                change,
                 session_id=self._session_id,
-                kind=entry.kind,
-                app_key=entry.app_key,
-                instance_name=entry.instance_name,
-                from_status=entry.from_status,
-                to_status=entry.to_status,
-                details=entry.details.model_dump_json(exclude_none=True),
+                details_json=change.details.model_dump_json(exclude_none=True),
                 ts=time.time(),
             )
             try:
-                queued = self._database_service.enqueue(self._repository.insert_lifecycle_event(row))
+                queued = self._database_service.enqueue(insert_coro)
             except RuntimeError:
                 # enqueue() closes the coroutine and raises RuntimeError only when the queue isn't live.
                 self.count_lifecycle_drop("write queue not running")
@@ -102,18 +99,17 @@ class SessionManager(Resource):
             self.count_lifecycle_drop("unexpected error", exc_info=True)
 
     def count_lifecycle_drop(self, reason: str, *, exc_info: bool = False) -> None:
-        """Count one dropped lifecycle row and log a WARNING, paced like ``ApiWriteRecorder.warn_drop``.
+        """Count one dropped lifecycle row and log a WARNING, paced by its own ``WarnPacer``.
 
-        Shares its interval setting, ``lifecycle.command_executor_capacity_warn_rate_limit_seconds``, with that
-        recorder and the execution write queue, but keeps its own timestamp, so an API-write drop never
-        suppresses a lifecycle WARNING.
+        Shares its interval setting, ``lifecycle.command_executor_capacity_warn_rate_limit_seconds``, with the
+        other paced telemetry WARNINGs, but has its own ``WarnPacer``, so an API-write drop never suppresses a
+        lifecycle WARNING.
         """
         self.hassette.pipeline_counters.increment(PipelineCounter.LIFECYCLE_ROWS_DROPPED)
-        now = time.monotonic()
-        interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
-        if self._last_lifecycle_drop_warn_ts is not None and now - self._last_lifecycle_drop_warn_ts < interval:
+        if not self.lifecycle_drop_warn_pacer.allow(
+            self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
+        ):
             return
-        self._last_lifecycle_drop_warn_ts = now
         self.logger.warning(
             "Could not queue lifecycle row (%s); dropping it (counted under %s)",
             reason,

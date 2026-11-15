@@ -34,6 +34,7 @@ from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
 from hassette.utils.func_utils import describe_predicate
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
+from hassette.utils.warn_pacer import WarnPacer
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -91,7 +92,7 @@ class BusService(Service):
         self._dispatch_semaphore: asyncio.Semaphore = asyncio.Semaphore(
             hassette.config.lifecycle.max_concurrent_dispatches
         )
-        self._last_saturation_warn_ts: float = 0.0
+        self.saturation_warn_pacer = WarnPacer()
         # True only while serve()'s drain loop runs; the bus's own answer to "will anything drain the channel?"
         self._draining: bool = False
 
@@ -159,10 +160,8 @@ class BusService(Service):
 
     def warn_dispatch_saturated(self) -> None:
         """Log a rate-limited warning when dispatch is at its concurrency ceiling."""
-        now = time.monotonic()
-        if now - self._last_saturation_warn_ts < _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS:
+        if not self.saturation_warn_pacer.allow(_DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS):
             return
-        self._last_saturation_warn_ts = now
         self.logger.warning(
             "Event dispatch saturated: %d concurrent handlers in flight (max_concurrent_dispatches). "
             "Listeners may wait for a slot or drop events per their backpressure policy; "

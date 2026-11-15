@@ -26,6 +26,7 @@ from hassette.core.execution_record_builder import format_display_value
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.exceptions import CommandNotSentError, EntityNotFoundError, HttpRequestError
+from hassette.utils.warn_pacer import WarnPacer
 
 if typing.TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -145,7 +146,7 @@ class ApiWriteRecorder:
         self.hassette = hassette
         self.repository = TelemetryRepository(hassette.database_service)
         self.logger = LOGGER
-        self.last_drop_warn_ts: float | None = None
+        self.drop_warn_pacer = WarnPacer()
 
     def begin(
         self,
@@ -212,12 +213,11 @@ class ApiWriteRecorder:
         self.warn_drop()
 
     def warn_drop(self) -> None:
-        """Log one WARNING per drop episode, paced like the execution write queue's capacity WARNING."""
-        now = time.monotonic()
-        interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
-        if self.last_drop_warn_ts is not None and now - self.last_drop_warn_ts < interval:
+        """Log one WARNING per drop episode, paced by its own ``WarnPacer``."""
+        if not self.drop_warn_pacer.allow(
+            self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
+        ):
             return
-        self.last_drop_warn_ts = now
         self.logger.warning(
             "Database write queue is full; dropping API write records (counted under %s)",
             PipelineCounter.API_WRITE_RECORD_DROPPED.name,

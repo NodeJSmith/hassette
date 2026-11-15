@@ -1,7 +1,7 @@
 # Design: Lifecycle history writers
 
 **Date:** 2026-11-13 (re-sketched 2026-11-15 after #4091 and #4092 merged)
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3678
 **Parent:** design/specs/142-diagnostic-evidence/design.md
@@ -244,12 +244,13 @@ Core columns, shared by A, C and D: `id`, `session_id NOT NULL REFERENCES sessio
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
-- Three typed entry points (`record_app_change`, `record_connection_change`, `record_block_change`) in `core/telemetry/lifecycle_rows.py` share one guarded function, `record_lifecycle_entry`, instead of one untyped function taking every row field: each owner passes only what it has, and the details-model build stays inside the never-raise guard.
-- `record_lifecycle_entry`'s guard covers building the entry, the `hassette.session_manager` lookup and the writer call; a failure there is counted under `LIFECYCLE_ROWS_DROPPED` and logged at DEBUG, not paced WARNING, because with no session manager there is no writer holding pacing state. It happens only when services aren't wired (tests and harnesses).
-- The pacing code is not shared with `ApiWriteRecorder.warn_drop`: `SessionManager.count_lifecycle_drop` keeps its own timestamp and reads the same rate-limit setting, which is a few lines and keeps the two recorders independent.
+- Three typed entry points (`record_app_change`, `record_connection_change`, `record_block_change`) in `core/telemetry/lifecycle_rows.py` each hand a builder for a `LifecycleChange` to `record_lifecycle_change`, the one function between the owners and the writer, instead of one untyped function taking every row field: each owner passes only what it has.
+- The guard sits where the ledger puts it, in `SessionManager.write_lifecycle_row`: the session check, the builder call (which can raise, since it reads the change and builds the details model), serialization and enqueue are inside one `except Exception`, and every drop there is counted with a paced WARNING. `record_lifecycle_change` covers only the `hassette.session_manager` lookup: with no session manager wired (tests and harnesses) it counts the drop and logs at DEBUG, since there is no writer holding pacing state. The writer takes the builder rather than a built change so a failing build is caught inside that one guard.
+- The insert takes the `LifecycleChange` plus the session id, serialized details and time; there is no separate row dataclass.
+- The paced WARNING is a shared `WarnPacer` (`src/hassette/utils/warn_pacer.py`), chosen at the ship-time challenge. Every site that paced a WARNING by hand moved onto it: the lifecycle writer, `ApiWriteRecorder`, `ListenerMissRecorder`, `PendingResponses`, the execution write queue's capacity and empty-`app_key` WARNINGs, and the sync executor's and bus's saturation WARNINGs. Each holds its own instance, so one site never suppresses another's WARNING, and passes its interval per call. `wait_for_cancellations` keeps its own gate, since it also counts the calls it holds back. The bus's saturation gate now passes its first call regardless of process uptime (it started from `0.0`).
 - `park()` takes the PARK plan's cause as an argument so the AUTH_FAILED row carries it; it had no other way to reach the call site.
 - `make_mock_hassette()` sets `session_manager = None`, so code under a sealed mock counts a lifecycle drop instead of raising on attribute access.
 - The removed-app manifest prune waits on lifecycle rows too, like every other table keyed by `app_key`, so a removed app's history keeps its manifest until the history ages out.
