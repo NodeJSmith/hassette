@@ -31,7 +31,7 @@ LOGGER = getLogger(__name__)
 
 
 @dataclass
-class _FindingBuilder:
+class FindingBuilder:
     """Accumulates one finding's groups; groups arrive most recently seen first."""
 
     app_key: str
@@ -139,10 +139,10 @@ def group_findings(
     is evidence, not proof, so it counts only once it recurs. Tier 2 findings are exact and kept.
     """
     groups = list(groups)
-    builders: dict[Hashable, _FindingBuilder] = {}
+    builders: dict[Hashable, FindingBuilder] = {}
     for group, frames in zip(groups, decode_stacks(groups, id_field="latest_event_id"), strict=True):
         app_key: str = group["app_key"]
-        key, builder = _start_finding(group, app_key, frames, classifier_for(app_key))
+        key, builder = start_finding(group, app_key, frames, classifier_for(app_key))
         builders.setdefault(key, builder).add(group)
     # Dicts keep insertion order and groups arrive most recently seen first, so this is last-seen order.
     return [b.build() for b in builders.values() if b.tier != "watchdog" or b.event_count >= min_events]
@@ -170,9 +170,9 @@ def decode_stacks(rows: Sequence[Mapping[str, Any]], *, id_field: str) -> list[l
     return stacks
 
 
-def _start_finding(
+def start_finding(
     group: Mapping[str, Any], app_key: str, frames: list[StackFrame], classifier: FrameClassifier
-) -> tuple[Hashable, _FindingBuilder]:
+) -> tuple[Hashable, FindingBuilder]:
     """Return the finding key for ``group`` and a builder seeded from it (used if the key is new).
 
     A Tier 1 group whose stack holds no app-code frame, and a Tier 2 group with no stored frame,
@@ -194,7 +194,7 @@ def _start_finding(
             callee = classifier.ref(frames[idx - 1]) if idx > 0 else None
             return (
                 ("site", tier, app_key, site.filename, site.lineno, site.function),
-                _FindingBuilder(
+                FindingBuilder(
                     **base,
                     call_site=classifier.ref(site),
                     call_site_is_user_code=True,
@@ -207,7 +207,7 @@ def _start_finding(
         is_user = classifier.is_user_code(site.filename)
         return (
             ("site", tier, app_key, primitive, site.filename, site.lineno, site.function),
-            _FindingBuilder(
+            FindingBuilder(
                 **base,
                 call_site=classifier.ref(site),
                 call_site_is_user_code=is_user,
@@ -219,7 +219,7 @@ def _start_finding(
     handler_key = (handler.kind, handler.id) if handler is not None else None
     return (
         ("uncaptured", tier, app_key, primitive, handler_key),
-        _FindingBuilder(**base, call_site=None, call_site_is_user_code=False, detected_in_package=None, callee=None),
+        FindingBuilder(**base, call_site=None, call_site_is_user_code=False, detected_in_package=None, callee=None),
     )
 
 

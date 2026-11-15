@@ -69,39 +69,6 @@ query's ``WHERE`` provably implies the index's, and a bound parameter never does
 ``test_default_log_view_uses_partial_index`` fails if they drift.
 """
 
-# Exports the package's public constants plus the clause-builders and row converters shared
-# by the query mixins. These are package-internal (not for callers outside
-# hassette.core.telemetry); listing them here marks them as exported so the cross-module
-# imports don't read as unused.
-__all__ = [
-    "DEFAULT_EXECUTION_LOG_LIMIT",
-    "DEFAULT_LOG_RECORDS_LIMIT",
-    "LISTENER_MISS_NO_FILTER",
-    "SQL_DEFAULT_LOG_VIEW",
-    "SQL_FAILED_STATUSES",
-    "SQL_HANDLER_ROW_ID_PREFIX",
-    "SQL_JOB_ROW_ID_PREFIX",
-    "SQL_KIND_HANDLER",
-    "SQL_KIND_JOB",
-    "SQL_NO_FILTER",
-    "SQL_SOURCE_TIER_APP",
-    "SQL_SOURCE_TIER_FRAMEWORK",
-    "SQL_STATUS_CANCELLED",
-    "SQL_STATUS_ERROR",
-    "SQL_STATUS_SKIPPED",
-    "SQL_STATUS_SUCCESS",
-    "SQL_STATUS_TIMED_OUT",
-    "STORAGE_ERRORS",
-    "build_app_summaries",
-    "fetch_all_as_dicts",
-    "handler_job_union_arms",
-    "log_author_clause",
-    "log_record_filter_clauses",
-    "row_to_dict",
-    "since_clause",
-    "source_tier_clause",
-]
-
 
 def row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
     """Convert an aiosqlite Row to a plain dict."""

@@ -132,7 +132,7 @@ class BlockingQueriesMixin:
         return await asyncio.to_thread(
             group_findings,
             groups,
-            classifier_for_apps(self._app_dirs()),
+            classifier_for_apps(self.app_dirs()),
             min_events=self.hassette.config.blocking_io.min_events,
         )
 
@@ -147,7 +147,7 @@ class BlockingQueriesMixin:
                 _UNATTRIBUTED_RECENT_QUERY.format(since=since_sql), {**params, "limit": RECENT_UNATTRIBUTED_LIMIT}
             )
         )
-        return summarize_unattributed(totals, recent, all_apps_classifier(self._app_dirs()))
+        return summarize_unattributed(totals, recent, all_apps_classifier(self.app_dirs()))
 
     async def get_blocking_event_counts(self, *, since: float | None) -> dict[str, int]:
         """Blocking events per app key in the window, summed over the app's reportable findings.
@@ -160,6 +160,6 @@ class BlockingQueriesMixin:
             counts[finding.app_key] = counts.get(finding.app_key, 0) + finding.event_count
         return counts
 
-    def _app_dirs(self) -> dict[str, PurePath]:
+    def app_dirs(self) -> dict[str, PurePath]:
         """Each configured app's resolved directory, read fresh so config reloads apply."""
         return {key: PurePath(m.app_dir) for key, m in self.hassette.config.apps.manifests.items()}

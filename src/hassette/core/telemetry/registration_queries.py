@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
     import aiosqlite
 
+TOMBSTONE_COLUMNS = ("removed_at", "retired_at")
+"""Timestamp columns that must all be NULL for a listener or scheduled job row to count as live."""
+
 _LISTENER_MISS_SELECT_COLUMNS = (
     "m.hour_ts, m.reason, m.filter, m.count, m.first_ts, m.last_ts, "
     + ", ".join(f"m.{column}" for column in TRIGGER_COLUMNS)
@@ -55,9 +58,6 @@ class RegistrationSummarySource:
     kind: str
     """SQL literal for the ``executions.kind`` value belonging to this registration type."""
 
-    tombstone_columns: tuple[str, ...]
-    """Timestamp columns that must all be NULL for a registration to count as live."""
-
     select_columns: str
     """Registration columns and execution aggregates; ``e`` is the executions row, ``last_err`` the latest failure."""
 
@@ -67,7 +67,6 @@ LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
     alias="l",
     fk_column="listener_id",
     kind=SQL_KIND_HANDLER,
-    tombstone_columns=("removed_at", "retired_at"),
     select_columns=f"""
                 l.id AS listener_id,
                 l.app_key,
@@ -112,7 +111,6 @@ JOB_SUMMARY_SOURCE = RegistrationSummarySource(
     alias="sj",
     fk_column="job_id",
     kind=SQL_KIND_JOB,
-    tombstone_columns=("removed_at", "retired_at"),
     select_columns=f"""
                 sj.id AS job_id,
                 sj.app_key,
@@ -314,7 +312,7 @@ def build_registration_summary_query(
         where_clause = SQL_NO_FILTER
         params = {**tier_params, **since_params}
 
-    live_filter = "".join(f"\n            AND {alias}.{column} IS NULL" for column in source.tombstone_columns)
+    live_filter = "".join(f"\n            AND {alias}.{column} IS NULL" for column in TOMBSTONE_COLUMNS)
     query = f"""
             WITH ranked_errors AS (
                 SELECT e_err.{source.fk_column}, e_err.execution_id, e_err.error_type, e_err.error_message,

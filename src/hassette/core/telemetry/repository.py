@@ -33,6 +33,13 @@ from hassette.schemas.log_models import BlockingEvent
 from hassette.types.types import is_framework_key
 from hassette.utils.stack_frames import encode_frames
 
+if TYPE_CHECKING:
+    from hassette_wire import ApiWriteOutcome
+
+    from hassette.core.api_write_recorder import ApiWriteRow
+    from hassette.core.database_service import DatabaseService
+    from hassette.core.listener_miss_recorder import ListenerMissRow
+
 LOGGER = getLogger(__name__)
 
 
@@ -66,14 +73,6 @@ _LISTENER_MISS_UPSERT_SQL = f"""
         first_ts = MIN(first_ts, excluded.first_ts),
         {_LISTENER_MISS_LAST_SET}
 """
-
-
-if TYPE_CHECKING:
-    from hassette_wire import ApiWriteOutcome
-
-    from hassette.core.api_write_recorder import ApiWriteRow
-    from hassette.core.database_service import DatabaseService
-    from hassette.core.listener_miss_recorder import ListenerMissRow
 
 
 class TelemetryRepository:
