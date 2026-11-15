@@ -74,6 +74,11 @@ class BlockDetails(BaseModel):
 LifecycleDetails = AppDetails | ConnectionDetails | BlockDetails
 
 
+def serialize_details(details: LifecycleDetails) -> str:
+    """The ``details`` column's JSON: unset fields are left out, so readers treat a missing key as unset."""
+    return details.model_dump_json(exclude_none=True)
+
+
 @dataclass(frozen=True, slots=True)
 class LifecycleChange:
     """What an owner reports about one change: every ``lifecycle_events`` column but the id, session and time.

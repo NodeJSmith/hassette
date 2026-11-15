@@ -158,17 +158,17 @@ async def test_app_in_current_config_is_never_pruned(
     assert await manifest_exists(db, manifest.app_key)
 
 
-@pytest.mark.parametrize(
-    "seed",
-    [
-        seed_recent_execution,
-        seed_recent_job_execution,
-        seed_recent_log_record,
-        seed_recent_blocking_event,
-        seed_recent_lifecycle_event,
-    ],
-    ids=["execution", "scheduled_job", "log_record", "blocking_event", "lifecycle_event"],
-)
+RECENT_TELEMETRY_SEEDS = [
+    pytest.param(seed_recent_execution, id="execution"),
+    pytest.param(seed_recent_job_execution, id="scheduled_job"),
+    pytest.param(seed_recent_log_record, id="log_record"),
+    pytest.param(seed_recent_blocking_event, id="blocking_event"),
+    pytest.param(seed_recent_lifecycle_event, id="lifecycle_event"),
+]
+"""One seeder per telemetry table that references an app_key and holds a removed app's manifest."""
+
+
+@pytest.mark.parametrize("seed", RECENT_TELEMETRY_SEEDS)
 async def test_removed_app_kept_while_telemetry_remains(
     db: aiosqlite.Connection,
     retention_service: DatabaseService,
@@ -445,17 +445,7 @@ def test_live_app_keys_counts_only_apps_with_a_running_instance(
     assert retention_service.live_app_keys() == sorted([configured.app_key, "multi", "running"])
 
 
-@pytest.mark.parametrize(
-    "seed",
-    [
-        seed_recent_execution,
-        seed_recent_job_execution,
-        seed_recent_log_record,
-        seed_recent_blocking_event,
-        seed_recent_lifecycle_event,
-    ],
-    ids=["execution", "scheduled_job", "log_record", "blocking_event", "lifecycle_event"],
-)
+@pytest.mark.parametrize("seed", RECENT_TELEMETRY_SEEDS)
 async def test_other_apps_telemetry_does_not_block_pruning(
     db: aiosqlite.Connection,
     retention_service: DatabaseService,

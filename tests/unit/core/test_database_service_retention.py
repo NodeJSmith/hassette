@@ -61,11 +61,13 @@ def test_retention_tables_contains_expected_tables() -> None:
     }
 
 
-def test_retention_tables_has_eight_entries() -> None:
-    """Executions and log_records each appear twice (per source tier, and DEBUG plus all levels),
-    plus listener_misses, blocking_events, api_writes and lifecycle_events.
+def test_retention_tables_split_executions_and_log_records_by_tier() -> None:
+    """Executions and log_records each appear twice (per source tier, and DEBUG plus all levels); every other
+    table appears once.
     """
-    assert len(_RETENTION_TABLES) == 8
+    tables = [t.table for t in _RETENTION_TABLES]
+    assert sorted({table for table in tables if tables.count(table) > 1}) == ["executions", "log_records"]
+    assert all(tables.count(table) <= 2 for table in tables)
 
 
 def test_retention_tables_priority_ordering() -> None:

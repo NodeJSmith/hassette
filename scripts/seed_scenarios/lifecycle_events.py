@@ -1,10 +1,17 @@
 """Seed helpers for ``lifecycle_events`` rows: connection, app status and block changes.
 
-``add_lifecycle_event`` serializes ``details`` the way the writer does.
+``add_lifecycle_event`` serializes ``details`` with the writer's ``serialize_details``.
 """
 
-from hassette.core.telemetry.lifecycle_rows import AppDetails, BlockDetails, BlockStatus, ConnectionDetails
-from hassette.types.enums import BlockReason, ConnectionState
+from hassette.core.telemetry.lifecycle_rows import (
+    AppDetails,
+    BlockDetails,
+    BlockStatus,
+    ConnectionDetails,
+    LifecycleDetails,
+    serialize_details,
+)
+from hassette.types.enums import BlockReason, ConnectionState, ResourceStatus
 from seed_scenarios.base import SeedContext, build_insert_sql, insert_row, ts
 
 # lifecycle_events table columns (see migrations_sql/026.sql), excluding the autoincrement id.
@@ -27,13 +34,13 @@ def add_lifecycle_event(
     session_id: int,
     kind: str,
     to_status: str,
-    details: AppDetails | ConnectionDetails | BlockDetails,
+    details: LifecycleDetails,
     at: float,
     from_status: str | None = None,
     app_key: str | None = None,
     instance_name: str | None = None,
 ) -> None:
-    """Insert a lifecycle_events row, serializing ``details`` the way the writer does."""
+    """Insert a lifecycle_events row."""
     params = {
         "session_id": session_id,
         "kind": kind,
@@ -41,7 +48,7 @@ def add_lifecycle_event(
         "instance_name": instance_name,
         "from_status": from_status,
         "to_status": to_status,
-        "details": details.model_dump_json(exclude_none=True),
+        "details": serialize_details(details),
         "ts": at,
     }
     insert_row(ctx.cursor, LIFECYCLE_EVENT_INSERT_SQL, params)
@@ -103,12 +110,12 @@ def seed_app_lifecycle(
     """Seed an app instance's status rows at session start: NOT_STARTED -> STARTING -> RUNNING, then FAILED
     with ``failure`` as the exception type when one is given.
     """
-    steps: list[tuple[float, str, str, AppDetails]] = [
-        (2.0, "not_started", "starting", AppDetails()),
-        (2.5, "starting", "running", AppDetails()),
+    steps: list[tuple[float, ResourceStatus, ResourceStatus, AppDetails]] = [
+        (2.0, ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, AppDetails()),
+        (2.5, ResourceStatus.STARTING, ResourceStatus.RUNNING, AppDetails()),
     ]
     if failure is not None:
-        steps.append((60.0, "running", "failed", AppDetails(exception_type=failure)))
+        steps.append((60.0, ResourceStatus.RUNNING, ResourceStatus.FAILED, AppDetails(exception_type=failure)))
     for offset, old, new, details in steps:
         add_lifecycle_event(
             ctx,

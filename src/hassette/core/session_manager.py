@@ -8,7 +8,7 @@ from typing import ClassVar
 from hassette_wire import LogLevel
 
 from hassette.core.pipeline_counters import PipelineCounter
-from hassette.core.telemetry.lifecycle_rows import LifecycleChange
+from hassette.core.telemetry.lifecycle_rows import LifecycleChange, serialize_details
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
@@ -84,7 +84,7 @@ class SessionManager(Resource):
             insert_coro = self._repository.insert_lifecycle_event(
                 change,
                 session_id=self._session_id,
-                details_json=change.details.model_dump_json(exclude_none=True),
+                details_json=serialize_details(change.details),
                 ts=time.time(),
             )
             try:

@@ -102,8 +102,7 @@ class TestCallSiteDetails:
 
         await websocket_service.serve()
 
-        reconnect = rows[2]
-        assert (reconnect.old, reconnect.new) == (ConnectionState.CONNECTED, ConnectionState.CONNECTING)
+        reconnect = next(r for r in rows if (r.old, r.new) == (ConnectionState.CONNECTED, ConnectionState.CONNECTING))
         assert reconnect.detail is not None
         assert reconnect.detail.cause
         assert rows[0].detail is None  # the session-start CONNECTING has no failure behind it
@@ -145,6 +144,7 @@ class TestCallSiteDetails:
     async def test_recv_task_death_carries_the_close_code(
         self, websocket_service: WebsocketService, rows: list[Row]
     ) -> None:
+        # A finished task for the done-callback to inspect, as a dead receive task would be.
         task = asyncio.create_task(asyncio.sleep(0))
         await task
         websocket_service._recv_task = task

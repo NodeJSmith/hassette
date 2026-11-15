@@ -328,9 +328,8 @@ class DatabaseRetentionMixin:
         4. Delete ``sessions`` rows that stopped before the cutoff, are not the current session, and
            are no longer referenced by any ``executions``, ``blocking_events``, ``api_writes`` or
            ``lifecycle_events`` row. Sessions still referenced wait until those rows age out under their own
-           tier's window. A
-           session with ``stopped_at IS NULL`` (the live one, or a previous run's orphan not yet
-           backfilled by ``mark_orphaned_sessions``) is never deleted. The size failsafe does not
+           tier's window. A session with ``stopped_at IS NULL`` (the live one, or a previous run's orphan not
+           yet backfilled by ``mark_orphaned_sessions``) is never deleted. The size failsafe does not
            reclaim sessions: they are small, and only age-based retention removes them.
 
         Args:

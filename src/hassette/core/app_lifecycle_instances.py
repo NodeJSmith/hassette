@@ -179,9 +179,9 @@ class AppInstanceLifecycleMixin:
         refuse it (an untracked or flagged name; see its docstring). No event is sent unless it changed
         something; a caller that needs to know whether a write landed checks the registry.
 
-        Each change is also recorded as a ``lifecycle_events`` row. A send failure is only
-        logged: the event is telemetry, and the registry already holds the status, so failing to send must not
-        turn a started app into a failed one or record a stop's failure twice.
+        Each change is also recorded as a ``lifecycle_events`` row. A send failure is only logged: the event is
+        telemetry, and the registry already holds the status, so failing to send must not turn a started app into
+        a failed one or record a stop's failure twice.
         """
         change = self.registry.set_status(app_key, instance_name, to, app=app, error=error, needs_restart=needs_restart)
         if change is None:
