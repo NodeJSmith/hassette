@@ -416,6 +416,17 @@ class SeedContext:
         """Insert a listener_misses row; ``params`` carries every column in ``_LISTENER_MISS_COLUMNS``."""
         insert_row(self.cursor, _LISTENER_MISS_INSERT_SQL, params)
 
+    def session_bounds(self, session_id: int) -> tuple[float, float | None]:
+        """The ``(started_at, stopped_at)`` of a seeded session; ``stopped_at`` is ``None`` while it runs.
+
+        Raises:
+            ValueError: No session with that id was seeded.
+        """
+        row = self.cursor.execute("SELECT started_at, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"unknown session {session_id}")
+        return row[0], row[1]
+
 
 @contextmanager
 def anchored_at(anchor: Instant | None) -> Iterator[None]:

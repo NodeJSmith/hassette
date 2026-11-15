@@ -18,7 +18,12 @@ from seed_scenarios.base import (
     seed_simple_app,
     ts,
 )
-from seed_scenarios.lifecycle_events import seed_app_lifecycle, seed_block_change, seed_connection_lifecycle
+from seed_scenarios.lifecycle_events import (
+    app_lifecycle_steps,
+    block_change_step,
+    connection_lifecycle_steps,
+    seed_session_lifecycle,
+)
 
 
 def scenario_lifecycle(ctx: SeedContext) -> None:
@@ -84,18 +89,27 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     )
     # The crashed session's app failed before the process died; the restart rides out an HA restart.
     instance_name = make_instance_name(class_name, 0)
-    seed_connection_lifecycle(ctx, session_id=crashed_session_id, base_offset=base)
-    seed_app_lifecycle(
+    seed_session_lifecycle(
         ctx,
         session_id=crashed_session_id,
-        app_key=app_key,
-        instance_name=instance_name,
-        base_offset=base,
-        failure="RuntimeError",
+        steps=[
+            *connection_lifecycle_steps(base),
+            *app_lifecycle_steps(
+                app_key=app_key,
+                instance_name=instance_name,
+                base_offset=base,
+                failure="RuntimeError",
+                failure_offset=20.0,
+            ),
+        ],
     )
-    seed_connection_lifecycle(ctx, session_id=running_session_id, base_offset=base + 90.0, ha_restart_at=600.0)
-    seed_app_lifecycle(
-        ctx, session_id=running_session_id, app_key=app_key, instance_name=instance_name, base_offset=base + 90.0
+    seed_session_lifecycle(
+        ctx,
+        session_id=running_session_id,
+        steps=[
+            *connection_lifecycle_steps(base + 90.0, ha_restart_offset=600.0),
+            *app_lifecycle_steps(app_key=app_key, instance_name=instance_name, base_offset=base + 90.0),
+        ],
     )
     seed_job(
         ctx,
@@ -231,5 +245,11 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     )
     # This session ran under `run --app`, so an app outside the filter was blocked; it was later
     # disabled in config, which closes the block as removed rather than unblocked.
-    seed_block_change(ctx, session_id=session_id, app_key="legacy_lights", to_status="blocked", at_offset=base + 1.5)
-    seed_block_change(ctx, session_id=session_id, app_key="legacy_lights", to_status="removed", at_offset=base + 900.0)
+    seed_session_lifecycle(
+        ctx,
+        session_id=session_id,
+        steps=[
+            block_change_step(app_key="legacy_lights", to_status="blocked", at_offset=base + 1.5),
+            block_change_step(app_key="legacy_lights", to_status="removed", at_offset=base + 900.0),
+        ],
+    )

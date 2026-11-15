@@ -154,6 +154,33 @@ def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_pa
     assert not missing, f"scenario={scenario!r} has listeners/jobs with no app_manifests row: {missing}"
 
 
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS)
+def test_lifecycle_events_lie_within_session_bounds_in_id_order(scenario: str, tmp_path: Path):
+    """Every session's lifecycle rows sit inside [started_at, stopped_at], and ``id`` order matches ``ts`` order.
+
+    ``id`` is the authoritative in-session order (migrations_sql/026.sql), so a seed that inserts rows out of
+    time order, or after the session ended, would show a history no real run could produce.
+    """
+    output = tmp_path / "test.db"
+    result = _run_seed_script(scenario, output)
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    conn = sqlite3.connect(output)
+    try:
+        sessions = conn.execute("SELECT id, started_at, stopped_at FROM sessions").fetchall()
+        for session_id, started_at, stopped_at in sessions:
+            rows = conn.execute(
+                "SELECT id, ts FROM lifecycle_events WHERE session_id = ? ORDER BY id", (session_id,)
+            ).fetchall()
+            stamps = [row_ts for _id, row_ts in rows]
+            assert stamps == sorted(stamps), f"session {session_id} lifecycle rows are out of ts order: {stamps}"
+            for row_ts in stamps:
+                assert row_ts >= started_at, f"session {session_id} lifecycle row precedes session start"
+                assert stopped_at is None or row_ts <= stopped_at, f"session {session_id} row after session stop"
+    finally:
+        conn.close()
+
+
 @pytest.mark.parametrize("table", ["listeners", "scheduled_jobs", "executions", "log_records"])
 def test_adversarial_scenario_has_framework_rows(table: str, tmp_path: Path):
     """``adversarial`` seeds framework rows in every tier- or author-filtered table, so ``source_tier=all``

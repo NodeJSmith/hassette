@@ -1,7 +1,15 @@
 """Seed helpers for ``lifecycle_events`` rows: connection, app status and block changes.
 
-``add_lifecycle_event`` serializes ``details`` with the writer's ``serialize_details``.
+Each per-kind helper returns its steps without inserting. ``seed_session_lifecycle`` merges a session's steps,
+checks them against the session's bounds and inserts them in time order, so ids (the authoritative in-session
+order, see migrations_sql/026.sql) agree with timestamps. ``details`` is serialized with the writer's
+``serialize_details``.
+
+Unlike the other seed modules' helpers, which insert at once, these build steps first: a session's rows from
+several kinds can only get ids in time order once all of them are known.
 """
+
+from dataclasses import dataclass
 
 from hassette.core.telemetry.lifecycle_rows import (
     AppDetails,
@@ -26,120 +34,137 @@ LIFECYCLE_EVENT_COLUMNS = (
     "ts",
 )
 LIFECYCLE_EVENT_INSERT_SQL = build_insert_sql("lifecycle_events", LIFECYCLE_EVENT_COLUMNS)
+DEFAULT_FAILURE_OFFSET_SECONDS = 60.0
 
 
-def add_lifecycle_event(
-    ctx: SeedContext,
-    *,
-    session_id: int,
-    kind: str,
-    to_status: str,
-    details: LifecycleDetails,
-    at: float,
-    from_status: str | None = None,
-    app_key: str | None = None,
-    instance_name: str | None = None,
-) -> None:
-    """Insert a lifecycle_events row."""
-    params = {
-        "session_id": session_id,
-        "kind": kind,
-        "app_key": app_key,
-        "instance_name": instance_name,
-        "from_status": from_status,
-        "to_status": to_status,
-        "details": serialize_details(details),
-        "ts": at,
-    }
-    insert_row(ctx.cursor, LIFECYCLE_EVENT_INSERT_SQL, params)
+@dataclass(frozen=True)
+class LifecycleStep:
+    """One pending lifecycle_events row, positioned by its absolute timestamp ``at``."""
+
+    at: float
+    kind: str
+    to_status: str
+    details: LifecycleDetails
+    from_status: str | None = None
+    app_key: str | None = None
+    instance_name: str | None = None
 
 
-def seed_connection_lifecycle(
-    ctx: SeedContext, *, session_id: int, base_offset: float, ha_restart_at: float | None = None
-) -> None:
-    """Seed a session's connection rows: a healthy start, plus an HA restart ``ha_restart_at`` seconds after
+def seed_session_lifecycle(ctx: SeedContext, *, session_id: int, steps: list[LifecycleStep]) -> None:
+    """Insert one session's lifecycle steps in timestamp order.
+
+    Raises:
+        ValueError: A step falls before the session's ``started_at`` or after its ``stopped_at``.
+    """
+    started_at, stopped_at = ctx.session_bounds(session_id)
+    # Fails fast at the step that breaks the bounds; tests/integration/test_seed_db.py checks the same invariant
+    # on the seeded database, including rows written without this helper.
+    for step in steps:
+        if step.at < started_at or (stopped_at is not None and step.at > stopped_at):
+            raise ValueError(
+                f"lifecycle step {step.kind}->{step.to_status} at {step.at} is outside session {session_id} "
+                f"bounds [{started_at}, {stopped_at}]"
+            )
+    for step in sorted(steps, key=lambda step: step.at):
+        params = {
+            "session_id": session_id,
+            "kind": step.kind,
+            "app_key": step.app_key,
+            "instance_name": step.instance_name,
+            "from_status": step.from_status,
+            "to_status": step.to_status,
+            "details": serialize_details(step.details),
+            "ts": step.at,
+        }
+        insert_row(ctx.cursor, LIFECYCLE_EVENT_INSERT_SQL, params)
+
+
+def connection_lifecycle_steps(base_offset: float, ha_restart_offset: float | None = None) -> list[LifecycleStep]:
+    """Build a session's connection rows: a healthy start, plus an HA restart ``ha_restart_offset`` seconds after
     ``base_offset`` that drops the socket and waits on the core before reconnecting.
     """
     steps: list[tuple[float, ConnectionState, ConnectionState, ConnectionDetails]] = [
         (0.5, ConnectionState.DISCONNECTED, ConnectionState.CONNECTING, ConnectionDetails()),
         (1.0, ConnectionState.CONNECTING, ConnectionState.CONNECTED, ConnectionDetails()),
     ]
-    if ha_restart_at is not None:
+    if ha_restart_offset is not None:
         steps += [
             (
-                ha_restart_at,
+                ha_restart_offset,
                 ConnectionState.CONNECTED,
                 ConnectionState.DISCONNECTED,
                 ConnectionDetails(close_code=1006),
             ),
             (
-                ha_restart_at + 0.1,
+                ha_restart_offset + 0.1,
                 ConnectionState.DISCONNECTED,
                 ConnectionState.CONNECTING,
                 ConnectionDetails(cause="WebsocketClosedError (close code 1006): Home Assistant closed the connection"),
             ),
             (
-                ha_restart_at + 20.0,
+                ha_restart_offset + 20.0,
                 ConnectionState.CONNECTING,
                 ConnectionState.WAITING_FOR_CORE,
                 ConnectionDetails(core_state="NOT_RUNNING"),
             ),
-            (ha_restart_at + 45.0, ConnectionState.WAITING_FOR_CORE, ConnectionState.CONNECTED, ConnectionDetails()),
+            (
+                ha_restart_offset + 45.0,
+                ConnectionState.WAITING_FOR_CORE,
+                ConnectionState.CONNECTED,
+                ConnectionDetails(),
+            ),
         ]
-    for offset, old, new, details in steps:
-        add_lifecycle_event(
-            ctx,
-            session_id=session_id,
+    return [
+        LifecycleStep(
+            at=ts(base_offset + offset),
             kind="connection",
             from_status=old,
             to_status=new,
             details=details,
-            at=ts(base_offset + offset),
         )
+        for offset, old, new, details in steps
+    ]
 
 
-def seed_app_lifecycle(
-    ctx: SeedContext,
+def app_lifecycle_steps(
     *,
-    session_id: int,
     app_key: str,
     instance_name: str,
     base_offset: float,
     failure: str | None = None,
-) -> None:
-    """Seed an app instance's status rows at session start: NOT_STARTED -> STARTING -> RUNNING, then FAILED
-    with ``failure`` as the exception type when one is given.
+    failure_offset: float = DEFAULT_FAILURE_OFFSET_SECONDS,
+) -> list[LifecycleStep]:
+    """Build an app instance's status steps at session start: NOT_STARTED -> STARTING -> RUNNING, then FAILED
+    with ``failure`` as the exception type ``failure_offset`` seconds after ``base_offset`` when one is given.
     """
     steps: list[tuple[float, ResourceStatus, ResourceStatus, AppDetails]] = [
         (2.0, ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, AppDetails()),
         (2.5, ResourceStatus.STARTING, ResourceStatus.RUNNING, AppDetails()),
     ]
     if failure is not None:
-        steps.append((60.0, ResourceStatus.RUNNING, ResourceStatus.FAILED, AppDetails(exception_type=failure)))
-    for offset, old, new, details in steps:
-        add_lifecycle_event(
-            ctx,
-            session_id=session_id,
+        steps.append(
+            (failure_offset, ResourceStatus.RUNNING, ResourceStatus.FAILED, AppDetails(exception_type=failure))
+        )
+    return [
+        LifecycleStep(
+            at=ts(base_offset + offset),
             kind="app",
             app_key=app_key,
             instance_name=instance_name,
             from_status=old,
             to_status=new,
             details=details,
-            at=ts(base_offset + offset),
         )
+        for offset, old, new, details in steps
+    ]
 
 
-def seed_block_change(
-    ctx: SeedContext, *, session_id: int, app_key: str, to_status: BlockStatus, at_offset: float
-) -> None:
-    """Seed one block row for an app excluded by ``run --app``."""
-    add_lifecycle_event(
-        ctx,
-        session_id=session_id,
+def block_change_step(*, app_key: str, to_status: BlockStatus, at_offset: float) -> LifecycleStep:
+    """Build one block step for an app excluded by ``run --app``."""
+    return LifecycleStep(
+        at=ts(at_offset),
         kind="block",
         app_key=app_key,
         to_status=to_status,
         details=BlockDetails(reason=BlockReason.ONLY_APP),
-        at=ts(at_offset),
     )
