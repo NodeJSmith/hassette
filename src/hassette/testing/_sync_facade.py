@@ -267,7 +267,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         if not issubclass(model, BaseEntity):
             raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
         raw = self._parent._get_raw_state(entity_id)
-        return model.model_validate({"state": raw})
+        return self._parent._build_entity(raw, model)
 
     def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
         """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
@@ -283,7 +283,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
             raw = self._parent._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
-        return model.model_validate({"state": raw})
+        return self._parent._build_entity(raw, model)
 
     def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""

@@ -13,7 +13,7 @@ import inspect
 from collections.abc import Mapping
 from difflib import get_close_matches
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Never, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Never, Protocol, cast, runtime_checkable
 
 import aiohttp
 from pydantic import BaseModel
@@ -62,6 +62,7 @@ from hassette.testing.api_call import ApiCall
 
 if TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.api import Api
     from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
 
@@ -749,6 +750,17 @@ class RecordingApi(Resource):
         """
         return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
+    def _build_entity(self, raw: "HassStateDict", model: type[BaseEntity]) -> BaseEntity:
+        """Validate ``raw`` into ``model`` and bind the entity's actions to this recorder.
+
+        Mirrors ``Api.get_entity``: the entity's ``api`` is this ``RecordingApi``, so entity actions
+        (``turn_on`` etc.) are recorded as the app's writes. A sync helper rather than inline code so the
+        generated ``RecordingSyncFacade`` binds its parent ``RecordingApi``, not the facade itself.
+        """
+        entity = model.model_validate({"state": raw})
+        entity._api = cast("Api", self)  # pyright: ignore[reportPrivateUsage]
+        return entity
+
     async def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""
         raw = self._get_raw_state(entity_id)
@@ -776,7 +788,7 @@ class RecordingApi(Resource):
             raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
 
         raw = self._get_raw_state(entity_id)
-        return model.model_validate({"state": raw})
+        return self._build_entity(raw, model)
 
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
         """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
@@ -793,7 +805,7 @@ class RecordingApi(Resource):
             raw = self._get_raw_state(entity_id)
         except EntityNotFoundError:
             return None
-        return model.model_validate({"state": raw})
+        return self._build_entity(raw, model)
 
     async def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
