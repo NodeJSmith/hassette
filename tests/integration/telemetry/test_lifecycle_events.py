@@ -5,7 +5,6 @@ session delete guard).
 """
 
 import json
-import logging
 import time
 from typing import Any
 from unittest.mock import MagicMock
@@ -135,28 +134,22 @@ class TestRowsPerKind:
 
 
 class TestDrops:
-    """Every row that never reaches the queue is counted and warned about; nothing raises into the owner."""
+    """Every row that never reaches the queue is counted, and warnings are paced; nothing raises into the owner."""
 
     async def test_no_session_is_a_counted_drop(
-        self, db_hassette: MagicMock, manager: SessionManager, db: DbFixture, caplog: pytest.LogCaptureFixture
+        self, db_hassette: MagicMock, manager: SessionManager, db: DbFixture
     ) -> None:
         db_svc, _ = db
         manager._session_id = None
-        with caplog.at_level(logging.WARNING):
-            record_app_change(db_hassette, change())
+        record_app_change(db_hassette, change())
         await drain_db_writes(db_svc)
 
         assert await fetch_rows(db_svc) == []
         assert db_hassette.pipeline_counters.get(DROPPED) == 1
-        assert "Could not queue lifecycle row (no session)" in caplog.text
+        assert manager.lifecycle_drop_warn_pacer.last_ts is not None
 
-    async def test_full_queue_is_a_counted_drop_with_one_paced_warning(
-        self,
-        db_hassette: MagicMock,
-        manager: SessionManager,
-        db: DbFixture,
-        monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
+    async def test_full_queue_is_a_counted_drop_and_the_warning_is_paced(
+        self, db_hassette: MagicMock, manager: SessionManager, db: DbFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         db_svc, _ = db
 
@@ -165,12 +158,17 @@ class TestDrops:
             return False
 
         monkeypatch.setattr(db_svc, "enqueue", refuse)
-        with caplog.at_level(logging.WARNING):
-            record_app_change(db_hassette, change())
-            record_app_change(db_hassette, change())
+        pacer = manager.lifecycle_drop_warn_pacer
+        assert pacer.last_ts is None
+
+        record_app_change(db_hassette, change())
+        first_ts = pacer.last_ts
+        assert first_ts is not None
+
+        record_app_change(db_hassette, change())
 
         assert db_hassette.pipeline_counters.get(DROPPED) == 2
-        assert caplog.text.count("Could not queue lifecycle row") == 1
+        assert pacer.last_ts == first_ts
 
     async def test_queue_not_running_is_counted_not_raised(
         self, db_hassette: MagicMock, manager: SessionManager, db: DbFixture, monkeypatch: pytest.MonkeyPatch
@@ -201,14 +199,13 @@ class TestDrops:
 
         assert db_hassette.pipeline_counters.get(DROPPED) == 1
 
-    async def test_a_change_that_fails_to_build_is_counted_and_warned(
-        self, db_hassette: MagicMock, manager: SessionManager, caplog: pytest.LogCaptureFixture
+    async def test_a_change_that_fails_to_build_is_counted_not_raised(
+        self, db_hassette: MagicMock, manager: SessionManager
     ) -> None:
-        with caplog.at_level(logging.WARNING):
-            record_app_change(db_hassette, MagicMock(spec=StatusChange, needs_restart=object()))
+        record_app_change(db_hassette, MagicMock(spec=StatusChange, needs_restart=object()))
 
         assert db_hassette.pipeline_counters.get(DROPPED) == 1
-        assert "Could not queue lifecycle row (unexpected error)" in caplog.text
+        assert manager.lifecycle_drop_warn_pacer.last_ts is not None
 
 
 def test_app_change_reads_previous_from_the_change() -> None:
