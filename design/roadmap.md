@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-11-09
+Last reviewed: 2026-11-15
 
 ## How the pieces fit
 
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **Diagnostic evidence** | *Diagnostic Evidence* | Answers "why didn't it run" from the API and CLI, without app source or `docker logs`. Design: `design/specs/142-diagnostic-evidence/design.md`. Unblocked now that *Instance Identity* is closed, so new telemetry tables key on the instance name |
+| **HACS app entities** | pool: parent #3993, #1449, #2439 (`epic:hacs`) | Apps declare HA buttons, switches and sensors in code instead of trigger-only `input_button`/`input_boolean` helpers (#3993). Needs a sketch first: the July design predates the v0.1 transport, and #1449 also claims `self.entities`. WS wire-compat check (#2439) lands before the push channel. Unblocks webhooks and `@template` |
 
 ## Next
 
@@ -57,7 +57,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **HACS app entities** | pool: parent #3993, #1449, #2439 (`epic:hacs`) | Apps declare HA buttons, switches and sensors in code instead of trigger-only `input_button`/`input_boolean` helpers (#3993). Needs a sketch first: the July design predates the v0.1 transport, and #1449 also claims `self.entities`. WS wire-compat check (#2439) lands before the push channel. Unblocks webhooks and `@template` |
 | **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Module boundaries** | *Module Boundaries* (parent #633) | Enforce the layer map with no exceptions, split `core/` into subpackages, clear the 800-line backlog so HSL102 can block. Mostly mechanical, so it fits between bigger PRs. After the testing redesign, which reshapes `recording_api.py` (#2731) |
@@ -72,7 +71,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | **DB as source of truth** | *DB as Source of Truth* | Design: `design/specs/132-db-source-of-truth/design.md`. #2695 lands first; the tail (WS invalidations, snapshot mode) is frontend-heavy. Makes the seed scripts servable to the UI |
 | **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS app-entities API) |
 | **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
-| **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts |
+| **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts. Pick up #4084 (`hassette timeline`, the lifecycle-history read path) with it: the timeline's read model is designed alongside the view that displays it |
 | **Feature ideas** | unlabeled `type:enhancement` | The icebox. Promote an idea by making it an initiative, not by starting it |
 
 ## Dependency chains
