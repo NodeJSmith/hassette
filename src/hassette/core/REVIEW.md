@@ -62,16 +62,17 @@ still attached turns a deliberate teardown into a spurious DISCONNECTED transiti
 ## Connection State Has One Writer
 `WebsocketService.set_connection_state` in `src/hassette/core/websocket_service.py` is the only
 writer of `_connection_state` under `src/` after `__init__`; it latches ever-connected, clears the
-connected event and generation, and checks the edge against `WS_VALID_TRANSITIONS`. Does new code
-(including `src/hassette/testing/`) assign `_connection_state` directly, skipping all three? And
+connected event and generation, checks the edge against `WS_VALID_TRANSITIONS`, and records the
+transition as a `lifecycle_events` row. Does new code (including `src/hassette/testing/`) assign
+`_connection_state` directly, skipping all four? And
 does a new state or edge land in `WS_VALID_TRANSITIONS` and the test table `ALLOWED_TRANSITIONS`
 together?
 
 ## App Status Writes and the Needs-Restart Flag
 `AppRegistry.set_status()` in `src/hassette/core/app_registry.py` is the only writer of app instance status,
-and lifecycle code reaches it only through `AppInstanceLifecycleMixin.set_app_status()`, which writes and sends
-the event in one call. Does a new status write go through `set_app_status()` rather than calling
-`registry.set_status()` directly (whose returned change would then go unsent)? The needs-restart flag lives on
+and lifecycle code reaches it only through `AppInstanceLifecycleMixin.set_app_status()`, which writes, records
+a `lifecycle_events` row and sends the event in one call. Does a new status write go through `set_app_status()`
+rather than calling `registry.set_status()` directly (whose returned change would then go unsent and unrecorded)? The needs-restart flag lives on
 the FAILED entry and is set by the FAILED write itself (`needs_restart=`); its `StatusChange` and
 `HassetteAppStateEvent` carry it. Does a consumer of app status events read the flag from the event rather than
 the registry, which may already hold a later write? Does every new FAILED outcome in
