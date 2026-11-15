@@ -9,6 +9,17 @@ from typing import Any
 _HISTORY_FK = {"listeners": "listener_id", "scheduled_jobs": "job_id"}
 
 
+def history_fk(table: str) -> str:
+    """Return the ``executions`` FK column for ``table``, refusing any table outside the allowlist.
+
+    Raises:
+        ValueError: ``table`` is not ``"listeners"`` or ``"scheduled_jobs"``.
+    """
+    if table not in _HISTORY_FK:
+        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
+    return _HISTORY_FK[table]
+
+
 def history_exists_sql(table: str) -> str:
     """Build the ``EXISTS`` predicate that says a row of ``table`` has execution history.
 
@@ -18,9 +29,7 @@ def history_exists_sql(table: str) -> str:
     Returns:
         A boolean SQL expression referencing ``table.id``.
     """
-    if table not in _HISTORY_FK:
-        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
-    return f"EXISTS (SELECT 1 FROM executions WHERE {_HISTORY_FK[table]} = {table}.id)"
+    return f"EXISTS (SELECT 1 FROM executions WHERE {history_fk(table)} = {table}.id)"
 
 
 def instance_name_clause(instance_name: str | None) -> tuple[str, dict]:
@@ -115,8 +124,7 @@ def build_retire_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
-    if table not in _HISTORY_FK:
-        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
+    history_fk(table)
     params: dict[str, Any] = {"app_key": app_key, "now": now}
     live_ids_clause, live_ids_params = not_in_clause(live_ids)
     params.update(live_ids_params)
@@ -154,8 +162,7 @@ def build_retire_unconfigured_instances_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
-    if table not in _HISTORY_FK:
-        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
+    history_fk(table)
     sql = f"""
         UPDATE {table} SET retired_at = :now
         WHERE retired_at IS NULL
@@ -194,7 +201,8 @@ def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[s
           AND NOT EXISTS (SELECT 1 FROM api_writes WHERE api_writes.app_key = app_manifests.app_key)
         RETURNING app_key
     """
-    return sql, {"live_keys": encode_app_keys(live_app_keys)}
+    # json_each binds the whole variable-length list as one parameter.
+    return sql, {"live_keys": json.dumps(live_app_keys)}
 
 
 def build_clear_stale_job_timing_query(live_job_ids: list[int]) -> tuple[str, dict]:
@@ -217,8 +225,3 @@ def build_clear_stale_job_timing_query(live_job_ids: list[int]) -> tuple[str, di
         {live_ids_clause}
     """
     return sql, live_ids_params
-
-
-def encode_app_keys(app_keys: list[str]) -> str:
-    """Encode app keys for ``json_each``, which binds the whole variable-length list as one parameter."""
-    return json.dumps(app_keys)

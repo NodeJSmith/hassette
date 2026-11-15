@@ -353,8 +353,8 @@ class ExecutionQueriesMixin:
         A single lookup against the unified ``executions`` table by ``execution_id``.
         """
         async with self.execute(
-            "SELECT execution_start_ts FROM executions WHERE execution_id = :eid LIMIT 1",
-            {"eid": execution_id},
+            "SELECT execution_start_ts FROM executions WHERE execution_id = :execution_id LIMIT 1",
+            {"execution_id": execution_id},
         ) as cursor:
             row = await cursor.fetchone()
         if row is not None:

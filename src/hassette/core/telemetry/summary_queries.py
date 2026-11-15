@@ -79,11 +79,12 @@ class SummaryQueriesMixin:
         """
         tier_e_clause, tier_params = source_tier_clause(source_tier, "e")
         since_sql, since_params = since_clause(since, "e.execution_start_ts")
-        listener_instance = "" if instance_name is None else "AND l.instance_name = :instance_name"
-        job_instance = "" if instance_name is None else "AND sj.instance_name = :instance_name"
-
         params: dict[str, Any] = {"app_key": app_key, **tier_params, **since_params}
+        listener_instance = ""
+        job_instance = ""
         if instance_name is not None:
+            listener_instance = "AND l.instance_name = :instance_name"
+            job_instance = "AND sj.instance_name = :instance_name"
             params["instance_name"] = instance_name
 
         query = f"""
