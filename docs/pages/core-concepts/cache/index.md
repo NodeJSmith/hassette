@@ -18,7 +18,7 @@ Every data method on `self.cache` is `async` and must be awaited:
 
 Each app instance gets its own cache directory and its own SQLite file. Two instances of the same `WeatherApp` class — say, one per city — do not share cache data, so a key like `"last_forecast"` in one instance never collides with another's copy.
 
-The default directory is `{data_dir}/{app_key}/{instance_name}/cache/cache.db`. Reordering `config` blocks leaves each instance's cache with it, and renaming an instance starts a new cache.
+The default directory is `{data_dir}/{app_key}/{instance_name}/cache/cache.db`. `app_key` is the name of the app's table in `hassette.toml`, such as `weather` in `[hassette.apps.weather]`. Reordering `config` blocks leaves each instance's cache with it, and renaming an instance starts a new cache.
 
 !!! warning "Device names on Windows"
     On a native Windows host, an instance named after a reserved device, such as `con`, `nul` or `aux`, has an unusable default cache directory. Another instance name or an explicit `cache_key` avoids the problem.
@@ -99,7 +99,13 @@ The `dummy_cache` fixture isn't auto-discovered. Register it once in `conftest.p
 pytest_plugins = ["hassette.testing.fixtures"]
 ```
 
-This makes `dummy_cache` available to every test in the suite.
+This makes `dummy_cache` available to every test in the suite. A test that takes `dummy_cache` as an argument gets a fresh, empty cache:
+
+```python
+--8<-- "pages/core-concepts/cache/snippets/cache_dummy_test.py"
+```
+
+`DummyCache` is imported from `hassette.cache`. Calling `DummyCache()` directly builds one without the fixture.
 
 ## What Can Be Cached
 
@@ -126,6 +132,8 @@ Restart Hassette, then read the app's log:
 ```
 hassette log --app my_app --since 1h
 ```
+
+`my_app` stands for the app's key in `hassette.toml`, the `<key>` in `[hassette.apps.<key>]`.
 
 Each restart logs a count one higher than the last. A count stuck at `1` means the cache file isn't persisting.
 
