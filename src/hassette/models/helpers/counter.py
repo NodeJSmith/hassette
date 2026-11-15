@@ -1,4 +1,4 @@
-# dup-ignore-file: HA helper models — Create/Update/State param classes share fields by API design
+# dup-ignore-file: HA helper models — Record/Create/Update classes share fields by API design
 """Pydantic models for the ``counter`` helper domain.
 
 Models here represent the stored configuration for ``counter`` helpers, as
@@ -9,7 +9,7 @@ commands. For the live runtime value of a counter entity, use
 Note:
     ``counter`` uses HA's ``CONF_MAXIMUM``/``CONF_MINIMUM`` constants on the
     wire (``maximum``/``minimum``), not ``max``/``min`` like ``input_number``.
-    This is a per-domain asymmetry verified against HA source at tag 2026.4.1.
+    This is a per-domain asymmetry.
 """
 
 from pydantic import BaseModel, ConfigDict
