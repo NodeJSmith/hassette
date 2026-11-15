@@ -180,10 +180,9 @@ def build_retire_unconfigured_instances_query(
 def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[str, dict]:
     """Build a DELETE of every ``app_manifests`` row of an app that isn't live and that nothing references.
 
-    Executions always belong to a listener or scheduled_job, so "no listeners, jobs, log records,
-    blocking events or API writes for the app_key" also means no executions. ``app_key`` is the bare key in
-    every table, so the match covers all instances. Returns the ``app_key`` of each
-    deleted row.
+    Executions always belong to a listener or scheduled_job, so "no listeners, jobs, log records, blocking
+    events, API writes or lifecycle rows for the app_key" also means no executions. ``app_key`` is the bare key
+    in every table, so the match covers all instances. Returns the ``app_key`` of each deleted row.
 
     Args:
         live_app_keys: Every app key retention treats as present (``DatabaseRetentionMixin.live_app_keys``).
@@ -199,6 +198,7 @@ def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[s
           AND NOT EXISTS (SELECT 1 FROM log_records WHERE log_records.app_key = app_manifests.app_key)
           AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE blocking_events.app_key = app_manifests.app_key)
           AND NOT EXISTS (SELECT 1 FROM api_writes WHERE api_writes.app_key = app_manifests.app_key)
+          AND NOT EXISTS (SELECT 1 FROM lifecycle_events WHERE lifecycle_events.app_key = app_manifests.app_key)
         RETURNING app_key
     """
     # json_each binds the whole variable-length list as one parameter.

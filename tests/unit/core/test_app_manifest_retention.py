@@ -108,6 +108,15 @@ async def seed_recent_blocking_event(db: aiosqlite.Connection, app_key: str) -> 
     )
 
 
+async def seed_recent_lifecycle_event(db: aiosqlite.Connection, app_key: str) -> None:
+    cursor = await db.execute("INSERT INTO sessions (started_at) VALUES (?)", (RECENT_TS,))
+    await db.execute(
+        "INSERT INTO lifecycle_events (session_id, kind, app_key, to_status, details, ts)"
+        " VALUES (?, 'block', ?, 'blocked', '{}', ?)",
+        (cursor.lastrowid, app_key, RECENT_TS),
+    )
+
+
 async def retired_at_values(db: aiosqlite.Connection, table: str) -> list[float | None]:
     cursor = await db.execute(f"SELECT retired_at FROM {table}")
     return [row[0] for row in await cursor.fetchall()]
@@ -149,11 +158,17 @@ async def test_app_in_current_config_is_never_pruned(
     assert await manifest_exists(db, manifest.app_key)
 
 
-@pytest.mark.parametrize(
-    "seed",
-    [seed_recent_execution, seed_recent_job_execution, seed_recent_log_record, seed_recent_blocking_event],
-    ids=["execution", "scheduled_job", "log_record", "blocking_event"],
-)
+RECENT_TELEMETRY_SEEDS = [
+    pytest.param(seed_recent_execution, id="execution"),
+    pytest.param(seed_recent_job_execution, id="scheduled_job"),
+    pytest.param(seed_recent_log_record, id="log_record"),
+    pytest.param(seed_recent_blocking_event, id="blocking_event"),
+    pytest.param(seed_recent_lifecycle_event, id="lifecycle_event"),
+]
+"""One seeder per telemetry table that references an app_key and holds a removed app's manifest."""
+
+
+@pytest.mark.parametrize("seed", RECENT_TELEMETRY_SEEDS)
 async def test_removed_app_kept_while_telemetry_remains(
     db: aiosqlite.Connection,
     retention_service: DatabaseService,
@@ -430,11 +445,7 @@ def test_live_app_keys_counts_only_apps_with_a_running_instance(
     assert retention_service.live_app_keys() == sorted([configured.app_key, "multi", "running"])
 
 
-@pytest.mark.parametrize(
-    "seed",
-    [seed_recent_execution, seed_recent_job_execution, seed_recent_log_record, seed_recent_blocking_event],
-    ids=["execution", "scheduled_job", "log_record", "blocking_event"],
-)
+@pytest.mark.parametrize("seed", RECENT_TELEMETRY_SEEDS)
 async def test_other_apps_telemetry_does_not_block_pruning(
     db: aiosqlite.Connection,
     retention_service: DatabaseService,

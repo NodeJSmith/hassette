@@ -155,23 +155,23 @@ async def test_saturation_warning_is_rate_limited() -> None:
     """Repeated saturation logs once per window, not once per blocked dispatch."""
     svc = make_bus_service(max_concurrent_dispatches=1)
 
-    assert svc._last_saturation_warn_ts == 0.0
+    assert svc.saturation_warn_pacer.last_ts is None
 
     svc.warn_dispatch_saturated()
-    first_warn_ts = svc._last_saturation_warn_ts
-    assert first_warn_ts > 0.0
+    first_warn_ts = svc.saturation_warn_pacer.last_ts
+    assert first_warn_ts is not None
 
     svc.warn_dispatch_saturated()
     svc.warn_dispatch_saturated()
-    assert svc._last_saturation_warn_ts == first_warn_ts, (
+    assert svc.saturation_warn_pacer.last_ts == first_warn_ts, (
         "calls inside the rate-limit window must be suppressed, leaving the window timestamp untouched"
     )
 
     # Simulate the rate-limit window elapsing (push the last-warn timestamp past the window).
     rewound_ts = first_warn_ts - _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS * 2
-    svc._last_saturation_warn_ts = rewound_ts
+    svc.saturation_warn_pacer.last_ts = rewound_ts
     svc.warn_dispatch_saturated()
-    assert svc._last_saturation_warn_ts > rewound_ts, "a call after the window elapses must open a new window"
+    assert svc.saturation_warn_pacer.last_ts > rewound_ts, "a call after the window elapses must open a new window"
 
 
 async def test_drop_newest_skips_handler_when_saturated() -> None:

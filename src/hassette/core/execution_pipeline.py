@@ -94,12 +94,7 @@ def enqueue_record(executor: "CommandExecutor", record: ExecutionRecord) -> None
 
     # Capacity warning (rate-limited)
     if max_size > 0 and current_size >= max_size * lifecycle.command_executor_capacity_warn_threshold:
-        now = time.monotonic()
-        if (
-            executor._last_capacity_warn_ts is None
-            or now - executor._last_capacity_warn_ts >= lifecycle.command_executor_capacity_warn_rate_limit_seconds
-        ):
-            executor._last_capacity_warn_ts = now
+        if executor.capacity_warn_pacer.allow(lifecycle.command_executor_capacity_warn_rate_limit_seconds):
             executor.logger.warning(
                 "Write queue at %d/%d (%.0f%%) — high telemetry load",
                 current_size,
@@ -486,12 +481,7 @@ async def emit_completion_events(
         # log once per drain tick.
         unowned = sum(1 for r in app_records if not r.app_key)
         if unowned:
-            now = executor._clock()
-            if (
-                executor._last_unowned_warn_ts is None
-                or now - executor._last_unowned_warn_ts >= _UNOWNED_WARN_RATE_LIMIT_SECS
-            ):
-                executor._last_unowned_warn_ts = now
+            if executor.unowned_warn_pacer.allow(_UNOWNED_WARN_RATE_LIMIT_SECS, now=executor._clock()):
                 executor.logger.warning(
                     "Emitting %d app-tier completion event(s) with empty app_key — telemetry will be unattributed",
                     unowned,

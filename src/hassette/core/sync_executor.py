@@ -19,13 +19,13 @@ the saturation probe loop, and on_shutdown() tears the pool down via shutdown_po
 
 import asyncio
 import threading
-import time
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
+from hassette.utils.warn_pacer import WarnPacer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -106,8 +106,8 @@ class SyncExecutor:
     _outstanding_submissions: int
     """Count of futures submitted but not yet completed (loop-thread-only, no lock needed)."""
 
-    _last_saturation_warn_ts: float | None
-    """Monotonic timestamp of the last pool-saturation WARNING, or None if no warning has fired yet."""
+    saturation_warn_pacer: WarnPacer
+    """Paces the pool-saturation WARNING; reset by ``rebuild_pool()``."""
 
     saturation_warn_threshold: float
     """Occupancy fraction (0-1) above which log_saturation_rate_limited() warns.
@@ -120,7 +120,7 @@ class SyncExecutor:
     def __init__(self) -> None:
         self.executor = None
         self._outstanding_submissions = 0
-        self._last_saturation_warn_ts = None
+        self.saturation_warn_pacer = WarnPacer()
         self.saturation_warn_threshold = _DEFAULT_SATURATION_WARN_THRESHOLD
         self.saturation_warn_rate_limit_seconds = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS
         self.logger = getLogger(f"{__name__}.SyncExecutor")
@@ -153,7 +153,7 @@ class SyncExecutor:
             thread_name_prefix=thread_name_prefix,
         )
         self._outstanding_submissions = 0
-        self._last_saturation_warn_ts = None
+        self.saturation_warn_pacer = WarnPacer()
         self.saturation_warn_threshold = saturation_warn_threshold
         self.saturation_warn_rate_limit_seconds = saturation_warn_rate_limit_seconds
 
@@ -257,13 +257,8 @@ class SyncExecutor:
         if occupancy < self.saturation_warn_threshold:
             return  # below threshold — nothing to warn about
 
-        now = time.monotonic()
-        if (
-            self._last_saturation_warn_ts is not None
-            and now - self._last_saturation_warn_ts < self.saturation_warn_rate_limit_seconds
-        ):
+        if not self.saturation_warn_pacer.allow(self.saturation_warn_rate_limit_seconds):
             return  # rate-limited — suppress until window expires
-        self._last_saturation_warn_ts = now
 
         # Read queue depth for context only — not a gating condition.
         # _work_queue is a SimpleQueue; qsize() is accurate under the GIL.

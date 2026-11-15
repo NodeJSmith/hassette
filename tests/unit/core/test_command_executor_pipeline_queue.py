@@ -121,13 +121,13 @@ async def test_enqueue_record_warns_at_configured_capacity_threshold() -> None:
 
     rec = make_invocation()
     executor.enqueue_record(rec)  # current_size=0 before put — below threshold
-    assert executor._last_capacity_warn_ts is None
+    assert executor.capacity_warn_pacer.last_ts is None
 
     executor.enqueue_record(rec)  # current_size=1 before put — still below threshold
-    assert executor._last_capacity_warn_ts is None
+    assert executor.capacity_warn_pacer.last_ts is None
 
     executor.enqueue_record(rec)  # current_size=2 before put — at threshold
-    assert executor._last_capacity_warn_ts is not None
+    assert executor.capacity_warn_pacer.last_ts is not None
     assert executor._write_queue.qsize() == 3
 
 
@@ -141,14 +141,14 @@ async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() 
 
     rec = make_invocation()
     executor.enqueue_record(rec)  # current_size=0 before put — below threshold
-    assert executor._last_capacity_warn_ts is None
+    assert executor.capacity_warn_pacer.last_ts is None
 
     executor.enqueue_record(rec)  # current_size=1 before put — at threshold, fires
-    first_capacity_warn_ts = executor._last_capacity_warn_ts
+    first_capacity_warn_ts = executor.capacity_warn_pacer.last_ts
     assert first_capacity_warn_ts is not None
 
     executor.enqueue_record(rec)  # current_size=2 before put — still at/above threshold
-    assert executor._last_capacity_warn_ts == first_capacity_warn_ts, (
+    assert executor.capacity_warn_pacer.last_ts == first_capacity_warn_ts, (
         "second warning should be suppressed by rate-limit, leaving the window timestamp untouched"
     )
 

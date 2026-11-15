@@ -12,7 +12,6 @@ exactly once, and the entry leaves the table at the same moment.
 """
 
 import logging
-import time
 import typing
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -22,6 +21,7 @@ from hassette_wire import ApiWriteOutcome
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.exceptions import CommandRejectedError, WebsocketClosedError
 from hassette.utils.hass_utils import context_id_of
+from hassette.utils.warn_pacer import WarnPacer
 
 if typing.TYPE_CHECKING:
     import asyncio
@@ -90,7 +90,7 @@ class PendingResponses:
         self.eviction_warn_interval = eviction_warn_interval
         self.background_count = 0
         """Running count of background entries, so the cap check never rescans the table."""
-        self.last_eviction_warn_ts: float | None = None
+        self.eviction_warn_pacer = WarnPacer()
 
     def register(
         self,
@@ -146,11 +146,9 @@ class PendingResponses:
                 self.run_callback(entry, "unresolved")
 
     def warn_eviction(self) -> None:
-        """Log one WARNING per eviction episode, paced like the execution write queue's capacity WARNING."""
-        now = time.monotonic()
-        if self.last_eviction_warn_ts is not None and now - self.last_eviction_warn_ts < self.eviction_warn_interval:
+        """Log one WARNING per eviction episode, paced by its own ``WarnPacer``."""
+        if not self.eviction_warn_pacer.allow(self.eviction_warn_interval):
             return
-        self.last_eviction_warn_ts = now
         self.logger.warning(
             "More than %d sent writes are awaiting a Home Assistant reply; evicting the oldest, whose records "
             "read 'unresolved' (counted under %s)",

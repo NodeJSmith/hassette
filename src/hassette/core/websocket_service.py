@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from hassette.core.ha_core_config import HaCoreConfig
 from hassette.core.observer_list import ObserverList
+from hassette.core.telemetry.lifecycle_rows import ConnectionDetails, record_connection_change
 from hassette.core.websocket_io import WebsocketMessageIOMixin
 from hassette.core.websocket_reconnect import (
     AUTH_REJECTED_REASON,
@@ -225,11 +226,12 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """True once the connection has reached CONNECTED at least once; never reverts."""
         return self._ever_connected
 
-    def set_connection_state(self, new: ConnectionState) -> None:
-        """Transition to a new connection state with validation.
+    def set_connection_state(self, new: ConnectionState, *, detail: ConnectionDetails | None = None) -> None:
+        """Transition to a new connection state with validation, and record it as a ``lifecycle_events`` row.
 
         Validates the transition against WS_VALID_TRANSITIONS. An invalid transition logs a
         WARNING and is still applied. Logs every transition at DEBUG with the previous state.
+        A same-state call changes nothing and records nothing.
 
         Only the first CONNECTED is logged at INFO here, so the Home Assistant connection is
         visible at the default log level. That is the line the quickstart tells a new user to
@@ -238,6 +240,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
         Args:
             new: The new connection state to transition to.
+            detail: What the calling site knows about the transition (a failure's cause, the core state,
+                a close code), stored on its row.
         """
         old = self._connection_state
         if old == new:
@@ -266,6 +270,9 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             # Leaving CONNECTED is logged by OutageLog.record_failure, which knows whether it was a flap.
             self._connected_event.clear()
             self._connected_generation = None
+
+        # Last, after the bookkeeping, so the transition is fully applied whatever the writer does; it never raises.
+        record_connection_change(self.hassette, old, new, detail)
 
     @property
     def connection_timeout_seconds(self) -> int:
@@ -353,7 +360,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
                         plan = await self.handle_connection_failure(exc)
 
                     if plan.delay is None:  # Disposition.PARK, the only plan without a delay
-                        await self.park()
+                        await self.park(plan.cause)
                         return  # unreachable: park() only ends by cancellation at shutdown
                     await asyncio.sleep(plan.delay)
 
@@ -383,7 +390,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         plan = self._policy.on_failure(exc)
         parking = plan.disposition is Disposition.PARK
         if not parking:
-            self.set_connection_state(ConnectionState.CONNECTING)
+            self.set_connection_state(ConnectionState.CONNECTING, detail=ConnectionDetails(cause=plan.cause))
 
         await self.announce_disconnect()
         if not parking:  # park() reports its own reason
@@ -395,9 +402,9 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         )
         return plan
 
-    async def park(self) -> None:
-        """Stay up without reconnecting until shutdown cancels serve() (D3, D10)."""
-        self.set_connection_state(ConnectionState.AUTH_FAILED)
+    async def park(self, cause: str) -> None:
+        """Stay up without reconnecting until shutdown cancels serve() (D3, D10); ``cause`` goes on the row."""
+        self.set_connection_state(ConnectionState.AUTH_FAILED, detail=ConnectionDetails(cause=cause))
         await self.report_connection_status(AUTH_REJECTED_REASON)
         await asyncio.Event().wait()  # never set: cancellation at shutdown is the only exit
 
@@ -473,7 +480,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             if core_state in CORE_STATES_SHUTTING_DOWN:
                 raise CoreShuttingDownError(core_state)
 
-            self.set_connection_state(ConnectionState.WAITING_FOR_CORE)  # a no-op on later rechecks
+            # A no-op on later rechecks, so the row carries the first core state read.
+            self.set_connection_state(ConnectionState.WAITING_FOR_CORE, detail=ConnectionDetails(core_state=core_state))
             await self.report_connection_status(CORE_NOT_RUNNING_REASON.format(core_state))
             self._outage_log.record_core_wait(
                 core_state, now=time.monotonic(), has_ever_connected=self.has_ever_connected
@@ -552,8 +560,9 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """
         if task is not self._recv_task:
             return
-        self._pending.fail_all(self.current_close_code())
-        self.set_connection_state(ConnectionState.DISCONNECTED)
+        close_code = self.current_close_code()
+        self._pending.fail_all(close_code)
+        self.set_connection_state(ConnectionState.DISCONNECTED, detail=ConnectionDetails(close_code=close_code))
 
     def current_close_code(self) -> int | None:
         """Return the socket's current close code, or None when there is no socket or it is still open.

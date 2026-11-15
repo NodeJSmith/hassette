@@ -283,7 +283,7 @@ flowchart TD
 
 ### Schema
 
-The database has nine tables:
+The database has ten tables:
 
 | Table | Purpose |
 |---|---|
@@ -294,6 +294,7 @@ The database has nine tables:
 | `log_records` | Captured log lines with `execution_id` linkage |
 | `blocking_events` | Detected blocking-event records from watchdog and monkeypatch tiers |
 | `api_writes` | One row per named `Api` write an app sent to Home Assistant, with how it ended |
+| `lifecycle_events` | One row per app status, connection state, or block change, with a per-kind `details` JSON object |
 | `listener_misses` | Hourly counts of events that reached an app listener without running it, per listener, reason and filter |
 | `app_manifests` | Persisted app manifest metadata for dashboard and seed-database workflows |
 

@@ -54,6 +54,7 @@ from ._fixtures_websocket import (
     last_sent_msg_id,
     run_cleanup,
     run_core_running_gate,
+    serve_until_parked,
     stub_refused_attempts,
     websocket_service,
 )
@@ -97,6 +98,7 @@ __all__ = [
     "real_registry_service",
     "run_cleanup",
     "run_core_running_gate",
+    "serve_until_parked",
     "set_registry_apps",
     "status_writes",
     "stub_detected_changes",

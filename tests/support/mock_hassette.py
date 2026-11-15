@@ -78,6 +78,7 @@ def make_mock_hassette(
             ``True``
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
+        - ``.session_manager``: ``None``, so a lifecycle row is a counted drop; set a real ``SessionManager`` to write
         - ``.database_service``: :class:`~unittest.mock.Mock` (the restart path enqueues a retire step on it)
         - ``.try_database_service``: :class:`~unittest.mock.Mock` returning ``None``, so a bus built on the mock
             records no listener near-misses; set its ``return_value`` to a real ``DatabaseService`` to record
@@ -162,6 +163,7 @@ def make_mock_hassette(
     # Database / session (wired by initialized_db after DB setup)
     hassette.session_id = None
     hassette.try_session_id = Mock(return_value=None)
+    hassette.session_manager = None
     hassette.database_service = Mock()
     hassette.try_database_service = Mock(return_value=None)
 

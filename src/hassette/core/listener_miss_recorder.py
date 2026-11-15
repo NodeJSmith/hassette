@@ -29,6 +29,7 @@ from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.types.types import APP_SOURCE_TIER
+from hassette.utils.warn_pacer import WarnPacer
 
 if typing.TYPE_CHECKING:
     from hassette_wire import ListenerMissReason
@@ -91,7 +92,7 @@ class ListenerMissRecorder:
         self.hassette = hassette
         self.entries: dict[tuple[int, float, ListenerMissReason, int | None], MissEntry] = {}
         """Rollups since the last flush, keyed by in-memory listener id, hour, reason and filter index."""
-        self.last_loss_warn_monotonic: float | None = None
+        self.loss_warn_pacer = WarnPacer()
         self.flush_stop: asyncio.Event | None = None
         """Ends the flush loop; created at each ``start`` so a re-initialized service gets a live loop."""
         self.flush_task: asyncio.Task[None] | None = None
@@ -203,14 +204,13 @@ class ListenerMissRecorder:
     def count_loss(self, lost: int, exc: BaseException) -> None:
         """Count a lost batch and log a WARNING for it, at most once per interval.
 
-        The WARNING is paced like the execution queue's capacity one; the counter counts every loss.
+        The WARNING is paced by its own ``WarnPacer``; the counter counts every loss.
         """
         self.hassette.pipeline_counters.increment(PipelineCounter.LISTENER_MISS_FLUSH_FAILED, lost)
-        now = time.monotonic()
-        interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
-        if self.last_loss_warn_monotonic is not None and now - self.last_loss_warn_monotonic < interval:
+        if not self.loss_warn_pacer.allow(
+            self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
+        ):
             return
-        self.last_loss_warn_monotonic = now
         LOGGER.warning(
             "Failed to write %d listener near-miss rollup(s); they are dropped (counted under %s)",
             lost,

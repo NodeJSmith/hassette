@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from hassette.core.api_write_recorder import ApiWriteRow
     from hassette.core.database_service import DatabaseService
     from hassette.core.listener_miss_recorder import ListenerMissRow
+    from hassette.core.telemetry.lifecycle_rows import LifecycleChange
 
 LOGGER = getLogger(__name__)
 
@@ -593,6 +594,45 @@ class TelemetryRepository:
                     dropped.append(record)
 
         return dropped
+
+    async def insert_lifecycle_event(
+        self, change: "LifecycleChange", *, session_id: int, details_json: str, ts: float
+    ) -> None:
+        """Insert a ``lifecycle_events`` row; a failed write is logged with the row's identity and dropped.
+
+        Called by the write-queue worker for rows ``SessionManager.write_lifecycle_row`` queued. ``details_json`` is
+        ``change.details`` already serialized, so a model that can't serialize is dropped before it is queued.
+        """
+        db = self._db_service.db
+        try:
+            await db.execute(
+                """
+                INSERT INTO lifecycle_events (
+                    session_id, kind, app_key, instance_name, from_status, to_status, details, ts
+                ) VALUES (
+                    :session_id, :kind, :app_key, :instance_name, :from_status, :to_status, :details, :ts
+                )
+                """,
+                {
+                    "session_id": session_id,
+                    "kind": change.kind,
+                    "app_key": change.app_key,
+                    "instance_name": change.instance_name,
+                    "from_status": change.from_status,
+                    "to_status": change.to_status,
+                    "details": details_json,
+                    "ts": ts,
+                },
+            )
+            await db.commit()
+        except STORAGE_ERRORS:
+            LOGGER.exception(
+                "Dropped lifecycle_events row (DB write failed) — kind=%s app=%s %s -> %s",
+                change.kind,
+                change.app_key,
+                change.from_status,
+                change.to_status,
+            )
 
 
 def listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
