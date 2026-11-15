@@ -57,6 +57,29 @@ async def test_reconcile_rollback_on_exception(
         await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
 
+async def test_failed_rollback_is_logged_and_original_error_reraised(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """A rollback that fails with a storage error is logged, and the write's own error still propagates."""
+
+    async def failing_executemany(_sql, _params):
+        raise RuntimeError("simulated executemany failure")
+
+    async def failing_rollback():
+        raise sqlite3.OperationalError("simulated rollback failure")
+
+    with (
+        patch.object(telemetry_db, "executemany", side_effect=failing_executemany),
+        patch.object(telemetry_db, "rollback", side_effect=failing_rollback),
+        pytest.raises(RuntimeError, match="simulated executemany failure"),
+    ):
+        await telemetry_repo.persist_execution_batch([make_execution_record()])
+
+    await telemetry_db.rollback()
+    telemetry_repo._db_service.logger.exception.assert_called_once()  # pyright: ignore[reportAttributeAccessIssue]
+
+
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
 # signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_success_path(
