@@ -1,4 +1,4 @@
-# dup-ignore-file: HA helper models — Create/Update/State param classes share fields by API design
+# dup-ignore-file: HA helper models — Record/Create/Update classes share fields by API design
 """Pydantic models for the ``input_button`` helper domain.
 
 Models here represent the stored configuration for ``input_button`` helpers,
