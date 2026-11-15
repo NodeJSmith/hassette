@@ -17,7 +17,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Raised-by:** Synthesis
 **Converges:** Findings 2, 6, 7, 11, 12
 **visibility:** presented
-**disposition:** pending
+**disposition:** moot (re-sketch 2026-11-15: #4148 and #4102 removed both writer memories; D2 now writes every StatusChange, D4/D6 write per ConnectionState transition)
 
 **Why-it-matters:** Two writers each keep a memory of the last row they believe they wrote and decide from it whether the next event is a change. For app rows that's D2's map of last `(to_status, details)` per instance on `SessionManager`. For connection rows it's D4's "last state written" inside `OutageLog`. Five findings come at this memory from different directions. Finding 2: the peers D2 cites put that decision at the sender, not in a content-matching writer. Finding 11: the map advances on enqueue, not on a successful write. Finding 12: `OutageLog` advances on calling the callable, not on the row being queued. Finding 6: `OutageLog`'s state runs alongside `WebsocketService`'s own state machine. Finding 7: the map is temporary #1446 state that sits in the class owning the session lifecycle. Each finding proposes its own local patch, such as an evict wrapper, a bool return, a path-coverage test or a new class. Is the writer-side memory the right mechanism, or should it be re-evaluated before patching each finding? Re-evaluating is open-ended. It includes whether either writer needs the memory at all, and whether the failure modes are limitations to accept and document.
 
@@ -54,7 +54,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** adversarial-reviewer
 **visibility:** presented
-**disposition:** pending
+**disposition:** moot (re-sketch: D2 rewritten; owner decides inside the funnel, Prefect row corrected)
 
 **Why-it-matters:** D2's peer row (option B column) and its Peer divergence line say "HA, Airflow and Prefect dedupe at the source and record whatever reaches the writer". Prefect doesn't fit that. Its orchestration rules run inside `set_flow_run_state`, the same funnel that writes the row. `PreventDuplicateTransitions` rejects a transition whose sender-supplied `transition_id` matches the current state's. `PreventPendingTransitions` rejects PENDING→PENDING. PR 9447 deliberately keeps a genuine RUNNING→RUNNING. So Prefect dedupes in the writer, as Hassette does, but by a key the sender supplies, and it keeps genuine identical repeats. Hassette instead matches on content and collapses them. D2's divergence line therefore explains the wrong divergence. Hassette matches Prefect on where the dedupe happens and differs on the key. The reason for that difference is never stated.
 
@@ -92,7 +92,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** systems-architect, adversarial-reviewer
 **visibility:** presented
-**disposition:** pending
+**disposition:** resolved (re-sketch: D5 from_status is the owner's previous state for app and connection rows, NULL only on block rows)
 
 **Why-it-matters:** One column has three meanings. On app rows it's the sender's `previous_status`, NULL at sites 198, 208, 399 and 466. On connection rows it's whatever state `OutageLog` last advanced to, which Finding 12 shows can name a row that was never written. On block rows it's always NULL. Without knowing the kind and the send site, a #4084 reader can't tell "no prior state" from "the sender didn't say". The ledger's reason for keeping the column does hold for one case. The outcome events (`send_outcome_event` at `app_lifecycle_instances.py:129, 263`) carry `previous_status=STARTING`, and no STARTING event is ever sent. So an app row's `from_status` records a transition that has no row of its own. For connection rows the value can be derived from the previous row. For block rows it carries nothing.
 
@@ -131,7 +131,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** Auto-apply
 **Raised-by:** systems-architect, adversarial-reviewer
 **visibility:** presented
-**disposition:** pending
+**disposition:** moot (re-sketch: D8 derives outage length from rows; start-while-HA-starts anchors on the WAITING_FOR_CORE row or session start)
 
 **Why-it-matters:** D4 lists "Hassette starts while HA is starting" as recorded, and parent D2 asks for that outage's length in the row. Yet the D4 table and D5 both say the first `connected` row has no outage length. D4's own rule measures the length "from the first non-`connected` row since the last `connected`", which has no anchor when there has been no `connected` yet. The existing code backs the "absent" reading. `record_connected` computes a duration only when `was_ever_connected`, and `record_core_wait` never sets `disconnected_at`. A callable built on today's fields would silently drop the one number parent D2 asked for.
 
@@ -152,7 +152,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** systems-architect
 **visibility:** presented
-**disposition:** pending
+**disposition:** applied B (re-sketch: D5 states the CHECK follows repo convention and a new kind is a rebuild migration; peer divergence stated)
 
 **Why-it-matters:** D5 constrains `kind CHECK IN ('app','connection','block')` and leaves statuses open, giving "easy to change" as the reason statuses stay open (D4 line 123). But parent D1 generalized this table precisely so more sources can join, and `scheduler` or `session` rows are the obvious next ones. SQLite can't alter a CHECK in place, so a fourth kind needs a table-rebuild migration. D5's reversibility line names only the columns. D5's peer line doesn't mention that peers leave their kind-like discriminator open.
 
@@ -188,7 +188,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** adversarial-reviewer
 **visibility:** presented
-**disposition:** pending
+**disposition:** moot (re-sketch: connection rows come from set_connection_state; OutageLog untouched)
 
 **Why-it-matters:** `WebsocketService.set_connection_state` already owns `ConnectionState` transitions. D4 and D6 add a parallel "last state written" inside `OutageLog`, inferred from which of `record_failure`, `record_core_wait` and `record_connected` was called. `waiting_for_core` happens while the service is in CONNECTING with the socket open. `record_failure` can fire from CONNECTING, from a core wait, or from CONNECTED. The two owners have to agree on every path, including the rebuild at the top of `serve()`. If a future reconnect path skips a call, the rows go wrong and nothing signals it.
 
@@ -224,7 +224,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** systems-architect
 **visibility:** presented
-**disposition:** pending
+**disposition:** moot (re-sketch: no dedupe map; SessionManager keeps only the enqueue method, counter and pacing; pacer sharing is a build call)
 
 **Why-it-matters:** `SessionManager` (257 lines) owns the session record. The ledger adds the enqueue method, D2's dedupe map, a drop counter covering three paths, and WARNING pacing copied from `ApiWriteRecorder.warn_drop`. When #1446's projector replaces the app writer (parent D1), the map and its evict rules have to be cut out of a class that also runs the session lifecycle. Parent D11 already composes a helper class for near-misses (`BusService` composes it), so a composed writer object would follow the same parent decision. The critic also says the Posture's "once per episode" wording doesn't match the pacing, which is by interval. That part is weak: `warn_drop`'s own docstring says "one WARNING per drop episode" (`api_write_recorder.py:214-215`).
 
@@ -261,7 +261,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** systems-architect
 **visibility:** presented
-**disposition:** pending
+**disposition:** applied A (re-sketch: D4 peer line names target monitors vs own link, kubelet as closest self-reporting peer)
 
 **Why-it-matters:** D4's Ratified line chose option D "to match how Gatus, Uptime Kuma, HA's recorder and Kubernetes store connection history". Gatus and Uptime Kuma record a remote target's health from a monitor. This table records Hassette's own client connection to HA, and D6 says "no surveyed peer persists reconnect history at all". The row-per-change conclusion probably still holds, because that's the common shape for status history whoever records it. But the peer line says "match" without naming the gap. The closest self-reporting peer is the kubelet's node conditions, which the row already cites for `lastTransitionTime`.
 
@@ -296,7 +296,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** adversarial-reviewer
 **visibility:** presented
-**disposition:** pending
+**disposition:** applied A (re-sketch: D1 peer line reworded)
 
 **Why-it-matters:** D1's peer row lists Airflow 3 as "direct calls at each transition; sites were missed twice". That is call-site writers, the shape parent D2 rejected. Option A is a single funnel, and only Prefect matches it. The structural test that bans other sends departs from both peers, since Airflow has no guard and Prefect needs none because its API is the only path. Yet the divergence line reads "matches Prefect and Airflow 3".
 
@@ -330,7 +330,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** adversarial-reviewer, systems-architect
 **visibility:** presented
-**disposition:** pending
+**disposition:** applied C (re-sketch: D4 Growth states the backoff-cap worst case; Posture Hardening reworded; Gatus count cap named)
 
 **Why-it-matters:** D4's figure is about 86,000 rows, 15-20 MB over 30 days, and assumes a flap every minute. The Posture requires parent D12's 25 MB figure to hold for connection rows. But the Fast curve resets only after a stable (120 s) connection, so during a flap `fast_attempt` keeps climbing and the delay settles at the 5 s cap. A link that connects and then drops can flap roughly every 10 s. At 2 rows per flap that's about 520,000 rows, roughly 100 MB over 30 days, about 4x the parent's figure. An attempt that waits on core before dropping adds a `waiting_for_core` row, making 3 rows per flap. The table is exempt from the size failsafe, so only `retention_days` (default 30) bounds it. Smaller point: D4's numbers imply 175-230 B per row, while the parent assumes 150 B.
 
@@ -368,7 +368,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** adversarial-reviewer
 **visibility:** presented
-**disposition:** pending
+**disposition:** applied B (re-sketch: Posture narrowed to rows dropped before queueing; map half moot)
 
 **Why-it-matters:** D2's map advances when `enqueue` returns True. The write can still fail after that. The worker catches the coroutine's exception and only logs "Unhandled error in enqueued DB write", and a withdrawn item is skipped. The map then says "written", so a later identical event is skipped and that state has no row until the status changes. The Posture says "every dropped row is counted", but this path isn't one of the three counted paths. `ApiWriteRecorder` has the same gap.
 
@@ -404,7 +404,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** systems-architect
 **visibility:** presented
-**disposition:** pending
+**disposition:** moot (re-sketch: no OutageLog last state)
 
 **Why-it-matters:** D2 evicts an app instance's map entry when an enqueue fails, so a drop never hides a later row. Connection rows don't get the same rule, because D6's callable returns nothing. After a dropped `waiting_for_core` or `disconnected` row, `OutageLog` still treats that state as written. Later rows in the same state are skipped, and the next row's `from_status` names a state that isn't in the table. The outage length survives because it's held in `OutageLog`, which is the ledger's stated reason for storing it.
 
@@ -440,7 +440,7 @@ Synthesis notes: SA = systems-architect, AR = adversarial-reviewer. Merged: SA1 
 **Classification:** User-directed
 **Raised-by:** systems-architect
 **visibility:** presented
-**disposition:** pending
+**disposition:** applied B (re-sketch: D5 says details changes are additive, no version key)
 
 **Why-it-matters:** `details` is validated by per-kind models on write and carries no version key. If a model changes, #4084's reader can't tell an old-model row from a new one within one retention window.
 
