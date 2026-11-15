@@ -11,9 +11,6 @@ from seed_scenarios.base import (
     add_running_session,
     make_instance_name,
     seed_app_blocking_event,
-    seed_app_lifecycle,
-    seed_block_change,
-    seed_connection_lifecycle,
     seed_executions,
     seed_job,
     seed_listener,
@@ -21,6 +18,7 @@ from seed_scenarios.base import (
     seed_simple_app,
     ts,
 )
+from seed_scenarios.lifecycle_events import seed_app_lifecycle, seed_block_change, seed_connection_lifecycle
 
 
 def scenario_lifecycle(ctx: SeedContext) -> None:

@@ -22,8 +22,6 @@ from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.insert_params import execution_insert_params, job_insert_params, listener_insert_params
-from hassette.core.telemetry.lifecycle_rows import AppDetails, BlockDetails, BlockStatus, ConnectionDetails
-from hassette.types.enums import BlockReason, ConnectionState
 from hassette.types.types import is_framework_key
 from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
@@ -113,18 +111,6 @@ _API_WRITE_COLUMNS = (
 )
 
 
-# lifecycle_events table columns (see migrations_sql/026.sql), excluding the autoincrement id.
-_LIFECYCLE_EVENT_COLUMNS = (
-    "session_id",
-    "kind",
-    "app_key",
-    "instance_name",
-    "from_status",
-    "to_status",
-    "details",
-    "ts",
-)
-
 # listener_misses table columns (see migrations_sql/025.sql), excluding the autoincrement id.
 _LISTENER_MISS_COLUMNS = (
     "listener_id",
@@ -167,7 +153,7 @@ def _quote_column(name: str) -> str:
     return f'"{name}"' if name in _RESERVED_COLUMNS else name
 
 
-def _build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = False) -> str:
+def build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = False) -> str:
     """Build a plain INSERT statement from a table name and column names.
 
     Column order matches the order of ``columns`` (dict key order, for callers that pass
@@ -183,12 +169,11 @@ def _build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = F
     return sql
 
 
-_SESSION_INSERT_SQL = _build_insert_sql("sessions", _SESSION_COLUMNS, returning=True)
-_LOG_INSERT_SQL = _build_insert_sql("log_records", LOG_RECORD_COLUMNS)
-_BLOCKING_EVENT_INSERT_SQL = _build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
-_API_WRITE_INSERT_SQL = _build_insert_sql("api_writes", _API_WRITE_COLUMNS)
-_LISTENER_MISS_INSERT_SQL = _build_insert_sql("listener_misses", _LISTENER_MISS_COLUMNS)
-_LIFECYCLE_EVENT_INSERT_SQL = _build_insert_sql("lifecycle_events", _LIFECYCLE_EVENT_COLUMNS)
+_SESSION_INSERT_SQL = build_insert_sql("sessions", _SESSION_COLUMNS, returning=True)
+_LOG_INSERT_SQL = build_insert_sql("log_records", LOG_RECORD_COLUMNS)
+_BLOCKING_EVENT_INSERT_SQL = build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
+_API_WRITE_INSERT_SQL = build_insert_sql("api_writes", _API_WRITE_COLUMNS)
+_LISTENER_MISS_INSERT_SQL = build_insert_sql("listener_misses", _LISTENER_MISS_COLUMNS)
 
 
 def insert_row(cursor: sqlite3.Cursor, sql: str, params: dict[str, Any]) -> int:
@@ -286,7 +271,7 @@ class SeedContext:
         params = listener_insert_params(registration)
         params["retired_at"] = retired_at
         params["removed_at"] = removed_at
-        sql = _build_insert_sql("listeners", params, returning=True)
+        sql = build_insert_sql("listeners", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
     def add_job(
@@ -300,7 +285,7 @@ class SeedContext:
         params = job_insert_params(registration)
         params["retired_at"] = retired_at
         params["removed_at"] = removed_at
-        sql = _build_insert_sql("scheduled_jobs", params, returning=True)
+        sql = build_insert_sql("scheduled_jobs", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
     def add_app_manifest(
@@ -338,7 +323,7 @@ class SeedContext:
             "enabled": 1 if enabled else 0,
             "autostart": 1 if autostart else 0,
         }
-        sql = _build_insert_sql("app_manifests", params, returning=True)
+        sql = build_insert_sql("app_manifests", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
     def add_execution(self, record: ExecutionRecord) -> str:
@@ -350,7 +335,7 @@ class SeedContext:
         if not record.execution_id:
             raise ValueError("Seeded executions must have a deterministic execution_id")
         params = execution_insert_params(record)
-        sql = _build_insert_sql("executions", params)
+        sql = build_insert_sql("executions", params)
         insert_row(self.cursor, sql, params)
         return record.execution_id
 
@@ -430,31 +415,6 @@ class SeedContext:
     def add_listener_miss(self, params: dict[str, Any]) -> None:
         """Insert a listener_misses row; ``params`` carries every column in ``_LISTENER_MISS_COLUMNS``."""
         insert_row(self.cursor, _LISTENER_MISS_INSERT_SQL, params)
-
-    def add_lifecycle_event(
-        self,
-        *,
-        session_id: int,
-        kind: str,
-        to_status: str,
-        details: AppDetails | ConnectionDetails | BlockDetails,
-        at: float,
-        from_status: str | None = None,
-        app_key: str | None = None,
-        instance_name: str | None = None,
-    ) -> None:
-        """Insert a lifecycle_events row, serializing ``details`` the way the writer does."""
-        params = {
-            "session_id": session_id,
-            "kind": kind,
-            "app_key": app_key,
-            "instance_name": instance_name,
-            "from_status": from_status,
-            "to_status": to_status,
-            "details": details.model_dump_json(exclude_none=True),
-            "ts": at,
-        }
-        insert_row(self.cursor, _LIFECYCLE_EVENT_INSERT_SQL, params)
 
 
 @contextmanager
@@ -808,91 +768,3 @@ def seed_listener_misses(
                 "trigger_origin": "LOCAL",
             }
         )
-
-
-def seed_connection_lifecycle(
-    ctx: SeedContext, *, session_id: int, base_offset: float, ha_restart_at: float | None = None
-) -> None:
-    """Seed a session's connection rows: a healthy start, plus an HA restart ``ha_restart_at`` seconds after
-    ``base_offset`` that drops the socket and waits on the core before reconnecting.
-    """
-    steps: list[tuple[float, ConnectionState, ConnectionState, ConnectionDetails]] = [
-        (0.5, ConnectionState.DISCONNECTED, ConnectionState.CONNECTING, ConnectionDetails()),
-        (1.0, ConnectionState.CONNECTING, ConnectionState.CONNECTED, ConnectionDetails()),
-    ]
-    if ha_restart_at is not None:
-        steps += [
-            (
-                ha_restart_at,
-                ConnectionState.CONNECTED,
-                ConnectionState.DISCONNECTED,
-                ConnectionDetails(close_code=1006),
-            ),
-            (
-                ha_restart_at + 0.1,
-                ConnectionState.DISCONNECTED,
-                ConnectionState.CONNECTING,
-                ConnectionDetails(cause="WebsocketClosedError (close code 1006): Home Assistant closed the connection"),
-            ),
-            (
-                ha_restart_at + 20.0,
-                ConnectionState.CONNECTING,
-                ConnectionState.WAITING_FOR_CORE,
-                ConnectionDetails(core_state="NOT_RUNNING"),
-            ),
-            (ha_restart_at + 45.0, ConnectionState.WAITING_FOR_CORE, ConnectionState.CONNECTED, ConnectionDetails()),
-        ]
-    for offset, old, new, details in steps:
-        ctx.add_lifecycle_event(
-            session_id=session_id,
-            kind="connection",
-            from_status=old,
-            to_status=new,
-            details=details,
-            at=ts(base_offset + offset),
-        )
-
-
-def seed_app_lifecycle(
-    ctx: SeedContext,
-    *,
-    session_id: int,
-    app_key: str,
-    instance_name: str,
-    base_offset: float,
-    failure: str | None = None,
-) -> None:
-    """Seed an app instance's status rows at session start: NOT_STARTED -> STARTING -> RUNNING, then FAILED
-    with ``failure`` as the exception type when one is given.
-    """
-    steps: list[tuple[float, str, str, AppDetails]] = [
-        (2.0, "not_started", "starting", AppDetails()),
-        (2.5, "starting", "running", AppDetails()),
-    ]
-    if failure is not None:
-        steps.append((60.0, "running", "failed", AppDetails(exception_type=failure)))
-    for offset, old, new, details in steps:
-        ctx.add_lifecycle_event(
-            session_id=session_id,
-            kind="app",
-            app_key=app_key,
-            instance_name=instance_name,
-            from_status=old,
-            to_status=new,
-            details=details,
-            at=ts(base_offset + offset),
-        )
-
-
-def seed_block_change(
-    ctx: SeedContext, *, session_id: int, app_key: str, to_status: BlockStatus, at_offset: float
-) -> None:
-    """Seed one block row for an app excluded by ``run --app``."""
-    ctx.add_lifecycle_event(
-        session_id=session_id,
-        kind="block",
-        app_key=app_key,
-        to_status=to_status,
-        details=BlockDetails(reason=BlockReason.ONLY_APP),
-        at=ts(at_offset),
-    )

@@ -7,14 +7,13 @@ from seed_scenarios.base import (
     SeedContext,
     make_instance_name,
     seed_app_api_writes,
-    seed_app_lifecycle,
-    seed_connection_lifecycle,
     seed_listener,
     seed_listener_misses,
     seed_log_records,
     seed_simple_app,
     ts,
 )
+from seed_scenarios.lifecycle_events import seed_app_lifecycle, seed_connection_lifecycle
 
 
 def scenario_healthy(ctx: SeedContext) -> None:

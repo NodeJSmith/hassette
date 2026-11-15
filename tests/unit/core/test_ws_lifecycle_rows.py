@@ -14,11 +14,10 @@ import hassette.core.websocket_reconnect as reconnect_module
 import hassette.core.websocket_service as service_module
 from hassette.core.telemetry.lifecycle_rows import ConnectionDetails
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import InvalidAuthError, WebsocketClosedError
-from hassette.testing import wait_for
+from hassette.exceptions import WebsocketClosedError
 from hassette.types.enums import ConnectionState
 
-from .conftest import HA_CONFIG, run_core_running_gate
+from .conftest import HA_CONFIG, run_core_running_gate, serve_until_parked
 
 
 @dataclass(frozen=True)
@@ -112,22 +111,7 @@ class TestCallSiteDetails:
     async def test_park_carries_the_rejection_cause(
         self, websocket_service: WebsocketService, rows: list[Row], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(reconnect_module, "AUTH_RETRY_SECONDS", 0.0)
-
-        async def fake_run_connection(_session: object) -> None:
-            raise InvalidAuthError("bad token")
-
-        websocket_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service._emit_readiness_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        task = asyncio.create_task(websocket_service.serve())
-        try:
-            await wait_for(
-                lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED, timeout=5.0, desc="parked"
-            )
-        finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+        await serve_until_parked(websocket_service, monkeypatch)
 
         assert rows[-1] == Row(
             ConnectionState.CONNECTING,

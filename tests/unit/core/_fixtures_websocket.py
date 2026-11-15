@@ -6,8 +6,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import hassette.core.websocket_reconnect as reconnect_module
 from hassette.core.websocket_service import WebsocketService
+from hassette.exceptions import InvalidAuthError
 from hassette.resources.service import Service
+from hassette.testing import wait_for
+from hassette.types.enums import ConnectionState
 from tests.support.mock_hassette import make_ws_hassette_stub
 
 HA_CONFIG: dict[str, Any] = {
@@ -73,3 +77,23 @@ async def run_core_running_gate(websocket_service: WebsocketService) -> None:
     finally:
         recv_task.cancel()
         await asyncio.gather(recv_task, return_exceptions=True)
+
+
+async def serve_until_parked(websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run ``serve()`` against a token rejected on every attempt until it parks, assert it is still running, stop it.
+
+    Auth retries are made instant and the readiness event is stubbed, so the park is reached in a few ticks.
+    """
+    monkeypatch.setattr(reconnect_module, "AUTH_RETRY_SECONDS", 0.0)
+    websocket_service.run_connection = AsyncMock(side_effect=InvalidAuthError("bad token"))  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service._emit_readiness_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    task = asyncio.create_task(websocket_service.serve())
+    try:
+        await wait_for(
+            lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED, timeout=5.0, desc="parked"
+        )
+        assert not task.done()
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
