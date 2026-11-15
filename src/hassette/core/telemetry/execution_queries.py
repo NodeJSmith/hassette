@@ -91,8 +91,8 @@ class ExecutionQueriesMixin:
     ) -> list[Execution]:
         """Return recent execution records from the unified executions table.
 
-        Exactly one of ``listener_id``, ``job_id``, or ``kind`` should be supplied to
-        narrow the query. Supplying none returns all executions up to ``limit``.
+        Each supplied filter narrows the query (combined with AND); supplying none returns
+        all executions up to ``limit``.
 
         Args:
             listener_id: When provided, restrict to handler executions for this listener.
