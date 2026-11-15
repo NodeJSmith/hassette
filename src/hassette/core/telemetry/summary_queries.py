@@ -9,6 +9,11 @@ from hassette_wire import QueryAuthor, QuerySourceTier
 from hassette.core.telemetry.helpers import (
     DEFAULT_EXECUTION_LOG_LIMIT,
     DEFAULT_LOG_RECORDS_LIMIT,
+    SQL_KIND_HANDLER,
+    SQL_KIND_JOB,
+    SQL_STATUS_ERROR,
+    SQL_STATUS_SKIPPED,
+    SQL_STATUS_TIMED_OUT,
     STORAGE_ERRORS,
     build_app_summaries,
     fetch_all_as_dicts,
@@ -20,6 +25,7 @@ from hassette.core.telemetry.helpers import (
 )
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
+from hassette.types.types import APP_SOURCE_TIER
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
@@ -56,7 +62,7 @@ class SummaryQueriesMixin:
         app_key: str,
         instance_name: str | None,
         since: float | None = None,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> AppHealthAggregates:
         """Return a single-row aggregate of handler and job health metrics for one app instance.
 
@@ -82,24 +88,28 @@ class SummaryQueriesMixin:
 
         query = f"""
             SELECT
-                SUM(CASE WHEN e.kind = 'handler' THEN 1 ELSE 0 END) AS total_invocations,
-                SUM(CASE WHEN e.kind = 'handler' AND e.status = 'error' THEN 1 ELSE 0 END) AS handler_errors,
-                SUM(CASE WHEN e.kind = 'handler' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS handler_timed_out,
-                AVG(CASE WHEN e.kind = 'handler' THEN e.duration_ms END) AS handler_avg_duration_ms,
-                SUM(CASE WHEN e.kind = 'job' THEN 1 ELSE 0 END) AS total_executions,
-                SUM(CASE WHEN e.kind = 'job' AND e.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
-                SUM(CASE WHEN e.kind = 'job' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
+                SUM(CASE WHEN e.kind = {SQL_KIND_HANDLER} THEN 1 ELSE 0 END) AS total_invocations,
+                SUM(CASE WHEN e.kind = {SQL_KIND_HANDLER} AND e.status = {SQL_STATUS_ERROR}
+                    THEN 1 ELSE 0 END) AS handler_errors,
+                SUM(CASE WHEN e.kind = {SQL_KIND_HANDLER} AND e.status = {SQL_STATUS_TIMED_OUT}
+                    THEN 1 ELSE 0 END) AS handler_timed_out,
+                AVG(CASE WHEN e.kind = {SQL_KIND_HANDLER} THEN e.duration_ms END) AS handler_avg_duration_ms,
+                SUM(CASE WHEN e.kind = {SQL_KIND_JOB} THEN 1 ELSE 0 END) AS total_executions,
+                SUM(CASE WHEN e.kind = {SQL_KIND_JOB} AND e.status = {SQL_STATUS_ERROR}
+                    THEN 1 ELSE 0 END) AS job_errors,
+                SUM(CASE WHEN e.kind = {SQL_KIND_JOB} AND e.status = {SQL_STATUS_TIMED_OUT}
+                    THEN 1 ELSE 0 END) AS job_timed_out,
                 -- A skipped job run did no work, so its duration would drag the average down.
-                AVG(CASE WHEN e.kind = 'job' AND e.status != 'skipped'
+                AVG(CASE WHEN e.kind = {SQL_KIND_JOB} AND e.status != {SQL_STATUS_SKIPPED}
                     THEN e.duration_ms END) AS job_avg_duration_ms,
                 MAX(e.execution_start_ts) AS last_activity_ts
             FROM executions e
-            LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'
-            LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
+            LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = {SQL_KIND_HANDLER}
+            LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = {SQL_KIND_JOB}
             WHERE (
-                (e.kind = 'handler' AND l.app_key = :app_key {listener_instance})
+                (e.kind = {SQL_KIND_HANDLER} AND l.app_key = :app_key {listener_instance})
                 OR
-                (e.kind = 'job' AND sj.app_key = :app_key {job_instance})
+                (e.kind = {SQL_KIND_JOB} AND sj.app_key = :app_key {job_instance})
             )
             {tier_e_clause}
             {since_sql}
@@ -124,7 +134,7 @@ class SummaryQueriesMixin:
     async def get_all_app_summaries(
         self,
         since: float | None = None,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> dict[str, AppHealthSummary]:
         """Return per-app health summaries via 4 batch SQL queries read in one snapshot.
 
@@ -311,12 +321,12 @@ def listener_activity_query(source_tier: QuerySourceTier, since: float | None) -
         SELECT
             l.app_key,
             COUNT(e_h.rowid) AS total_invocations,
-            SUM(CASE WHEN e_h.status = 'error' THEN 1 ELSE 0 END) AS handler_errors,
-            SUM(CASE WHEN e_h.status = 'timed_out' THEN 1 ELSE 0 END) AS handler_timed_out,
+            SUM(CASE WHEN e_h.status = {SQL_STATUS_ERROR} THEN 1 ELSE 0 END) AS handler_errors,
+            SUM(CASE WHEN e_h.status = {SQL_STATUS_TIMED_OUT} THEN 1 ELSE 0 END) AS handler_timed_out,
             AVG(e_h.duration_ms) AS handler_avg_duration_ms,
             MAX(e_h.execution_start_ts) AS last_listener_activity_ts
         FROM listeners l
-        JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = 'handler'
+        JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = {SQL_KIND_HANDLER}
             {tier_clause}
             {since_sql}
         GROUP BY l.app_key
@@ -332,13 +342,13 @@ def job_activity_query(source_tier: QuerySourceTier, since: float | None) -> tup
         SELECT
             sj.app_key,
             COUNT(e_j.rowid) AS total_executions,
-            SUM(CASE WHEN e_j.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
-            SUM(CASE WHEN e_j.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
+            SUM(CASE WHEN e_j.status = {SQL_STATUS_ERROR} THEN 1 ELSE 0 END) AS job_errors,
+            SUM(CASE WHEN e_j.status = {SQL_STATUS_TIMED_OUT} THEN 1 ELSE 0 END) AS job_timed_out,
             -- Skipped runs excluded, as in get_app_health_aggregates.
-            AVG(CASE WHEN e_j.status != 'skipped' THEN e_j.duration_ms END) AS job_avg_duration_ms,
+            AVG(CASE WHEN e_j.status != {SQL_STATUS_SKIPPED} THEN e_j.duration_ms END) AS job_avg_duration_ms,
             MAX(e_j.execution_start_ts) AS last_job_activity_ts
         FROM scheduled_jobs sj
-        JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = 'job'
+        JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = {SQL_KIND_JOB}
             {tier_clause}
             {since_sql}
         GROUP BY sj.app_key
