@@ -1,8 +1,7 @@
 """Built-in `ParameterMatcher` implementations.
 
 `TypeMatcher` matches bare type annotations (including subclasses). `AnnotatedMatcher`
-matches `Annotated[T, metadata]` annotations, absorbing the extraction logic that used to
-live in `bus/extraction.py:extract_from_annotated`.
+matches `Annotated[T, metadata]` annotations.
 """
 
 import inspect
@@ -22,9 +21,8 @@ class TypeMatcher:
     """Matches parameters whose (unwrapped) annotation is `match_type` or a subclass of it.
 
     Parameterized generics (e.g. `Event[EventPayload[Any]]`) are unwrapped to their origin before the
-    subclass check, matching the behavior of `hassette.events.type_checks.is_event_type`. Union members
-    are unwrapped the same way, so `AnyEvent | None` matches `Event`. A PEP 695 type alias is unwrapped
-    to its value first, so `type MyEvent = Event` matches too.
+    subclass check. Union members are unwrapped the same way, so `AnyEvent | None` matches `Event`. A PEP 695
+    type alias is unwrapped to its value first, so `type MyEvent = Event` matches too.
     """
 
     match_type: type
