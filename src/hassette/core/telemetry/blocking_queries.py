@@ -12,7 +12,12 @@ from hassette.core.telemetry.blocking_findings import (
     group_findings,
     summarize_unattributed,
 )
-from hassette.core.telemetry.helpers import fetch_all_as_dicts, since_clause
+from hassette.core.telemetry.helpers import (
+    SQL_SOURCE_TIER_APP,
+    SQL_SOURCE_TIER_FRAMEWORK,
+    fetch_all_as_dicts,
+    since_clause,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,7 +38,7 @@ RECENT_UNATTRIBUTED_LIMIT = 20
 # One row per distinct stack, handler, and instance. Grouping runs in SQL so counts and stall stats are exact;
 # Python then classifies each distinct stack once and merges groups that share a call site. The
 # GROUP BY lists every non-aggregated SELECT column; keep the two in step.
-_FINDING_GROUPS_QUERY = """
+_FINDING_GROUPS_QUERY = f"""
     SELECT be.app_key, be.instance_name, be.tier, be.primitive, be.frames,
            e.listener_id, e.job_id,
            l.name AS listener_name, l.handler_method AS listener_method,
@@ -48,8 +53,8 @@ _FINDING_GROUPS_QUERY = """
     LEFT JOIN executions e ON e.execution_id = be.execution_id
     LEFT JOIN listeners l ON l.id = e.listener_id
     LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id
-    WHERE be.source_tier = 'app'
-    {filters}
+    WHERE be.source_tier = {SQL_SOURCE_TIER_APP}
+    {{filters}}
     GROUP BY be.app_key, be.instance_name, be.tier, be.primitive, be.frames,
              e.listener_id, e.job_id, l.name, l.handler_method, sj.job_name, sj.handler_method
     -- latest_event_id breaks last-seen ties so the order, and so each finding's latest stack, is stable.
@@ -57,18 +62,18 @@ _FINDING_GROUPS_QUERY = """
     ORDER BY last_seen_ts DESC, latest_event_id DESC
 """
 
-_UNATTRIBUTED_TOTALS_QUERY = """
+_UNATTRIBUTED_TOTALS_QUERY = f"""
     SELECT COUNT(*) AS total_count,
            COALESCE(SUM(reason = 'displaced'), 0) AS displaced_count,
            MAX(stall_duration_ms) AS max_stall_ms
     FROM blocking_events
-    WHERE source_tier = 'framework' {since}
+    WHERE source_tier = {SQL_SOURCE_TIER_FRAMEWORK} {{since}}
 """
 
-_UNATTRIBUTED_RECENT_QUERY = """
+_UNATTRIBUTED_RECENT_QUERY = f"""
     SELECT id, tier, primitive, stall_duration_ms, detected_ts, reason, frames
     FROM blocking_events
-    WHERE source_tier = 'framework' {since}
+    WHERE source_tier = {SQL_SOURCE_TIER_FRAMEWORK} {{since}}
     ORDER BY detected_ts DESC, id DESC
     LIMIT :limit
 """
