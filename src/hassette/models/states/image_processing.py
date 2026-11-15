@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -8,7 +8,7 @@ from .base import AttributesBase, StringBaseState
 class ImageProcessingAttributes(AttributesBase):
     camera_entity: str | None = Field(default=None)
     confidence: float | None = Field(default=None)
-    faces: list | None = Field(default=None)
+    faces: list[dict[str, Any]] | None = Field(default=None)
     total_faces: int | float | None = Field(default=None)
 
 
