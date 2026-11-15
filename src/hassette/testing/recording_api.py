@@ -750,14 +750,11 @@ class RecordingApi(Resource):
         """
         return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
-    def _build_entity(self, raw: "HassStateDict", model: type[BaseEntity]) -> BaseEntity:
-        """Validate ``raw`` into ``model`` and bind the entity's actions to this recorder.
-
-        Mirrors ``Api.get_entity``: the entity's ``api`` is this ``RecordingApi``, so entity actions
-        (``turn_on`` etc.) are recorded as the app's writes. A sync helper rather than inline code so the
-        generated ``RecordingSyncFacade`` binds its parent ``RecordingApi``, not the facade itself.
-        """
-        entity = model.model_validate({"state": raw})
+    def _build_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity:
+        """Build ``model`` bound to this recorder, like ``Api.get_entity``; sync so the sync facade binds its parent."""
+        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
+            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
+        entity = model.model_validate({"state": self._get_raw_state(entity_id)})
         entity._api = cast("Api", self)  # pyright: ignore[reportPrivateUsage]
         return entity
 
@@ -784,28 +781,17 @@ class RecordingApi(Resource):
             TypeError: If ``model`` is not a ``BaseEntity`` subclass.
             EntityNotFoundError: If ``entity_id`` is not seeded.
         """
-        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
-            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
-
-        raw = self._get_raw_state(entity_id)
-        return self._build_entity(raw, model)
+        return self._build_entity(entity_id, model)
 
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
         """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
 
-        Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
-        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``RecordingSyncFacade`` generator. Matches the real
-        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
+        Matches the real ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
         """
-        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
-            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
-
         try:
-            raw = self._get_raw_state(entity_id)
+            return self._build_entity(entity_id, model)
         except EntityNotFoundError:
             return None
-        return self._build_entity(raw, model)
 
     async def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
