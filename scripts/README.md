@@ -21,7 +21,7 @@ Operational scripts for building, running, and demoing hassette.
   `mise run demo`. See `.claude/rules/demo-and-screenshots.md`.
 - **`release_contributors.py`** — find external contributors between two git
   tags. Filters bots and repo owner, resolves GitHub usernames from noreply
-  emails. Used by the `changelog-review` command during release prep.
+  emails. Run while curating a release's changelog (see `.claude/rules/changelog-quality.md`).
 - **`ci_flake_scan.py`** — scan recent GitHub Actions runs (`Tests`, `E2E Tests`
   by default) for recurring pytest failures, separating real flaky tests from
   GitHub Actions infra noise (network hiccups, artifact-permission errors).

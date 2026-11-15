@@ -126,6 +126,15 @@ Before merging a release-please PR, review the generated changelog and manually 
 4. **Verify breaking change descriptions** — ensure they tell the user what to do, not just what changed internally
 5. **Name the workarounds this release makes obsolete** — see below
 
+### Curating a release here
+
+What's specific to hassette when rewriting a release section:
+
+- **Reference release:** v0.24.0 in `CHANGELOG.md` is the style to match.
+- **Topic sections:** `### Scheduler`, `### Bus`, `### Web UI`, `### State Models`, `### Test Utilities`, `### API`, `### Error Handling`, plus `### Bug Fixes` last and `### Documentation` only for user-facing docs.
+- **The obsolete-workarounds section** is called `### For App Authors: You Can Now Delete` (below), directly after `### Breaking Changes`, even in a release too small to group.
+- **External contributors:** run `uv run python scripts/release_contributors.py <prev-tag> <base-commit>` over the release's commit range, and credit each one on their bullet as "thanks @username!" (or "thanks Name!" without a GitHub username). v0.24.0's `@mlsteele` attribution shows the format.
+
 ### For App Authors: You Can Now Delete
 
 A framework fix doesn't reach existing apps on its own. Authors who already wrote a workaround keep it, and keep paying for a problem that no longer exists, unless the release notes tell them it can go. The changelog is where they look before upgrading (`docs/pages/operating/upgrading.md`, "Reading the Changelog"), so that's where the notice goes.
