@@ -228,8 +228,7 @@ def handler_job_union_arms(
     ``since_clause`` and ``source_tier_clause`` are called once per alias so each arm's
     fragment references the correct column, but both arms bind the same parameter names
     (``:since``, ``:source_tier``) - the second call's params dict is a duplicate and is
-    intentionally discarded, matching the convention documented on the UNION methods in
-    ``execution_queries.py``.
+    intentionally discarded.
 
     Args:
         handler_select: Full ``SELECT ...`` column list for the handler arm.

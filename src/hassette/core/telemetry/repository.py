@@ -572,8 +572,9 @@ class TelemetryRepository:
         the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
         queue, avoiding N round-trips.
 
-        Atomicity is best-effort per record: if an individual record fails even after FK
-        nulling, it is silently dropped and remaining records are still committed.
+        Atomicity is best-effort per record: a record that hits a non-FK IntegrityError, or
+        still fails after its FK is nulled, is dropped (logged at ERROR) and the remaining
+        records are still committed.
 
         Returns the records that were dropped (failed even with null FK); every other record
         was committed.
