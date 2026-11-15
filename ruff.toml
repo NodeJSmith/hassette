@@ -80,6 +80,7 @@ select = [
     "TID252", # relative imports
     "D",      # pydocstyle (google convention)
     "PLC0415", # import-outside-top-level
+    "PGH003", # blanket "# type: ignore" (bracketed ones are house-lint's HSL105)
 ]
 
 ignore = [

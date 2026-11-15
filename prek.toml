@@ -258,13 +258,6 @@ stages = ["pre-push"]
 repo = "local"
 
 [[repos.hooks]]
-id = "no-mypy-ignore"
-name = 'Ban "type: ignore" comments (use pyright)'
-language = "pygrep"
-types = ["python"]
-entry = "# type: ignore"
-
-[[repos.hooks]]
 id = "no-future-annotations"
 name = "Ban from __future__ import annotations (breaks Pydantic)"
 language = "pygrep"
