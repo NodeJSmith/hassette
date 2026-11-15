@@ -22,6 +22,7 @@ from aiohttp.client_reqrep import ConnectionKey
 
 import hassette.core.websocket_reconnect as reconnect_module
 import hassette.core.websocket_service as websocket_service_module
+from hassette.core.telemetry.lifecycle_rows import ConnectionDetails
 from hassette.core.websocket_reconnect import (
     AUTH_REJECTED_REASON,
     CONNECTED_REASON,
@@ -91,9 +92,9 @@ def record_transitions(websocket_service: WebsocketService) -> list[tuple[Connec
     transitions: list[tuple[ConnectionState, ConnectionState]] = []
     original = websocket_service.set_connection_state
 
-    def recording(new: ConnectionState) -> None:
+    def recording(new: ConnectionState, *, detail: ConnectionDetails | None = None) -> None:
         old = websocket_service.connection_state
-        original(new)
+        original(new, detail=detail)
         if old != new:
             transitions.append((old, new))
 

@@ -242,8 +242,15 @@ Core columns, shared by A, C and D: `id`, `session_id NOT NULL REFERENCES sessio
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- Three typed entry points (`record_app_change`, `record_connection_change`, `record_block_change`) in `core/telemetry/lifecycle_rows.py` share one guarded function, `record_lifecycle_entry`, instead of one untyped function taking every row field: each owner passes only what it has, and the details-model build stays inside the never-raise guard.
+- `record_lifecycle_entry`'s guard covers building the entry, the `hassette.session_manager` lookup and the writer call; a failure there is counted under `LIFECYCLE_ROWS_DROPPED` and logged at DEBUG, not paced WARNING, because with no session manager there is no writer holding pacing state. It happens only when services aren't wired (tests and harnesses).
+- The pacing code is not shared with `ApiWriteRecorder.warn_drop`: `SessionManager.count_lifecycle_drop` keeps its own timestamp and reads the same rate-limit setting, which is a few lines and keeps the two recorders independent.
+- `park()` takes the PARK plan's cause as an argument so the AUTH_FAILED row carries it; it had no other way to reach the call site.
+- `make_mock_hassette()` sets `session_manager = None`, so code under a sealed mock counts a lifecycle drop instead of raising on attribute access.
+- The removed-app manifest prune waits on lifecycle rows too, like every other table keyed by `app_key`, so a removed app's history keeps its manifest until the history ages out.
+- `lifecycle_events.kind` is listed in the wire-parity test's server-only columns until #4084 serves the rows.

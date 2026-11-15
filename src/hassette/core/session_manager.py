@@ -2,10 +2,14 @@
 
 import time
 import typing
+from collections.abc import Callable
 from typing import ClassVar
 
 from hassette_wire import LogLevel
 
+from hassette.core.pipeline_counters import PipelineCounter
+from hassette.core.telemetry.lifecycle_rows import LifecycleChange, LifecycleRow
+from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 
@@ -39,6 +43,8 @@ class SessionManager(Resource):
         super().__init__(hassette, parent=parent)
         self._database_service = database_service
         self._session_id: int | None = None
+        self._repository = TelemetryRepository(database_service)
+        self._last_lifecycle_drop_warn_ts: float | None = None
 
     async def on_initialize(self) -> None:
         """Signal readiness."""
@@ -59,6 +65,61 @@ class SessionManager(Resource):
         if self._session_id is None:
             raise RuntimeError("Session ID is not initialized")
         return self._session_id
+
+    def write_lifecycle_row(self, build: Callable[[], LifecycleChange]) -> None:
+        """Build a change and queue its ``lifecycle_events`` row, stamped with this session and the current time.
+
+        Never raises. Sync and enqueue-only, so sync callers (block reconciliation, the WebSocket receive task's
+        done-callback) can call it at the moment of change. A row that never reaches the queue (no session, a
+        failed build, a full queue or one yielding to a waiting ``submit()``, the queue not live) is counted under
+        ``LIFECYCLE_ROWS_DROPPED`` with a paced WARNING. A queued row whose insert fails is logged by the insert,
+        not counted.
+        """
+        try:
+            entry = build()
+            if self._session_id is None:
+                self.count_lifecycle_drop("no session")
+                return
+            row = LifecycleRow(
+                session_id=self._session_id,
+                kind=entry.kind,
+                app_key=entry.app_key,
+                instance_name=entry.instance_name,
+                from_status=entry.from_status,
+                to_status=entry.to_status,
+                details=entry.details.model_dump_json(exclude_none=True),
+                ts=time.time(),
+            )
+            try:
+                queued = self._database_service.enqueue(self._repository.insert_lifecycle_event(row))
+            except RuntimeError:
+                # enqueue() closes the coroutine and raises RuntimeError only when the queue isn't live.
+                self.count_lifecycle_drop("write queue not running")
+                return
+            if not queued:
+                self.count_lifecycle_drop("write queue full or yielding to a waiting submit")
+        except Exception:
+            self.count_lifecycle_drop("unexpected error", exc_info=True)
+
+    def count_lifecycle_drop(self, reason: str, *, exc_info: bool = False) -> None:
+        """Count one dropped lifecycle row and log a WARNING, paced like ``ApiWriteRecorder.warn_drop``.
+
+        Shares its interval setting, ``lifecycle.command_executor_capacity_warn_rate_limit_seconds``, with that
+        recorder and the execution write queue, but keeps its own timestamp, so an API-write drop never
+        suppresses a lifecycle WARNING.
+        """
+        self.hassette.pipeline_counters.increment(PipelineCounter.LIFECYCLE_ROWS_DROPPED)
+        now = time.monotonic()
+        interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
+        if self._last_lifecycle_drop_warn_ts is not None and now - self._last_lifecycle_drop_warn_ts < interval:
+            return
+        self._last_lifecycle_drop_warn_ts = now
+        self.logger.warning(
+            "Could not queue lifecycle row (%s); dropping it (counted under %s)",
+            reason,
+            PipelineCounter.LIFECYCLE_ROWS_DROPPED.name,
+            exc_info=exc_info,
+        )
 
     async def mark_orphaned_sessions(self) -> None:
         """Mark sessions left with stopped_at NULL as orphaned, and earlier runs' pending API writes as unresolved."""

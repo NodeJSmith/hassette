@@ -10,6 +10,7 @@ streak through ``_do_run_retention_cleanup``) live in ``test_log_records_retenti
 import dataclasses
 import logging
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import aiosqlite
@@ -50,14 +51,21 @@ def test_retention_tables_is_list_of_retention_targets() -> None:
 
 def test_retention_tables_contains_expected_tables() -> None:
     table_names = {t.table for t in _RETENTION_TABLES}
-    assert table_names == {"log_records", "executions", "blocking_events", "api_writes", "listener_misses"}
+    assert table_names == {
+        "log_records",
+        "executions",
+        "blocking_events",
+        "api_writes",
+        "listener_misses",
+        "lifecycle_events",
+    }
 
 
-def test_retention_tables_has_seven_entries() -> None:
+def test_retention_tables_has_eight_entries() -> None:
     """Executions and log_records each appear twice (per source tier, and DEBUG plus all levels),
-    plus listener_misses, blocking_events and api_writes.
+    plus listener_misses, blocking_events, api_writes and lifecycle_events.
     """
-    assert len(_RETENTION_TABLES) == 7
+    assert len(_RETENTION_TABLES) == 8
 
 
 def test_retention_tables_priority_ordering() -> None:
@@ -70,7 +78,16 @@ def test_retention_tables_priority_ordering() -> None:
         < by_label["api writes"].priority
         < by_label["app executions"].priority
         < by_label["log records"].priority
+        < by_label["lifecycle events"].priority
     )
+
+
+def test_lifecycle_events_age_out_on_retention_days_and_are_failsafe_exempt() -> None:
+    """Parent spec 142 D12: the lifecycle table explains an overage, so only age removes its rows."""
+    target = next(t for t in _RETENTION_TABLES if t.table == "lifecycle_events")
+    assert (target.timestamp_col, target.failsafe_exempt) == ("ts", True)
+    config = SimpleNamespace(database=SimpleNamespace(retention_days=11))
+    assert target.retention_days_getter(config) == 11  # pyright: ignore[reportArgumentType]
 
 
 def test_failsafe_tables_excludes_exempt_targets() -> None:
@@ -108,10 +125,9 @@ def test_debug_log_target_ages_out_with_log_records(mock_hassette: MagicMock) ->
 
 
 def test_retention_tables_still_manages_exempt_targets() -> None:
-    """Exemption is failsafe-only — age-based retention still covers log_records."""
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["log records"].failsafe_exempt is True
-    assert all(not t.failsafe_exempt for label, t in by_label.items() if label != "log records")
+    """Exemption is failsafe-only — age-based retention still covers log_records and lifecycle_events."""
+    exempt = {t.failsafe_label for t in _RETENTION_TABLES if t.failsafe_exempt}
+    assert exempt == {"log records", "lifecycle events"}
 
 
 def test_retention_target_timestamp_columns() -> None:

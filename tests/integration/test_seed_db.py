@@ -52,6 +52,7 @@ _TABLES = (
     "log_records",
     "blocking_events",
     "listener_misses",
+    "lifecycle_events",
 )
 
 _NON_TIMESTAMP_REAL_COLUMNS = frozenset(

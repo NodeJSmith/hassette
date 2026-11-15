@@ -9,6 +9,7 @@ import anyio
 
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_common import MANIFEST_UPSERT_TIMEOUT_SECONDS
+from hassette.core.telemetry.lifecycle_rows import record_block_change
 from hassette.types.enums import BlockReason
 
 if typing.TYPE_CHECKING:
@@ -139,18 +140,30 @@ class AppConfigStateMixin:
         )
 
     def reconcile_blocked_apps(self) -> set[str]:
-        """Synchronize blocked state with the current exclusive-app filter.
+        """Synchronize blocked state with the current exclusive-app filter, recording each change.
+
+        Writes a ``lifecycle_events`` row per change: ``blocked`` for a newly blocked app, ``unblocked`` for an app
+        that left the blocked set and is still enabled, and ``removed`` for one that left it because it left the
+        enabled config. The prior set is empty at bootstrap, so each blocked app gets a ``blocked`` row per session.
 
         Returns:
-            App keys that were unblocked (previously blocked but no longer).
+            App keys that were unblocked (previously blocked but no longer), removed ones included.
         """
         previously_blocked = self.registry.unblock_apps(BlockReason.ONLY_APP)
+        enabled = self.registry.enabled_manifests
 
         currently_blocked: set[str] = set()
         if self.registry.only_apps:
-            for app_key in self.registry.enabled_manifests:
+            for app_key in enabled:
                 if app_key not in self.registry.only_apps:
                     self.registry.block_app(app_key, BlockReason.ONLY_APP)
                     currently_blocked.add(app_key)
 
-        return previously_blocked - currently_blocked
+        no_longer_blocked = previously_blocked - currently_blocked
+        for app_key in sorted(currently_blocked - previously_blocked):
+            record_block_change(self.hassette, app_key, "blocked", BlockReason.ONLY_APP)
+        for app_key in sorted(no_longer_blocked):
+            record_block_change(
+                self.hassette, app_key, "unblocked" if app_key in enabled else "removed", BlockReason.ONLY_APP
+            )
+        return no_longer_blocked

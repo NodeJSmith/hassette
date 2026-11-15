@@ -23,6 +23,7 @@ from hassette.core.app_lifecycle_common import (
     ActionOutcomes,
     failure_reason,
 )
+from hassette.core.telemetry.lifecycle_rows import record_app_change
 from hassette.events.hassette import HassetteAppStateEvent
 from hassette.resources.lifecycle import create_lifecycle_task, mark_ready, skip_own_shutdown_hooks
 from hassette.resources.shutdown_deadline import deadline_in, tighten_shutdown_deadline
@@ -178,12 +179,15 @@ class AppInstanceLifecycleMixin:
         refuse it (an untracked or flagged name; see its docstring). No event is sent unless it changed
         something; a caller that needs to know whether a write landed checks the registry.
 
-        A send failure is only logged: the event is telemetry, and the registry already holds the status, so
-        failing to send must not turn a started app into a failed one or record a stop's failure twice.
+        Each change is also recorded as a ``lifecycle_events`` row. A send failure is only
+        logged: the event is telemetry, and the registry already holds the status, so failing to send must not
+        turn a started app into a failed one or record a stop's failure twice.
         """
         change = self.registry.set_status(app_key, instance_name, to, app=app, error=error, needs_restart=needs_restart)
         if change is None:
             return
+        # Before the send, so a failed send can't cost the lifecycle row; the writer never raises.
+        record_app_change(self.hassette, change)
         try:
             await self.hassette.send_event(HassetteAppStateEvent.from_change(change))
         except Exception:

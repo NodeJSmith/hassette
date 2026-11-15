@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from hassette.core.api_write_recorder import ApiWriteRow
     from hassette.core.database_service import DatabaseService
     from hassette.core.listener_miss_recorder import ListenerMissRow
+    from hassette.core.telemetry.lifecycle_rows import LifecycleRow
 
 LOGGER = getLogger(__name__)
 
@@ -593,6 +594,42 @@ class TelemetryRepository:
                     dropped.append(record)
 
         return dropped
+
+    async def insert_lifecycle_event(self, row: "LifecycleRow") -> None:
+        """Insert a ``lifecycle_events`` row; a failed write is logged with the row's identity and dropped.
+
+        Called by the write-queue worker for rows ``SessionManager.write_lifecycle_row`` queued.
+        """
+        db = self._db_service.db
+        try:
+            await db.execute(
+                """
+                INSERT INTO lifecycle_events (
+                    session_id, kind, app_key, instance_name, from_status, to_status, details, ts
+                ) VALUES (
+                    :session_id, :kind, :app_key, :instance_name, :from_status, :to_status, :details, :ts
+                )
+                """,
+                {
+                    "session_id": row.session_id,
+                    "kind": row.kind,
+                    "app_key": row.app_key,
+                    "instance_name": row.instance_name,
+                    "from_status": row.from_status,
+                    "to_status": row.to_status,
+                    "details": row.details,
+                    "ts": row.ts,
+                },
+            )
+            await db.commit()
+        except STORAGE_ERRORS:
+            LOGGER.exception(
+                "Dropped lifecycle_events row (DB write failed) — kind=%s app=%s %s -> %s",
+                row.kind,
+                row.app_key,
+                row.from_status,
+                row.to_status,
+            )
 
 
 def listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:

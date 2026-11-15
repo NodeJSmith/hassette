@@ -13,6 +13,7 @@ import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
 import hassette.core.websocket_service as service_module
+from hassette.core.telemetry.lifecycle_rows import ConnectionDetails
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, WebsocketClosedError
 from hassette.testing import wait_for
@@ -377,9 +378,9 @@ def record_states(websocket_service: WebsocketService) -> list[ConnectionState]:
     states: list[ConnectionState] = []
     original_set = websocket_service.set_connection_state
 
-    def capture_set(new: ConnectionState) -> None:
+    def capture_set(new: ConnectionState, *, detail: ConnectionDetails | None = None) -> None:
         before = websocket_service.connection_state
-        original_set(new)
+        original_set(new, detail=detail)
         if websocket_service.connection_state != before:
             states.append(websocket_service.connection_state)
 
