@@ -6,7 +6,6 @@ app's ``Api``, so ``entity.turn_on()`` lands in ``api_recorder`` instead of the 
 
 from hassette.app.app import App, AppSync
 from hassette.app.app_config import AppConfig
-from hassette.events import RawStateChangeEvent
 from hassette.models.entities.light import LightEntity
 from hassette.testing import AppTestHarness
 
@@ -31,7 +30,7 @@ class SyncEntityApp(AppSync[EntityActionConfig]):
     def on_initialize_sync(self) -> None:
         self.bus.sync.on_state_change("sensor.trigger", handler=self.on_trigger, name="sync_entity_trigger")
 
-    def on_trigger(self, event: RawStateChangeEvent) -> None:
+    def on_trigger(self) -> None:
         light = self.api.sync.get_entity("light.kitchen", LightEntity)
         light.sync.turn_on()
         maybe = self.api.sync.get_entity_or_none("light.porch", LightEntity)
