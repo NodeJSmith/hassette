@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-11-15
+Last reviewed: 2026-11-16
 
 ## How the pieces fit
 
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HACS app entities** | pool: parent #3993, #1449, #2439 (`epic:hacs`) | Apps declare HA buttons, switches and sensors in code instead of trigger-only `input_button`/`input_boolean` helpers (#3993). Needs a sketch first: the July design predates the v0.1 transport, and #1449 also claims `self.entities`. WS wire-compat check (#2439) lands before the push channel. Unblocks webhooks and `@template` |
+| **HACS app entities** | *HACS App Entities* (ledger: `design/specs/155-hacs-app-entities/`; parent #3993) | Apps declare HA buttons, switches and sensors per instance through hass-hassette instead of trigger-only helpers. Order: #2439 → #4218 → #4219 → #4220 → hass-hassette#72 → hass-hassette#73 → #4221 (hass-hassette issues sit in that repo's milestone of the same name). Unblocks webhooks and `@template` |
 
 ## Next
 
