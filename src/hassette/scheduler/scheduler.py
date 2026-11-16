@@ -734,8 +734,8 @@ class Scheduler(Resource):
         The listener lives on the framework bus; ``_entity_time_subs`` ties its lifetime to the job.
         """
         registered = await self.add_job(job, if_exists=if_exists)
-        if registered is not job:
-            # if_exists="skip" returned the pre-existing job; its listener is already running.
+        if registered is not job or self._jobs_by_name.get(job.name) is not job:
+            # "skip": the existing job's listener runs. Replaced mid-add_job: our watch would evict the new one's.
             return registered
 
         async def on_entity_change(event: RawStateChangeEvent) -> None:
