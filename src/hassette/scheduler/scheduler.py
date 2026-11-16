@@ -321,7 +321,10 @@ class Scheduler(Resource):
         try:
             await self.scheduler_service.add_job(job)
         except Exception:
-            await self._rollback_failed_registration(job)
+            try:
+                await self._rollback_failed_registration(job)
+            except Exception:
+                self.logger.exception("Rollback of failed registration for %s also failed", job)
             raise
 
         return job
@@ -329,14 +332,11 @@ class Scheduler(Resource):
     async def _rollback_failed_registration(self, job: "Job") -> None:
         """Undo a partial registration after ``scheduler_service.add_job()`` raised.
 
-        Delegates to the unified removal operation (``scheduler_service.remove_job()``).
-        In practice this is a lightweight case of it: no execution has been spawned yet at
-        registration time, so there is no guard state worth releasing and no queued
-        invocation to drain. Still removes registry membership (``_jobs_by_id``, if the job
-        reached it), any heap entry, and this scheduler's name/group indexes (via the
-        removal callback the operation fires), and persists ``removed_at`` when persistence
-        produced a row ID before a later step failed, so a failed registration can never
-        appear live.
+        Delegates to the unified removal operation (``scheduler_service.remove_job()``); no
+        execution has been spawned yet, so there is no guard state or queued invocation. It
+        removes registry membership, any heap entry, and this scheduler's name/group indexes,
+        and persists ``removed_at`` when a row ID was assigned, so the job never appears live.
+        A failure here is logged by the caller and never replaces the registration error.
         """
         await self.scheduler_service.remove_job(job)
 
