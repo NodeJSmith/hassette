@@ -7,7 +7,6 @@ import asyncio
 import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
-from hassette.resources.base import FinalMeta
 from hassette.resources.service import Service
 from hassette.testing import wait_for
 from tests.support.helpers import block_until_cancelled
@@ -129,10 +128,6 @@ async def test_serve_task_cancelled_before_on_shutdown():
 
 def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
     """FinalMeta blocks Service subclasses from overriding initialize/shutdown."""
-    # Clear the loaded classes cache so FinalMeta re-checks
-    key = f"{__name__}._BadSubclass"
-    FinalMeta.LOADED_CLASSES.discard(key)
-
     with pytest.raises(CannotOverrideFinalError):
 
         class _BadSubclass(Service):  # pyright: ignore[reportUnusedClass]
@@ -147,9 +142,6 @@ def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
 
 def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
     """FinalMeta blocks Service subclasses from overriding shutdown."""
-    key = f"{__name__}._BadSubclass2"
-    FinalMeta.LOADED_CLASSES.discard(key)
-
     with pytest.raises(CannotOverrideFinalError):
 
         class _BadSubclass2(Service):  # pyright: ignore[reportUnusedClass]
