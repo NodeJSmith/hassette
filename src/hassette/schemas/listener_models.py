@@ -1,13 +1,4 @@
-"""Pydantic models for listener (handler) telemetry DB query results.
-
-These typed models replace raw ``dict`` returns, preventing the
-"column rename -> silent template failure" class of bugs.
-
-For app-registry snapshots, see ``hassette.schemas.app_snapshots``. For the live
-system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
-
-See ``schemas/__init__.py`` for the domain-file map.
-"""
+"""Pydantic models for listener (handler) telemetry DB query results."""
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
 from pydantic import BaseModel
@@ -20,6 +11,8 @@ class ListenerSummaryRow(BaseModel):
 
     ``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.
     Invariant: ``successful + failed + cancelled + timed_out == total_invocations``.
+    ``di_failures`` counts invocations whose dependency injection failed, regardless of status, and is not
+    part of the invariant.
     """
 
     listener_id: int

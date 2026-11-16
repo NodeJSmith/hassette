@@ -47,8 +47,11 @@ class AppInstanceInfo:
     class_name: str
     status: ResourceStatus
     error: Exception | None = None
+    """The live exception that failed this instance. In-process only; never serialized."""
     error_message: str | None = None
+    """Serializable text form of ``error``'s message, which the web API and CLI read."""
     error_traceback: str | None = None
+    """Serializable text form of ``error``'s traceback, which the web API and CLI read."""
     owner_id: str | None = None
     in_current_config: bool = True
     """False for an instance still tracked under a name outside the app's config, such as one left
@@ -83,10 +86,12 @@ class AppStatusSnapshot:
         """Number of tracked app instances."""
         return len(self.instances)
 
-    # "running" here means any status but FAILED (``is_failed_info``): STARTING, STOPPING etc. count.
     @property
     def running_count(self) -> int:
-        """Number of running app instances."""
+        """Number of running app instances.
+
+        Counts any status but FAILED (``is_failed_info``), so STARTING, STOPPING etc. count.
+        """
         return sum(1 for i in self.instances if not is_failed_info(i))
 
     @property
@@ -159,7 +164,7 @@ def is_failed_info(info: AppInstanceInfo) -> bool:
 def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:
     """Count manifests by status.
 
-    Statuses counted: ``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``, ``degraded``.
+    Returns one count per ``AppStatus`` member.
 
     Unrecognized status values are silently skipped rather than raising a ``KeyError`` — this
     tallies manifests from both the in-memory registry (status always one of the known values)
