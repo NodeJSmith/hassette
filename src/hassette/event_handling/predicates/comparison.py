@@ -8,7 +8,7 @@ from hassette.const import NOT_PROVIDED
 from hassette.event_handling.conditions import coerce_to_literal_type
 from hassette.event_handling.predicate_collections import ensure_tuple, is_predicate_collection
 from hassette.exceptions import UnableToConvertValueError
-from hassette.types.types import WhereClause
+from hassette.types import WhereClause
 from hassette.utils.func_utils import is_async_callable
 
 from .combinators import AllOf
@@ -61,7 +61,6 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     if isawaitable(result):
         raise TypeError("Predicate returned an awaitable; make it return bool.")
 
-    # Fallback: callable but not declared as PredicateCallable; still require bool.
     if not isinstance(result, bool):
         raise TypeError(f"Predicate must return bool, got {type(result)}")
     return result
