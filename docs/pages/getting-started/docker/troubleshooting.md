@@ -128,7 +128,7 @@ Automatic reloads re-import only the app's own file. An edit to a sibling module
 
 **Symptom:** After upgrading to a newer Hassette version, the web UI shows a login screen — or a script that used to work now gets HTTP 401 — where no credential was needed before.
 
-**Cause:** This is intentional, not a regression. Hassette now requires a credential for `/api/*` routes by default. The health probes and the login endpoint stay open. On the first restart after upgrading, with no `HASSETTE__WEB_API__AUTH_TOKEN` configured and no existing token file, Hassette generates a token and logs it once — closing a real security gap where any peer on the network could reach mutation endpoints (start/stop/reload apps, trigger jobs) with no credential at all.
+**Cause:** This is intentional, not a regression. Hassette now requires a credential for `/api/*` routes by default. The health probes and the login endpoint stay open. On the first restart after upgrading, with no `HASSETTE__WEB_API__AUTH_TOKEN` configured and no existing token file, Hassette generates a token, writes it to the token file, and logs one line naming that file — closing a real security gap where any peer on the network could reach mutation endpoints (start/stop/reload apps, trigger jobs) with no credential at all.
 
 **Fix:** Read the token directly from the token file inside the container:
 
