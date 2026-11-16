@@ -755,10 +755,19 @@ class Scheduler(Resource):
                 watch = self.hassette.bus.on_state_change(
                     trigger.entity_id, handler=on_entity_change, name=watch_name, if_exists="replace"
                 )
-            self._entity_time_subs[job.name] = await watch
+            sub = await watch
         except Exception:
             self.remove_job(job)
             raise
+
+        # The registration above yields, so the job can be removed while it is pending. Removal
+        # cancels the subscriptions it finds in _entity_time_subs, and this one wasn't there yet.
+        # Check membership rather than job._dequeued: remove_all_jobs() drops the job from
+        # _jobs_by_name at once but sets _dequeued later, from its spawned removal task.
+        if self._jobs_by_name.get(job.name) is not job:
+            sub.cancel()
+            return registered
+        self._entity_time_subs[job.name] = sub
 
         # schedule() read the entity before add_job awaited a database write, and the listener
         # only exists now — a change landing in that window reached neither. Re-read once so it
