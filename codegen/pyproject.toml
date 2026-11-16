@@ -26,7 +26,10 @@ pythonpath = ["src"]
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "D103"]
+select = ["E", "F", "I", "UP", "D103", "TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "breaks runtime annotation inspection (Pydantic, FastAPI, dataclasses, get_type_hints)"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D103"]
