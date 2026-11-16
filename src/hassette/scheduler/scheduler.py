@@ -731,9 +731,7 @@ class Scheduler(Resource):
     async def _add_job_and_watch_entity(self, job: "Job", trigger: EntityTime, *, if_exists: IfExistsPolicy) -> "Job":
         """Register an entity-driven job and the state-change listener that keeps it current.
 
-        The listener lives on the framework bus rather than the owning app's bus: it is
-        scheduler plumbing, not an app handler, and its lifetime is tied to the job through
-        ``_entity_time_subs`` instead of to the app's own subscriptions.
+        The listener lives on the framework bus; ``_entity_time_subs`` ties its lifetime to the job.
         """
         registered = await self.add_job(job, if_exists=if_exists)
         if registered is not job:
@@ -745,8 +743,7 @@ class Scheduler(Resource):
 
         watch_name = f"scheduler.entity_time.{self.owner_id}.{job.name}"
         try:
-            # With attribute=, the time lives in that attribute, which can change while the main
-            # state doesn't, so watch the attribute rather than the state.
+            # With attribute=, watch the attribute: it can change while the main state doesn't.
             if trigger.attribute is not None:
                 watch = self.hassette.bus.on_attribute_change(
                     trigger.entity_id, trigger.attribute, handler=on_entity_change, name=watch_name, if_exists="replace"
@@ -759,20 +756,14 @@ class Scheduler(Resource):
         except Exception:
             self.remove_job(job)
             raise
-
-        # The registration above yields, so the job can be removed while it is pending. Removal
-        # cancels the subscriptions it finds in _entity_time_subs, and this one wasn't there yet.
-        # Check membership rather than job._dequeued: remove_all_jobs() drops the job from
-        # _jobs_by_name at once but sets _dequeued later, from its spawned removal task.
+        # Removed while the watch registered (not _dequeued: remove_all_jobs() sets it only later).
         if self._jobs_by_name.get(job.name) is not job:
             sub.cancel()
             return registered
         self._entity_time_subs[job.name] = sub
 
-        # schedule() read the entity before add_job awaited a database write, and the listener
-        # only exists now — a change landing in that window reached neither. Re-read once so it
-        # is picked up here instead of waiting for whenever the entity next changes, which for
-        # something like an alarm sensor could be a day away.
+        # The listener only exists now, after add_job's database write: re-read so a change in that
+        # window isn't missed until the entity next changes, which for an alarm could be a day away.
         await self._move_entity_time_job(job, trigger.resolve(date_utils.now()))
         return registered
 
