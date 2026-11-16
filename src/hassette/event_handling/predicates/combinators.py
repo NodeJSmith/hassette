@@ -13,6 +13,8 @@ if typing.TYPE_CHECKING:
     from hassette.events import AnyEvent
     from hassette.types import Predicate
 
+CUSTOM_CONDITION_SUMMARY = "custom condition"
+
 CombinatorT = TypeVar("CombinatorT", bound="_PredicateCombinator")
 
 
@@ -97,7 +99,7 @@ class Guard(_PredicateOps, typing.Generic[EventT]):
 
     def summarize(self) -> str:
         """Return ``"custom condition"``; an arbitrary callable has no inspectable meaning."""
-        return "custom condition"
+        return CUSTOM_CONDITION_SUMMARY
 
 
 def _summarize(obj: Any, non_callable_fallback: Callable[[Any], str]) -> str:
@@ -174,6 +176,13 @@ class _PredicateCombinator(_PredicateOps):
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> Self:
         return cls(ensure_tuple(where))
 
+    def summarize_joined(self, separator: str) -> str:
+        """Join the contained predicates' summaries with ``separator``, parenthesized when there are two or more."""
+        joined = separator.join(_summarize_predicate(p) for p in self.predicates)
+        if len(self.predicates) >= 2:
+            return f"({joined})"
+        return joined
+
 
 @dataclass(frozen=True)
 class AllOf(_PredicateCombinator):
@@ -190,10 +199,7 @@ class AllOf(_PredicateCombinator):
             Each contained predicate's summary joined with ``" and "``, wrapped in parentheses when there are
             two or more, e.g. ``"(domain light and state changed)"``.
         """
-        joined = " and ".join(_summarize_predicate(p) for p in self.predicates)
-        if len(self.predicates) >= 2:
-            return f"({joined})"
-        return joined
+        return self.summarize_joined(" and ")
 
 
 def flatten_all_of(predicate: "Predicate | None") -> tuple["Predicate", ...]:
@@ -224,10 +230,7 @@ class AnyOf(_PredicateCombinator):
             Each contained predicate's summary joined with ``" or "``, wrapped in parentheses when there are
             two or more, e.g. ``"(entity light.kitchen or entity light.hall)"``.
         """
-        joined = " or ".join(_summarize_predicate(p) for p in self.predicates)
-        if len(self.predicates) >= 2:
-            return f"({joined})"
-        return joined
+        return self.summarize_joined(" or ")
 
 
 @dataclass(frozen=True)

@@ -21,7 +21,7 @@ from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils import date_utils
 from hassette.utils.func_utils import callable_stable_name as callable_name
 
-from .combinators import _PredicateOps, summarize_condition
+from .combinators import CUSTOM_CONDITION_SUMMARY, _PredicateOps, summarize_condition
 from .comparison import compare_value
 
 if typing.TYPE_CHECKING:
@@ -65,7 +65,7 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
         if callable(self.condition):
             if hasattr(self.condition, "summarize"):
                 return f"value {summarize_condition(self.condition)} from {source_name}"
-            return f"custom condition from {source_name}"
+            return f"{CUSTOM_CONDITION_SUMMARY} from {source_name}"
         return f"value is {self.condition} from {source_name}"
 
 
@@ -161,9 +161,7 @@ class StateComparison(_PredicateOps):
     condition: ComparisonCondition
 
     def __post_init__(self) -> None:
-        if isinstance(self.condition, type):
-            name = self.condition.__name__
-            raise TypeError(f"StateComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
+        reject_class_condition(type(self).__name__, self.condition)
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return the result of calling ``condition`` with the event's old and new state values."""
@@ -214,9 +212,7 @@ class AttrComparison(_PredicateOps):
     condition: ComparisonCondition
 
     def __post_init__(self) -> None:
-        if isinstance(self.condition, type):
-            name = self.condition.__name__
-            raise TypeError(f"AttrComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
+        reject_class_condition(type(self).__name__, self.condition)
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return the result of calling ``condition`` with attribute ``attr_name``'s old and new values."""
@@ -331,3 +327,10 @@ class EventEntityFresh(_PredicateOps):
     def summarize(self) -> str:
         """Return ``"event within <max_age>s"`` (e.g. ``"event within 10s"``)."""
         return f"event within {self.max_age:g}s"
+
+
+def reject_class_condition(owner: str, condition: object) -> None:
+    """Raise TypeError when ``condition`` is a class rather than an instance of one."""
+    if isinstance(condition, type):
+        name = condition.__name__
+        raise TypeError(f"{owner} was passed the class {name}; pass an instance instead, e.g. {name}().")
