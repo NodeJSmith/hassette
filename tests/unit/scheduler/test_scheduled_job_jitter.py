@@ -61,6 +61,7 @@ def test_transition_to_explicit_fire_at_overrides_jitter() -> None:
     job.transition_to(ScheduleStatus.SCHEDULED, next_run=NEXT_RUN, fire_at=explicit)
 
     assert job.fire_at == explicit
+    assert job.sort_index[0] == explicit.timestamp(unit="nanosecond")
 
 
 @pytest.mark.parametrize("jitter", [None, 0.0])
