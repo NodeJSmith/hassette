@@ -3,12 +3,10 @@
 import typing
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
 
 from hassette.const import ANY_VALUE
 from hassette.event_handling.accessors import get_domain, get_entity_id, get_path, get_service_data_key
 from hassette.event_handling.conditions import Glob, Present
-from hassette.utils.func_utils import callable_stable_name as callable_name
 from hassette.utils.glob_utils import is_glob
 
 from .combinators import _PredicateOps, summarize_condition
@@ -38,9 +36,6 @@ class DomainMatches(_PredicateOps):
         """Return ``"domain <domain>"`` (e.g. ``"domain light"``); glob patterns are allowed."""
         return f"domain {self.domain}"
 
-    def __repr__(self) -> str:
-        return f"DomainMatches(domain={self.domain!r})"
-
 
 @dataclass(frozen=True)
 class EntityMatches(_PredicateOps):
@@ -56,9 +51,6 @@ class EntityMatches(_PredicateOps):
         """Return ``"entity <entity_id>"`` (e.g. ``"entity light.*"``); glob patterns are allowed."""
         return f"entity {self.entity_id}"
 
-    def __repr__(self) -> str:
-        return f"EntityMatches(entity_id={self.entity_id!r})"
-
 
 @dataclass(frozen=True)
 class ServiceMatches(_PredicateOps):
@@ -73,9 +65,6 @@ class ServiceMatches(_PredicateOps):
     def summarize(self) -> str:
         """Return ``"service <service>"`` (e.g. ``"service turn_on"``); glob patterns are allowed."""
         return f"service {self.service}"
-
-    def __repr__(self) -> str:
-        return f"ServiceMatches(service={self.service!r})"
 
 
 @dataclass(frozen=True)
@@ -112,13 +101,10 @@ class ServiceDataWhere(_PredicateOps):
         for k, cond in self.spec.items():
             source = get_service_data_key(k)
             c: ChangeType
-            # presence check
             if cond is ANY_VALUE:
                 c = Present()
-            # auto-glob wrapping
-            elif self.auto_glob and isinstance(cond, str) and is_glob(cond):
-                c = Glob(cond)
-            # literal or callable condition
+            elif self.auto_glob and isinstance(cond, str):
+                c = _glob_or_literal(cond)
             else:
                 c = cond
             preds.append(ValueIs(source=source, condition=c))
@@ -135,14 +121,7 @@ class ServiceDataWhere(_PredicateOps):
         Returns:
             Comma-separated ``"<key> = <condition>"`` pairs, e.g. ``"entity_id = light.*, brightness = 200"``.
         """
-
-        def _fmt(v: Any) -> str:
-            if callable(v):
-                return summarize_condition(v) if hasattr(v, "summarize") else callable_name(v)
-            return str(v)
-
-        parts = [f"{k} = {_fmt(v)}" for k, v in self.spec.items()]
-        return ", ".join(parts)
+        return ", ".join(f"{k} = {summarize_condition(v)}" for k, v in self.spec.items())
 
     @classmethod
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":
