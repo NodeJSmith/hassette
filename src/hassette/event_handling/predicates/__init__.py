@@ -8,7 +8,7 @@ Examples:
     Basic value comparison
 
     ```python
-    ValueIs(source=get_entity_id, condition="light.kitchen")
+    P.ValueIs(source=A.get_entity_id, condition="light.kitchen")
     ```
 
     With a callable condition
@@ -17,14 +17,14 @@ Examples:
     def is_kitchen_light(entity_id: str) -> bool:
         return entity_id == "light.kitchen"
 
-    ValueIs(source=get_entity_id, condition=is_kitchen_light)
+    P.ValueIs(source=A.get_entity_id, condition=is_kitchen_light)
     ```
 
     With a condition object
 
     ```python
-    ValueIs(
-        source=get_entity_id,
+    P.ValueIs(
+        source=A.get_entity_id,
         condition=C.IsIn(collection=["light.kitchen", "light.living"]),
     )
     ```

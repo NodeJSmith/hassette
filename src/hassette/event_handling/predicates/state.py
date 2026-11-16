@@ -12,6 +12,7 @@ from hassette.event_handling.accessors import (
     get_attr_old,
     get_attr_old_new,
     get_state_object_new,
+    get_state_object_old,
     get_state_value_new,
     get_state_value_old,
     get_state_value_old_new,
@@ -25,7 +26,7 @@ from .combinators import CUSTOM_CONDITION_SUMMARY, _PredicateOps, summarize_cond
 from .comparison import compare_value
 
 if typing.TYPE_CHECKING:
-    from hassette import RawStateChangeEvent
+    from hassette.events import RawStateChangeEvent
 
 V = TypeVar("V")
 
@@ -174,7 +175,7 @@ class StateComparison(_PredicateOps):
 
 @dataclass(frozen=True)
 class AttrFrom(_PredicateOps):
-    """Checks if a specific attribute changed in a RawStateChangeEvent."""
+    """Checks if a specific attribute's old value in a RawStateChangeEvent satisfies a condition."""
 
     attr_name: str
     condition: "ChangeType"
@@ -190,7 +191,7 @@ class AttrFrom(_PredicateOps):
 
 @dataclass(frozen=True)
 class AttrTo(_PredicateOps):
-    """Checks if a specific attribute changed in a RawStateChangeEvent."""
+    """Checks if a specific attribute's new value in a RawStateChangeEvent satisfies a condition."""
 
     attr_name: str
     condition: "ChangeType"
@@ -242,16 +243,14 @@ class StateDidChange(_PredicateOps):
 class AttrDidChange(_PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent.
 
-    When ``old_state`` is None, the attribute is treated as having changed if it is present on ``new_state``.  This
-    applies to synthetic immediate-fire/bootstrap events, the cancel handler's old_state stripping in DurationTimer,
-    and real state-change events where there is no prior state yet (first observation / first-time state set).
+    When ``old_state`` is None, the attribute is treated as having changed if it is present on ``new_state``.
     """
 
     attr_name: str
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return True if ``attr_name`` differs between old and new state; with no old state, if it exists on new."""
-        if value.payload.data.old_state is None:
+        if get_state_object_old(value) is None:
             return get_attr_new(self.attr_name)(value) is not MISSING_VALUE
         return DidChange(get_attr_old_new(self.attr_name))(value)
 
