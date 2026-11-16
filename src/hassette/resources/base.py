@@ -47,15 +47,8 @@ _ResourceT = TypeVar("_ResourceT", bound="Resource")
 class FinalMeta(type):
     """Disallow overriding methods marked @final in any ancestor."""
 
-    LOADED_CLASSES: ClassVar[set[str]] = set()
-
     def __init__(cls, name, bases, ns, **kw):
         super().__init__(name, bases, ns, **kw)
-        subclass_name = f"{cls.__module__}.{cls.__qualname__}"
-        if subclass_name in FinalMeta.LOADED_CLASSES:
-            return
-
-        FinalMeta.LOADED_CLASSES.add(subclass_name)
 
         # Collect all methods marked as final from the MRO (excluding object and cls itself)
         finals: dict[str, type] = {}
@@ -75,7 +68,8 @@ class FinalMeta(type):
 
                 origin_name = f"{origin.__qualname__}"
                 subclass_name = f"{cls.__module__}.{cls.__qualname__}"
-                suggested_alt = f"on_{method_name}" if not method_name.startswith("on_") else method_name
+                # A final on_* hook has no further hook to point at, so offer no suggestion.
+                suggested_alt = None if method_name.startswith("on_") else f"on_{method_name}"
 
                 loc = None
                 code = getattr(new_obj, "__code__", None)
