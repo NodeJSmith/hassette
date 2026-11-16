@@ -433,6 +433,74 @@ async def test_watcher_registration_failure_cleans_up_job(
     assert entity_time_harness.scheduler.list_jobs() == []
 
 
+@pytest.mark.parametrize("removal", ["remove_job", "remove_all_jobs"])
+async def test_job_removed_while_watcher_registers_cancels_the_watcher(
+    entity_time_harness: HassetteHarness, monkeypatch: pytest.MonkeyPatch, removal: str
+) -> None:
+    """A job removed while its entity watcher is registering must not keep that watcher alive."""
+    await seed_alarm(entity_time_harness, iso_in(30))
+    hassette = typing.cast("Hassette", entity_time_harness.hassette)
+    scheduler = entity_time_harness.scheduler
+    name = f"entity_time_removed_while_registering_{removal}"
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    original_on_state_change = hassette.bus.on_state_change
+
+    async def gated_on_state_change(*args, **kwargs):
+        entered.set()
+        await release.wait()
+        return await original_on_state_change(*args, **kwargs)
+
+    monkeypatch.setattr(hassette.bus, "on_state_change", gated_on_state_change)
+
+    schedule_task = asyncio.create_task(scheduler.schedule(noop, EntityTime(ALARM_ENTITY), name=name))
+    await asyncio.wait_for(entered.wait(), timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+    if removal == "remove_job":
+        scheduler.remove_job(next(job for job in scheduler.list_jobs() if job.name == name))
+        release.set()
+        await asyncio.wait_for(schedule_task, timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+    else:
+        removed = scheduler.remove_all_jobs()
+        release.set()
+        await asyncio.wait_for(schedule_task, timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+        await removed
+
+    assert name not in scheduler._entity_time_subs
+    assert f"scheduler.entity_time.{scheduler.owner_id}.{name}" not in watch_listener_names(hassette)
+
+
+async def test_job_replaced_while_registering_leaves_the_replacements_watcher_live(
+    entity_time_harness: HassetteHarness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A job replaced during its database write must not displace its replacement's entity watcher."""
+    await seed_alarm(entity_time_harness, iso_in(30))
+    hassette = typing.cast("Hassette", entity_time_harness.hassette)
+    scheduler = entity_time_harness.scheduler
+    scheduler_service = entity_time_harness.scheduler_service
+    name = "entity_time_replaced_while_registering"
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    original_add_job = scheduler_service.add_job
+
+    async def gate_first_add_job(job):
+        if not entered.is_set():
+            entered.set()
+            await release.wait()
+        return await original_add_job(job)
+
+    monkeypatch.setattr(scheduler_service, "add_job", gate_first_add_job)
+
+    stale_task = asyncio.create_task(scheduler.schedule(noop, EntityTime(ALARM_ENTITY), name=name))
+    await asyncio.wait_for(entered.wait(), timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+    replacement = await scheduler.schedule(noop, EntityTime(ALARM_ENTITY), name=name, if_exists="replace")
+    release.set()
+    await asyncio.wait_for(stale_task, timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+
+    live = hassette.bus_service.router.get_topic_listeners(entity_topic(ALARM_ENTITY))
+    assert scheduler.list_jobs() == [replacement]
+    assert scheduler._entity_time_subs[name].listener in live
+
+
 async def test_watch_listener_is_registered_and_cancelled_with_the_job(
     entity_time_harness: HassetteHarness,
 ) -> None:
