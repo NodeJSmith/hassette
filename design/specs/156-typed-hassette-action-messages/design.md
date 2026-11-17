@@ -1,7 +1,7 @@
 # Design: Typed hass-hassette Messages
 
 **Date:** 2026-11-17
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4152
 **Prior art:** design/research/2026-11-17-typed-custom-event-data/prior-art.md
@@ -215,7 +215,7 @@ Note: the listener's required `name=` keyword already exists on every `on_*` met
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `MissingPayloadFieldsError` (D7) lives in `src/hassette/events/hass/hass.py` next to `construct_ignoring_unknown_keys`, not `exceptions.py`: it's raised and caught internally, and `exceptions.py` sits at 791 of 800 lines.
