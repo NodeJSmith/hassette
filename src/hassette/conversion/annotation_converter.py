@@ -1,5 +1,9 @@
+import dataclasses
+import functools
 from collections.abc import Callable, Mapping
 from typing import Any, Literal, TypeAlias, get_args, get_origin
+
+from pydantic import BaseModel, TypeAdapter
 
 from hassette.conversion.state_registry import convert_state_dict_to_model
 from hassette.conversion.type_matcher import TYPE_MATCHER
@@ -45,12 +49,19 @@ class AnnotationConverter:
         # Union / Optional: try arms
         if is_union(tp):
             last_err: Exception | None = None
+            arm_errors: list[str] = []
             for arm in get_args(tp):
                 try:
                     return self.convert(value, arm)
                 except Exception as exc:
                     last_err = exc
-            raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}") from last_err
+                    if arm is not type(None):
+                        arm_errors.append(f"{arm!r}: {type(exc).__name__}: {exc}")
+            # Each non-None arm's error is in the message itself: the injector reports only this
+            # exception's text, so a chained cause alone would hide e.g. a model's field errors.
+            raise UnableToConvertValueError(
+                f"Unable to convert {value!r} to {tp!r}; " + "; ".join(arm_errors)
+            ) from last_err
 
         # Literal: match exact allowed values (conversion generally not meaningful)
         if get_origin(tp) is Literal:
@@ -70,6 +81,13 @@ class AnnotationConverter:
             # NOTE: this expects tp is the concrete model class (LightState, etc.)
             return convert_state_dict_to_model(value, tp)
 
+        # A mapping into a pydantic model or dataclass, e.g. a custom HA event's JSON data
+        if isinstance(value, Mapping) and isinstance(tp, type):
+            if issubclass(tp, BaseModel):
+                return tp.model_validate(value)
+            if dataclasses.is_dataclass(tp):
+                return dataclass_adapter(tp).validate_python(value)
+
         # Leaf conversion: tp should be a runtime type
         if isinstance(tp, type):
             return TYPE_REGISTRY.convert(value, tp)
@@ -79,6 +97,12 @@ class AnnotationConverter:
             return TYPE_REGISTRY.convert(value, origin)
 
         raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}")
+
+
+@functools.cache
+def dataclass_adapter(tp: type) -> TypeAdapter[Any]:
+    """Return the `TypeAdapter` for dataclass `tp`, building its schema once per type."""
+    return TypeAdapter(tp)
 
 
 def register_container_converter(*origins: Any):
