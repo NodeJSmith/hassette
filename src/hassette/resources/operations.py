@@ -1,8 +1,8 @@
 """Module-level structural-operation functions for Hassette resources.
 
-These functions replace methods that previously lived on ``Resource``. They accept the resource
-as their first argument instead of being bound methods, so structural operations are invoked as
-``start_children_and_wait(resource)`` instead of ``resource.start_children_and_wait()``.
+Structural operations are module-level functions taking the resource as first argument, so they
+stay off App's public surface: they are invoked as ``start_children_and_wait(resource)`` instead
+of ``resource.start_children_and_wait()``.
 """
 
 import asyncio
@@ -17,18 +17,13 @@ from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import WaveOutcome, describe_children, describe_wave_causes, wait_for_wave
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from hassette import Hassette, TaskBucket
     from hassette.resources.base import Resource
 
 
 # NOTE: `Resource` is imported only under TYPE_CHECKING above. `hassette.resources.base` imports
 # `run_hooks` and `ordered_children_for_shutdown` from this module at module level, so a top-level
 # `from hassette.resources.base import Resource` here would be a genuine circular import. Every
-# function below only touches `Resource` for type annotations (duck-typed at runtime) except
-# `register_task_bucket_factory`, which imports `Resource` locally at call time — by then both
-# modules have finished loading, so the deferred import is safe.
+# function below only touches `Resource` for type annotations (duck-typed at runtime).
 
 
 async def start_children_and_wait(resource: "Resource", timeout: float | None = None) -> None:
@@ -68,19 +63,6 @@ async def start_children_and_wait(resource: "Resource", timeout: float | None = 
     else:
         reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
     raise TimeoutError(f"Children of {resource.class_name} did not become ready: {reason}")
-
-
-def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBucket]") -> None:
-    """Register the factory used to create a default TaskBucket for each Resource.
-
-    Called once by hassette.task_bucket at module import time so that Resource.__init__
-    never needs to import TaskBucket directly.
-    """
-    from hassette.resources.base import (  # noqa: PLC0415 - break circular import, base.py imports this module
-        Resource,  # house-lint: ignore[HSL002] - break circular import, base.py imports this module
-    )
-
-    Resource._default_task_bucket_factory = factory
 
 
 class ShutdownHookTimedOutError(TimeoutError):

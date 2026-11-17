@@ -278,7 +278,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     @property
     def owner_id(self) -> str:
         """Unique name of the owning resource: the parent's ``unique_name``, else this resource's own."""
-        # nearest App's unique_name, else Hassette's unique_name
         if self.parent:
             return self.parent.unique_name
         return self.unique_name
@@ -706,3 +705,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         own directly (caches, connections, etc.); the base implementation owns nothing.
         """
         self.lifecycle_logger.debug("Cleaned up resources")
+
+
+def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBucket]") -> None:
+    """Register the factory used to create a default TaskBucket for each Resource.
+
+    Called once by hassette.task_bucket at module import time so that Resource.__init__
+    never needs to import TaskBucket directly.
+    """
+    Resource._default_task_bucket_factory = factory

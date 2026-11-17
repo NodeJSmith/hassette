@@ -6,8 +6,7 @@ Verifies:
 - register_task_bucket_factory: module-level function stores the factory on Resource
 """
 
-from hassette.resources.base import Resource
-from hassette.resources.operations import register_task_bucket_factory
+from hassette.resources.base import Resource, register_task_bucket_factory
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource

@@ -13,9 +13,8 @@ from hassette_wire import LogLevel
 from hassette import context as ctx
 from hassette.const.misc import NOT_PROVIDED, FalseySentinel
 from hassette.exceptions import TaskBucketSealedError
-from hassette.resources.base import Resource
+from hassette.resources.base import Resource, register_task_bucket_factory
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.operations import register_task_bucket_factory
 from hassette.resources.shutdown_deadline import elapsed_since
 from hassette.types.types import CoroLikeT
 from hassette.utils.func_utils import is_async_callable
