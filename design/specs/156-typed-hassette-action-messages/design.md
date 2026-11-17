@@ -213,7 +213,7 @@ Note: the listener's required `name=` keyword already exists on every `on_*` met
 
 ## Build
 
-- [ ] Implementation and tests committed
+- [x] Implementation and tests committed
 - [ ] Docs
 - [ ] Ship-time challenge
 

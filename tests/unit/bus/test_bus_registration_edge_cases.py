@@ -27,7 +27,11 @@ from hassette.testing import (
     make_full_state_change_event,
     make_state_dict,
 )
-from tests.support.helpers import create_component_loaded_event, create_service_registered_event
+from tests.support.helpers import (
+    create_component_loaded_event,
+    create_hassette_message_event,
+    create_service_registered_event,
+)
 
 from .conftest import mock_add_listener
 
@@ -185,6 +189,22 @@ class TestComponentServiceAppKeyFilters:
 
         assert sub.listener.matches(create_component_loaded_event("mqtt")) is True
         assert sub.listener.matches(create_component_loaded_event("zwave")) is True
+
+    async def test_on_hassette_message_with_message_filters(self, bus: "Bus") -> None:
+        """message= adds a ValueIs predicate that only matches messages with that name."""
+        with mock_add_listener(bus):
+            sub = await bus.on_hassette_message("tracker_done", handler=handler_a, name="tracker_done")
+
+        assert sub.listener.matches(create_hassette_message_event("tracker_done")) is True
+        assert sub.listener.matches(create_hassette_message_event("other")) is False
+
+    async def test_on_hassette_message_without_message_matches_any(self, bus: "Bus") -> None:
+        """Omitting message= matches every hassette_message event."""
+        with mock_add_listener(bus):
+            sub = await bus.on_hassette_message(handler=handler_a, name="any_message")
+
+        assert sub.listener.matches(create_hassette_message_event("tracker_done")) is True
+        assert sub.listener.matches(create_hassette_message_event("other")) is True
 
     async def test_on_service_registered_with_domain_and_service_filters(self, bus: "Bus") -> None:
         """domain= and service= together only match the exact (domain, service) pair."""

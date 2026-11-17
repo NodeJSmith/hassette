@@ -12,7 +12,7 @@ branches, and a handful of one-line property delegations.
 import asyncio
 import logging
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -504,6 +504,23 @@ class TestDispatchSuppressesErrors:
         assert sentinel not in rendered
         assert "event_type='component_loaded'" in rendered
         assert "ComponentLoadedPayload is missing required field(s) component" in rendered
+
+    @pytest.mark.parametrize("event", ["not-a-dict", None, {"event_type": {"nested": "value"}}])
+    async def test_dispatch_failure_log_survives_malformed_event_frame(
+        self, websocket_service: WebsocketService, event: Any
+    ) -> None:
+        """A frame whose ``event`` isn't a dict, or whose event_type isn't a string, is logged without raising."""
+        logger_mock = Mock()
+        mark_websocket_service_connected(websocket_service, reason="test: events dispatch only once connected")
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.dispatch({"type": "event", "id": 44, "event": event})
+
+        logger_mock.error.assert_called_once()
+        msg, *args = logger_mock.error.call_args.args
+        rendered = msg % tuple(args)
+        assert "'event' (id 44)" in rendered
+        assert "event_type=" not in rendered
 
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""

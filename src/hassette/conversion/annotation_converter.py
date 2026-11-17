@@ -55,12 +55,14 @@ class AnnotationConverter:
                     return self.convert(value, arm)
                 except Exception as exc:
                     last_err = exc
+                    # NoneType's own failure ("not None") says nothing about why the value didn't fit.
                     if arm is not type(None):
                         arm_errors.append(f"{arm!r}: {type(exc).__name__}: {exc}")
             # Each non-None arm's error is in the message itself: the injector reports only this
             # exception's text, so a chained cause alone would hide e.g. a model's field errors.
+            detail = "; ".join(arm_errors)
             raise UnableToConvertValueError(
-                f"Unable to convert {value!r} to {tp!r}; " + "; ".join(arm_errors)
+                f"Unable to convert {value!r} to {tp!r}" + (f"; {detail}" if detail else "")
             ) from last_err
 
         # Literal: match exact allowed values (conversion generally not meaningful)
@@ -101,7 +103,7 @@ class AnnotationConverter:
 
 @functools.cache
 def dataclass_adapter(tp: type) -> TypeAdapter[Any]:
-    """Return the `TypeAdapter` for dataclass `tp`, building its schema once per type."""
+    """Return the `TypeAdapter` for dataclass `tp`, cached per type because building its schema is costly."""
     return TypeAdapter(tp)
 
 

@@ -226,9 +226,10 @@ EventData: TypeAlias = Annotated[
 ]
 """Extract the typed data from an event's payload.
 
-Use with ``Bus.emit`` to receive the emitted data pre-extracted and typed, or with a custom Home Assistant
-event (one fired from a script or automation) to receive its JSON data validated into a pydantic model or
-dataclass. Invalid data skips the handler with an error naming the field.
+With ``Bus.emit``, the handler receives the emitted object as is.
+
+With a custom Home Assistant event (one fired from a script or automation), the event's JSON data is validated
+into the annotated pydantic model or dataclass. Invalid data skips the handler with an error naming the field.
 
 Example:
 ```python

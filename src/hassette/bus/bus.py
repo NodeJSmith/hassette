@@ -1194,18 +1194,12 @@ class Bus(Resource):
 
         Returns:
             A subscription object that can be used to manage the listener.
-
-        Example:
-        ```python
-        await self.bus.on_hassette_message("tracker_done", handler=self.on_tracker_done, name="tracker.done")
-
-        async def on_tracker_done(self, data: D.MessageData[TrackerDone]) -> None: ...
-        ```
         """
         _require_name(name, handler, str(Topic.HASS_EVENT_HASSETTE_MESSAGE))
         preds: list[Predicate] = []
 
         if message is not None:
+            # payload.data is the HassetteMessagePayload; its .name is the message's name.
             preds.append(P.ValueIs(source=get_path("payload.data.name"), condition=message))
 
         source_location, registration_source = capture_registration_source()

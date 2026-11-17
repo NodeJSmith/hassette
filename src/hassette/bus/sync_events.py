@@ -134,13 +134,6 @@ class BusSyncEventShortcuts(Resource):
 
         Returns:
             A subscription object that can be used to manage the listener.
-
-        Example:
-        ```python
-        await self.bus.on_hassette_message("tracker_done", handler=self.on_tracker_done, name="tracker.done")
-
-        async def on_tracker_done(self, data: D.MessageData[TrackerDone]) -> None: ...
-        ```
         """
         return self.task_bucket.run_sync(
             self._bus.on_hassette_message(

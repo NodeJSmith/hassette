@@ -284,9 +284,9 @@ class MissingPayloadFieldsError(HassetteError):
     name them without quoting Home Assistant data.
     """
 
-    def __init__(self, payload: str, missing: tuple[str, ...]) -> None:
-        super().__init__(f"{payload} is missing required field(s): {', '.join(missing)}")
-        self.payload = payload
+    def __init__(self, payload_name: str, missing: tuple[str, ...]) -> None:
+        super().__init__(f"{payload_name} is missing required field(s): {', '.join(missing)}")
+        self.payload_name = payload_name
         self.missing = missing
 
 
@@ -328,6 +328,7 @@ def construct_or_name_missing(cls: type[DataclassT], data: Mapping[str, Any]) ->
             if f.init and f.name not in data and f.default is MISSING and f.default_factory is MISSING
         )
         if not missing:
+            # Not a missing-field failure (e.g. a wrong-typed argument a custom __init__ rejects): keep it as is.
             raise
         raise MissingPayloadFieldsError(cls.__name__, missing) from exc
 

@@ -114,5 +114,5 @@ def test_missing_required_field_raises_naming_the_field(extra: dict[str, Any]) -
     with pytest.raises(hass_events.MissingPayloadFieldsError) as exc_info:
         create_hass_event("component_loaded", extra)
 
-    assert exc_info.value.payload == "ComponentLoadedPayload"
+    assert exc_info.value.payload_name == "ComponentLoadedPayload"
     assert exc_info.value.missing == ("component",)
