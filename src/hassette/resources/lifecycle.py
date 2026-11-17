@@ -1,8 +1,8 @@
 """Module-level lifecycle state-transition functions for Hassette resources.
 
-These functions replace methods that previously lived on ``LifecycleMixin``. They accept the
-resource as their first argument instead of being bound methods, so lifecycle transitions are
-invoked as ``handle_failed(resource, exc)`` instead of ``resource.handle_failed(exc)``.
+Lifecycle transitions are module-level functions taking the resource as first argument, so they
+stay off App's public surface: they are invoked as ``handle_failed(resource, exc)`` instead of
+``resource.handle_failed(exc)``.
 
 Functions take a ``LifecycleMixin`` (in practice, always a ``Resource``) and read and write its
 lifecycle state (``ready_event``, ``shutdown_event``, ``_ready_reason``, ``_init_task``,
@@ -135,10 +135,9 @@ def start(resource: LifecycleMixin) -> asyncio.Task[None] | None:
 
     Thread-safe: when called from a thread other than the event loop's own (e.g. a sync handler
     running on the dedicated sync-handler thread pool), re-dispatches itself onto the loop
-    thread via ``call_soon_threadsafe`` and returns immediately -- restoring the cross-thread
-    reach ``TaskBucket.spawn()`` used to provide before this function's joiner creation moved to
-    ``create_lifecycle_task()`` (see its docstring), which requires an already-running loop on
-    the calling thread. Unlike ``spawn()``'s cross-thread path, this is pure fire-and-forget: the
+    thread via ``call_soon_threadsafe`` and returns immediately, because the joiner is created by
+    ``create_lifecycle_task()`` (see its docstring), which requires a running loop on the calling
+    thread. Unlike ``spawn()``'s cross-thread path, this is pure fire-and-forget: the
     calling thread has already returned by the time the re-dispatched call actually runs, so a
     ``LifecycleReentryError`` or ``RestartRefusedError`` raised at that point cannot propagate
     back to it and is logged here instead.

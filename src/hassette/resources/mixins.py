@@ -98,7 +98,7 @@ class LifecycleMixin(_LifecycleHostP):
     """``start()``'s own joiner task. Stays set for the entire duration of the joiner's
     ``initialize()`` call -- including the full run of ``_init_task`` once ``coordinate_initialize()``
     creates it -- and is cleared only when the joiner itself finishes (via its own done-callback)
-    or when ``_observe_active_initializer()`` cancels it explicitly. The two fields are therefore
+    or when ``_cancel_pending_start()`` cancels it explicitly. The two fields are therefore
     both non-``None`` for most of a normal initialization, not just briefly at the start.
 
     ``start()`` does not assign ``_init_task`` synchronously -- that only happens once the

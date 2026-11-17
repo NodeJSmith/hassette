@@ -23,7 +23,7 @@ Nothing restarts a service in-process. Every concrete `Service` declares `requir
 
 ## Lifecycle functions are module-level, not methods
 
-Lifecycle state transitions (`handle_starting`, `handle_running`, `handle_stop`, `handle_failed`, `handle_crash`, `mark_ready`, `mark_not_ready`, `request_shutdown`, `start`, `cancel`, `create_service_status_event`) and structural operations (`start_children_and_wait`, `register_task_bucket_factory`, `run_hooks`, `ordered_children_for_shutdown`) are module-level functions in `lifecycle.py` and `operations.py`. They take the resource as their first argument (e.g. `mark_ready(self, reason="initialized")`). This keeps the names out of `App`'s public surface (see `App.__dir__`), since they are framework plumbing, not app-author API. `is_ready`, `wait_ready`, and `add_child` remain methods on `Resource`.
+Lifecycle state transitions (`handle_starting`, `handle_running`, `handle_stop`, `handle_failed`, `handle_crash`, `mark_ready`, `mark_not_ready`, `request_shutdown`, `start`, `cancel`, `create_service_status_event`) and structural operations (`start_children_and_wait`, `run_hooks`, `ordered_children_for_shutdown`) are module-level functions in `lifecycle.py` and `operations.py` (`register_task_bucket_factory` lives in `base.py`, next to the `Resource` attribute it sets). They take the resource as their first argument (e.g. `mark_ready(self, reason="initialized")`). This keeps the names out of `App`'s public surface (see `App.__dir__`), since they are framework plumbing, not app-author API. `is_ready`, `wait_ready`, and `add_child` remain methods on `Resource`.
 
 New `Resource` subclasses must call `mark_ready()` explicitly — `handle_running()` sets status but does not mark readiness.
 
