@@ -15,6 +15,7 @@ from hassette.events import (
     AnyEvent,
     CallServiceEvent,
     ComponentLoadedEvent,
+    HassetteMessageEvent,
     RawStateChangeEvent,
     ServiceRegisteredEvent,
 )
@@ -55,6 +56,7 @@ SIMULATIONS: list[tuple[str, Simulate, type[AnyEvent]]] = [
     ),
     ("call_service", lambda h: h.simulate_call_service("light", "turn_on", brightness=255), CallServiceEvent),
     ("component_loaded", lambda h: h.simulate_component_loaded("mqtt"), ComponentLoadedEvent),
+    ("hassette_message", lambda h: h.simulate_hassette_message("tracker_done"), HassetteMessageEvent),
     ("service_registered", lambda h: h.simulate_service_registered("light", "turn_on"), ServiceRegisteredEvent),
     (
         "hassette_service_status",

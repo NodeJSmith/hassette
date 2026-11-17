@@ -9,7 +9,13 @@ from hassette_wire import ResourceStatus
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.events import CallServiceEvent, ComponentLoadedEvent, RawStateChangeEvent, ServiceRegisteredEvent
+from hassette.events import (
+    CallServiceEvent,
+    ComponentLoadedEvent,
+    HassetteMessageEvent,
+    RawStateChangeEvent,
+    ServiceRegisteredEvent,
+)
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing import AppTestHarness
 
@@ -41,6 +47,7 @@ async def probe_simulate_return_types() -> None:
         )
         assert_type(await harness.simulate_call_service("light", "turn_on"), CallServiceEvent)
         assert_type(await harness.simulate_component_loaded("mqtt"), ComponentLoadedEvent)
+        assert_type(await harness.simulate_hassette_message("tracker_done"), HassetteMessageEvent)
         assert_type(await harness.simulate_service_registered("light", "turn_on"), ServiceRegisteredEvent)
         assert_type(await harness.simulate_hassette_service_status("Svc", ResourceStatus.RUNNING), HassetteServiceEvent)
         assert_type(await harness.simulate_hassette_service_ready("Svc"), HassetteServiceEvent)

@@ -146,6 +146,7 @@ BUS_EVENT_SHORTCUTS = frozenset(
     {
         "on_component_loaded",
         "on_service_registered",
+        "on_hassette_message",
         "on_homeassistant_restart",
         "on_homeassistant_start",
         "on_homeassistant_stop",

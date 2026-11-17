@@ -482,6 +482,7 @@ async def test_simulate_attribute_change_without_set_state():
     ("bus_method", "simulate_method", "simulate_args", "simulate_kwargs"),
     [
         pytest.param("on_component_loaded", "simulate_component_loaded", ("my_component",), {}, id="component_loaded"),
+        pytest.param("on_hassette_message", "simulate_hassette_message", ("tracker_done",), {}, id="hassette_message"),
         pytest.param(
             "on_service_registered", "simulate_service_registered", ("light", "turn_on"), {}, id="service_registered"
         ),

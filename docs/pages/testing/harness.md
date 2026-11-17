@@ -174,6 +174,7 @@ without a live instance:
 | `simulate_homeassistant_restart()` / `_start()` / `_stop()` | `on_homeassistant_restart` / `_start` / `_stop` |
 | `simulate_component_loaded(component)` | `on_component_loaded` |
 | `simulate_service_registered(domain, service)` | `on_service_registered` |
+| `simulate_hassette_message(message, data)` | `on_hassette_message`. `data` is a mapping, and `None` sends `{}` as the action does |
 
 All drain triggered handlers before returning, like the other `simulate_*`
 methods.

@@ -27,6 +27,7 @@ from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import run_through_guard
 from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._factories import create_component_loaded_event as create_component_loaded_event
+from hassette.testing._factories import create_hassette_message_event as create_hassette_message_event
 from hassette.testing._factories import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import DEFAULT_TEST_INSTANCE_NAME, TEST_SOURCE_LOCATION
 from hassette.types.enums import Outcome, Topic

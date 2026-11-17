@@ -1,13 +1,17 @@
 """End-to-end test of the hass-hassette companion integration against a live hassette.
 
 The HA container installs the release pinned by ``HASS_HASSETTE_VERSION`` (scripts/docker/.env);
-this test configures it against hassette running in the pytest process and drives an app from HA.
-A Renovate bump of that pin runs this test, which is how a release that changed the integration's
-entity scheme (``APP_ENTITY_KEYS``) or config flow fields shows up.
+these tests configure it against hassette running in the pytest process, drive an app from HA, and
+send a message from HA to hassette. A Renovate bump of that pin runs them, which is how a release that
+changed the integration's entity scheme (``APP_ENTITY_KEYS``), config flow fields, or the
+``hassette.send`` event contract (event type ``hassette_message``, data ``{name, data}``) shows up.
 """
 
 import json
 import secrets
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +19,8 @@ import httpx2 as httpx
 import pytest
 from websockets import connect as ws_connect
 
+from hassette import D
+from hassette.events import HassetteMessageEvent
 from hassette.testing import wait_for
 
 from .conftest import HA_TOKEN, make_web_system_config, startup_context, wait_for_web_server, with_app_entries
@@ -41,6 +47,17 @@ HA_POLL_INTERVAL_SECONDS = 1.0
 APP_POLL_INTERVAL_SECONDS = 0.5
 # Entropy of the per-run web API token the test hands HA.
 TOKEN_BYTES = 32
+# The message the hassette.send test sends, and how long it waits for the handler to see it.
+MESSAGE_NAME = "system_test_message"
+MESSAGE_TIMEOUT_SECONDS = 15.0
+
+
+@dataclass
+class SystemMessage:
+    """The ``data`` model the hassette.send test's handler annotates with ``D.MessageData``."""
+
+    room: str
+    count: int
 
 
 async def ha_ws(ha_url: str, command: dict[str, Any]) -> Any:
@@ -77,6 +94,21 @@ async def create_entry(ha: httpx.AsyncClient, hassette_url: str, token: str) -> 
     result = r.json()
     assert result["type"] == "create_entry", result
     return result["result"]["entry_id"]
+
+
+@asynccontextmanager
+async def config_entry(ha: httpx.AsyncClient, hassette_url: str, token: str) -> AsyncIterator[str]:
+    """Create an integration entry for ``hassette_url``, yield its id, and remove it on exit.
+
+    Removal runs before hassette stops, so the session-scoped HA isn't left polling a dead server.
+    It's best-effort: raising there would replace the assertion error that brought us to exit.
+    """
+    entry_id = await create_entry(ha, hassette_url, token)
+    try:
+        yield entry_id
+    finally:
+        with suppress(httpx.HTTPError):
+            await ha.delete(f"/api/config/config_entries/entry/{entry_id}")
 
 
 async def app_entities(ha_url: str, entry_id: str) -> dict[str, dict[str, Any]]:
@@ -149,8 +181,7 @@ async def test_integration_controls_hassette_apps(ha_container: str, tmp_path: P
         app_keys = set(hassette.app_handler.registry.app_keys())
         [toggled_key] = [key for key in app_keys if TOGGLED_APP in key]
 
-        entry_id = await create_entry(ha, f"http://{HOST_FROM_HA}:{config.web_api.port}", token)
-        try:
+        async with config_entry(ha, f"http://{HOST_FROM_HA}:{config.web_api.port}", token) as entry_id:
             expected = {f"{key}-{suffix}" for key in app_keys for suffix in APP_ENTITY_KEYS}
             entities = await wait_for_app_entities(ha_container, entry_id, expected)
 
@@ -174,7 +205,35 @@ async def test_integration_controls_hassette_apps(ha_container: str, tmp_path: P
                 desc=f"{toggled_key} stopped",
             )
             await wait_for(switch_is(ha, switch, "off"), desc=f"{switch} off", **poll)
-        finally:
-            # Unload before hassette stops, so the session-scoped HA isn't left polling a dead server.
-            # Best-effort: raising here would replace the assertion error that brought us here.
-            await ha.delete(f"/api/config/config_entries/entry/{entry_id}")
+
+
+async def test_send_action_delivers_a_typed_message(ha_container: str, tmp_path: Path) -> None:
+    """``hassette.send`` in HA reaches an ``on_hassette_message`` handler as a typed event and typed data."""
+    # hassette.send checks hassette's health through the entry before firing, so it needs one too.
+    token = secrets.token_urlsafe(TOKEN_BYTES)
+    config, base_url = make_web_system_config(ha_container, tmp_path, host="0.0.0.0", auth_token=token)
+    received: list[tuple[HassetteMessageEvent, SystemMessage]] = []
+
+    async def on_message(event: HassetteMessageEvent, data: D.MessageData[SystemMessage]) -> None:
+        received.append((event, data))
+
+    async with (
+        startup_context(config) as hassette,
+        httpx.AsyncClient(base_url=ha_container, headers={"Authorization": f"Bearer {HA_TOKEN}"}) as ha,
+    ):
+        await wait_for_web_server(base_url)
+        await hassette.bus.on_hassette_message(MESSAGE_NAME, handler=on_message, name="system.message")
+
+        async with config_entry(ha, f"http://{HOST_FROM_HA}:{config.web_api.port}", token):
+            resp = await ha.post(
+                "/api/services/hassette/send",
+                json={"name": MESSAGE_NAME, "data": {"room": "kitchen", "count": "2"}},
+                timeout=ACTION_TIMEOUT_SECONDS,
+            )
+            resp.raise_for_status()
+            await wait_for(lambda: bool(received), timeout=MESSAGE_TIMEOUT_SECONDS, desc=f"{MESSAGE_NAME} handled")
+
+    [(event, data)] = received
+    assert event.payload.data.name == MESSAGE_NAME
+    assert event.payload.data.data == {"room": "kitchen", "count": "2"}
+    assert data == SystemMessage(room="kitchen", count=2)

@@ -52,6 +52,7 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
         "add_listener",
         "on_service_registered",
         "on_component_loaded",
+        "on_hassette_message",
         "on_hassette_service_status",
         "on_app_state_changed",
         # Shape B delegates (thread the handle from a primary above)
@@ -405,6 +406,7 @@ def _bus_call(method_name: str):
         "on_call_service": lambda b: b.on_call_service(handler=_bus_handler, name="n"),
         "on_service_registered": lambda b: b.on_service_registered(handler=_bus_handler, name="n"),
         "on_component_loaded": lambda b: b.on_component_loaded(handler=_bus_handler, name="n"),
+        "on_hassette_message": lambda b: b.on_hassette_message(handler=_bus_handler, name="n"),
         "on_hassette_service_status": lambda b: b.on_hassette_service_status(handler=_bus_handler, name="n"),
         "on_app_state_changed": lambda b: b.on_app_state_changed(handler=_bus_handler, name="n"),
         "on_homeassistant_restart": lambda b: b.on_homeassistant_restart(handler=_bus_handler, name="n"),

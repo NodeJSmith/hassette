@@ -12,6 +12,7 @@ import traceback
 from typing import Any
 
 from hassette.core.websocket_responses import command_label
+from hassette.events.hass.hass import MissingPayloadFieldsError
 
 
 def parse_text_frame(raw: str, logger: logging.Logger) -> dict[str, Any] | None:
@@ -33,11 +34,32 @@ def parse_text_frame(raw: str, logger: logging.Logger) -> dict[str, Any] | None:
 def log_dispatch_failure(logger: logging.Logger, data: dict[str, Any], exc: Exception) -> None:
     """Log a failed dispatch with the message's command label, exception type, and traceback frames.
 
-    `logger.exception`/`exc_info` would render `str(exc)`, hence the hand-built traceback.
+    An event also gets its HA event type, and a ``MissingPayloadFieldsError`` the missing field names. Both are
+    metadata, never values. The traceback is built by hand because ``logger.exception``/``exc_info`` would render
+    ``str(exc)``, which for most exceptions can carry values. This runs inside ``dispatch``'s error handler, so it
+    must not raise on a malformed frame.
     """
+    label = command_label(data)
+    event_type = hass_event_type(data)
+    if event_type:
+        label = f"{label} event_type={event_type!r}"
+    reason = type(exc).__name__
+    if isinstance(exc, MissingPayloadFieldsError):
+        reason = f"{reason}: {exc.payload_name} is missing required field(s) {', '.join(exc.missing)}"
     logger.error(
         "Failed to dispatch message %s: %s\nTraceback (most recent call last):\n%s",
-        command_label(data),
-        type(exc).__name__,
+        label,
+        reason,
         "".join(traceback.format_tb(exc.__traceback__)).rstrip(),
     )
+
+
+def hass_event_type(data: dict[str, Any]) -> str | None:
+    """The HA event type of an ``event`` frame, or None when the frame isn't one or is malformed."""
+    if data.get("type") != "event":
+        return None
+    event = data.get("event")
+    if not isinstance(event, dict):
+        return None
+    event_type = event.get("event_type")
+    return event_type if isinstance(event_type, str) else None

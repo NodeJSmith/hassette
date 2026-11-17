@@ -10,6 +10,8 @@ Each app gets a device named after its display name. The display name defaults t
 - **`button.motion_lights_reload`**: stops the app, re-imports its own module file from disk, and starts it again. Modules that file imports keep their old code; see [What Reload Re-imports](../web-ui/manage-apps.md#what-reload-re-imports).
 - **`sensor.motion_lights_status`**: the app's current status.
 
+The integration also adds a `hassette.send` action, which sends a message from Home Assistant to your apps. See [Send Messages to Your Apps](#send-messages-to-your-apps).
+
 Run `hassette app` to see each app's key and display name. Every app device shows **Connected via Hassette**, a hub device for the server itself.
 
 ## Prerequisites
@@ -110,6 +112,30 @@ This automation turns `switch.motion_lights` off at 23:00. Paste it into **Setti
 | `unknown` | Hassette reports a status newer than your installed integration understands. Update the integration. |
 
 While an app is `failed` or `degraded`, the sensor carries an `error_message` attribute with the app's error text.
+
+## Send Messages to Your Apps
+
+The `hassette.send` action sends a message to your apps. A dashboard button or a script can trigger an app this way, without a helper entity to watch. Sending messages needs Hassette 0.65.0 or newer and version 0.8.0 or newer of the integration.
+
+Each message has a `name` and an optional `data` mapping. This dashboard button sends `tracker_done` with the room:
+
+```yaml
+--8<-- "pages/getting-started/snippets/send_message_button.yaml"
+```
+
+The outer `data` is the action's data. The inner `data` is the message's own `data` field.
+
+An app subscribes to the message by its name with `on_hassette_message`. `D.MessageData[T]` hands the handler the inner `data`, validated into your dataclass or pydantic model:
+
+```python
+--8<-- "pages/getting-started/snippets/receive_message.py"
+```
+
+Press the button and the app logs `Tracker done in kitchen`. If `data` is missing a required field, Hassette skips the handler and logs an error naming the field. See [Subscription Methods](../core-concepts/bus/methods.md#on_hassette_messagemessage) for the filter and the other annotations a message handler can take.
+
+The action fails, and sends nothing, when Hassette is unreachable or not connected to Home Assistant. Hassette receives the message over that connection, so a message sent while it's down is lost.
+
+A successful action means Hassette was connected when you sent it, not that your handler ran: the connection can drop in the moment between that check and the message, and a handler can fail on its own. When a script must know the message landed, have the handler confirm it. For example, the script turns an `input_boolean` off, sends the message, and waits for the handler to turn it back on with a `wait_template` that has a `timeout`. Make the handler safe to run twice, so the script can resend when the wait times out.
 
 ## Reaching Hassette from Home Assistant
 

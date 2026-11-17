@@ -1,0 +1,5 @@
+actions:
+  - event: doorbell_pressed
+    event_data:
+      camera: camera.front_door
+      snapshot: true

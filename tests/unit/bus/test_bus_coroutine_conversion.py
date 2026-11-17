@@ -185,6 +185,10 @@ async def test_source_location_threaded_via_on_state_change(bus: "Bus") -> None:
             id="on_service_registered",
         ),
         pytest.param(
+            lambda bus: bus.on_hassette_message(handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_hassette_message",
+        ),
+        pytest.param(
             lambda bus: bus.on_hassette_service_status(handler=handler),  # pyright: ignore[reportCallIssue]
             id="on_hassette_service_status",
         ),
@@ -218,6 +222,7 @@ def test_primary_omitted_name_raises_type_error_at_call_time(bus: "Bus", call) -
         pytest.param(lambda bus: bus.on_call_service(domain="light", handler=handler, name=""), id="on_call_service"),
         pytest.param(lambda bus: bus.on_component_loaded(handler=handler, name=""), id="on_component_loaded"),
         pytest.param(lambda bus: bus.on_service_registered(handler=handler, name=""), id="on_service_registered"),
+        pytest.param(lambda bus: bus.on_hassette_message(handler=handler, name=""), id="on_hassette_message"),
         pytest.param(
             lambda bus: bus.on_hassette_service_status(handler=handler, name=""), id="on_hassette_service_status"
         ),

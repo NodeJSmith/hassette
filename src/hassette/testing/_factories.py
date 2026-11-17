@@ -9,6 +9,7 @@ non-exported ``create_component_loaded_event`` / ``create_service_registered_eve
 builders used by the harness ``simulate_*`` helpers.
 """
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
@@ -17,6 +18,7 @@ from hassette.conversion import STATE_REGISTRY
 from hassette.events import (
     CallServiceEvent,
     ComponentLoadedEvent,
+    HassetteMessageEvent,
     RawStateChangeEvent,
     ServiceRegisteredEvent,
     create_event_from_hass,
@@ -88,6 +90,21 @@ def create_call_service_event(
         {"domain": domain, "service": service, "service_data": service_data or {}},
     )
     assert isinstance(event, CallServiceEvent)
+    return event
+
+
+def create_hassette_message_event(message: str, data: Mapping[str, Any] | None = None) -> HassetteMessageEvent:
+    """Create a hassette_message event, as hass-hassette's ``hassette.send`` action fires it.
+
+    Args:
+        message: The message's ``name`` (e.g. "tracker_done").
+        data: The message's ``data`` mapping. ``None`` sends ``{}``, as the action does when ``data`` is omitted.
+
+    Returns:
+        HassetteMessageEvent instance.
+    """
+    event = create_hass_event("hassette_message", {"name": message, "data": dict(data or {})})
+    assert isinstance(event, HassetteMessageEvent)
     return event
 
 

@@ -134,7 +134,8 @@ applies it.
 ```
 
 When no registered converter exists, the registry tries the target type's constructor as a
-fallback. A successful constructor call does not register the pair — each miss goes through the constructor directly. Custom converters registered via `register_simple_type_converter` or `@register_type_converter_fn` are added normally.
+fallback. A pydantic model or dataclass target is validated with pydantic instead, so a `dict`
+becomes the model and any other value fails validation. A successful fallback does not register the pair — each miss goes through the constructor directly. Custom converters registered via `register_simple_type_converter` or `@register_type_converter_fn` are added normally.
 
 !!! warning
     For tuple `value_type` declarations, order matters. A string value — every raw value

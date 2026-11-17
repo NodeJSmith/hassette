@@ -6,18 +6,27 @@ machinery extracted from ``app_harness.py``.
 
 import asyncio
 import math
+from collections.abc import Mapping
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from hassette_wire import ResourceStatus
 
 from hassette.core.app_registry import StatusChange
-from hassette.events import CallServiceEvent, ComponentLoadedEvent, Event, RawStateChangeEvent, ServiceRegisteredEvent
+from hassette.events import (
+    CallServiceEvent,
+    ComponentLoadedEvent,
+    Event,
+    HassetteMessageEvent,
+    RawStateChangeEvent,
+    ServiceRegisteredEvent,
+)
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.schemas.app_snapshots import NeedsRestartInfo
 from hassette.testing._factories import (
     create_call_service_event,
     create_component_loaded_event,
+    create_hassette_message_event,
     create_service_registered_event,
     create_state_change_event,
 )
@@ -292,6 +301,31 @@ class SimulationMixin:
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
         event = create_component_loaded_event(component)
+        return await self.simulate_event(event, timeout=timeout)
+
+    async def simulate_hassette_message(
+        self,
+        message: str,
+        data: Mapping[str, Any] | None = None,
+        *,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
+    ) -> HassetteMessageEvent:
+        """Send a message as hass-hassette's ``hassette.send`` action would, and wait for handlers.
+
+        Args:
+            message: The message's ``name`` (e.g. "tracker_done").
+            data: The message's ``data`` mapping. ``None`` sends ``{}``, as the action does when ``data`` is omitted.
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``HassetteMessageEvent``, returned after handlers have drained.
+
+        Raises:
+            ValueError: If timeout is non-finite or negative.
+            DrainError: If any handler task raised a non-cancellation exception.
+            DrainTimeout: If the drain does not reach quiescence within ``timeout``.
+        """
+        event = create_hassette_message_event(message, data)
         return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_service_registered(

@@ -12,7 +12,7 @@ branches, and a handful of one-line property delegations.
 import asyncio
 import logging
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -338,6 +338,19 @@ class TestRecvTaskDeathDuringObserverNotification:
         await asyncio.wait_for(mark_connected_task, timeout=1)
 
 
+async def dispatch_and_render_error(service: WebsocketService, frame: dict[str, Any]) -> tuple[Mock, str]:
+    """Dispatch ``frame`` on a connected service with its logger mocked; return the mock and the one ERROR line."""
+    logger_mock = Mock()
+    mark_websocket_service_connected(service, reason="test: events dispatch only once connected")
+
+    with patch.object(service, "logger", logger_mock):
+        await service.dispatch(frame)
+
+    logger_mock.error.assert_called_once()
+    msg, *args = logger_mock.error.call_args.args
+    return logger_mock, msg % tuple(args)
+
+
 def feed_frame(service: WebsocketService, msg_type: WSMsgType, data: object) -> AsyncMock:
     """Make the next raw_recv() receive one frame, and return the mock standing in for dispatch()."""
     fake_ws = build_fake_ws()
@@ -447,33 +460,60 @@ class TestDispatchSuppressesErrors:
         value, so this also covers the exception text, not just the format arguments.
         """
         sentinel = "s3cret-sentinel-value"
-        logger_mock = Mock()
-        mark_websocket_service_connected(websocket_service, reason="test: events dispatch only once connected")
-
-        with patch.object(websocket_service, "logger", logger_mock):
-            await websocket_service.dispatch(
-                {
-                    "type": "event",
-                    "id": 42,
-                    "event": {
-                        "event_type": "state_changed",
-                        "origin": "LOCAL",
-                        "context": {"id": "ctx", "parent_id": None, "user_id": None},
-                        "time_fired": sentinel,
-                        "data": {"entity_id": "input_text.pw", "old_state": None, "new_state": None},
-                    },
-                }
-            )
+        logger_mock, rendered = await dispatch_and_render_error(
+            websocket_service,
+            {
+                "type": "event",
+                "id": 42,
+                "event": {
+                    "event_type": "state_changed",
+                    "origin": "LOCAL",
+                    "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                    "time_fired": sentinel,
+                    "data": {"entity_id": "input_text.pw", "old_state": None, "new_state": None},
+                },
+            },
+        )
 
         logger_mock.exception.assert_not_called()
-        logger_mock.error.assert_called_once()
-        call = logger_mock.error.call_args
-        assert "exc_info" not in call.kwargs
-        msg, *args = call.args
-        rendered = msg % tuple(args)
+        assert "exc_info" not in logger_mock.error.call_args.kwargs
         assert sentinel not in rendered
         assert "'event' (id 42)" in rendered
         assert "ValueError" in rendered
+
+    async def test_dispatch_failure_log_names_event_type_and_missing_fields(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """A typed event missing a required field is logged with its event type and the field name, never values."""
+        sentinel = "s3cret-sentinel-value"
+        _, rendered = await dispatch_and_render_error(
+            websocket_service,
+            {
+                "type": "event",
+                "id": 43,
+                "event": {
+                    "event_type": "component_loaded",
+                    "origin": "LOCAL",
+                    "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                    "time_fired": "2026-11-17T12:00:00+00:00",
+                    "data": {"unexpected": sentinel},
+                },
+            },
+        )
+
+        assert sentinel not in rendered
+        assert "event_type='component_loaded'" in rendered
+        assert "ComponentLoadedPayload is missing required field(s) component" in rendered
+
+    @pytest.mark.parametrize("event", ["not-a-dict", None, {"event_type": {"nested": "value"}}])
+    async def test_dispatch_failure_log_survives_malformed_event_frame(
+        self, websocket_service: WebsocketService, event: Any
+    ) -> None:
+        """A frame whose ``event`` isn't a dict, or whose event_type isn't a string, is logged without raising."""
+        _, rendered = await dispatch_and_render_error(websocket_service, {"type": "event", "id": 44, "event": event})
+
+        assert "'event' (id 44)" in rendered
+        assert "event_type=" not in rendered
 
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""

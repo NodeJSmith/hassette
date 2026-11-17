@@ -99,6 +99,7 @@ WRAPPER_ARGS: list[tuple[str, tuple, dict]] = [
     ("on_app_stopping", (), {"handler": handler, "name": "app_stop"}),
     ("on_component_loaded", (), {"handler": handler, "name": "comp_load"}),
     ("on_service_registered", (), {"handler": handler, "name": "svc_reg"}),
+    ("on_hassette_message", (), {"handler": handler, "name": "msg"}),
     ("on_hassette_service_status", (), {"handler": handler, "name": "svc_status"}),
     ("on_hassette_service_failed", (), {"handler": handler, "name": "svc_fail"}),
     ("on_hassette_service_crashed", (), {"handler": handler, "name": "svc_crash"}),

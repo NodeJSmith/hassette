@@ -1,10 +1,11 @@
 from collections.abc import Mapping
-from dataclasses import dataclass, field, fields
+from dataclasses import MISSING, dataclass, field, fields
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypeVar
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import AnyEvent, Event, HassContext, HassPayload
+from hassette.exceptions import HassetteError
 from hassette.types import StateT, Topic
 from hassette.utils.date_utils import convert_datetime_str_to_tz
 
@@ -114,6 +115,17 @@ class ScriptStartedPayload:
 
     run_id: str | None = None
     """Identifier of this script run, matching its trace. Sent by Home Assistant 2026.11 and later."""
+
+
+@dataclass(slots=True, frozen=True)
+class HassetteMessagePayload:
+    """Payload for a message sent with the hass-hassette integration's ``hassette.send`` action."""
+
+    name: str
+    """What the message is; apps match on it to decide whether to act."""
+
+    data: dict[str, Any] = field(default_factory=dict)
+    """Extra values sent with the message. Defaults to ``{}`` when the message carries none."""
 
 
 @dataclass(slots=True, frozen=True)
@@ -234,6 +246,10 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
+class HassetteMessageEvent(Event[HassPayload[HassetteMessagePayload]]):
+    """A message sent to hassette apps with the hass-hassette integration's ``hassette.send`` action."""
+
+
 HassEvent: TypeAlias = Event[HassPayload[Any]]
 """Alias for Home Assistant events."""
 
@@ -253,11 +269,25 @@ HASS_EVENT_TYPES: "dict[str, tuple[Topic, type[HassEvent], type[DataclassInstanc
         AutomationTriggeredPayload,
     ),
     "script_started": (Topic.HASS_EVENT_SCRIPT_STARTED, ScriptStartedEvent, ScriptStartedPayload),
+    "hassette_message": (Topic.HASS_EVENT_HASSETTE_MESSAGE, HassetteMessageEvent, HassetteMessagePayload),
 }
 """Home Assistant event types with a typed event: event type -> (topic, event class, payload class).
 
 Any other event type becomes a generic `Event` on `HASS_EVENT_TOPIC_PREFIX + event_type` with its raw data.
 """
+
+
+class MissingPayloadFieldsError(HassetteError):
+    """A typed Home Assistant payload can't be built because the event data lacks required fields.
+
+    Carries only the payload class name and the field names, never values, so the dispatch-failure log can
+    name them without quoting Home Assistant data.
+    """
+
+    def __init__(self, payload_name: str, missing: tuple[str, ...]) -> None:
+        super().__init__(f"{payload_name} is missing required field(s): {', '.join(missing)}")
+        self.payload_name = payload_name
+        self.missing = missing
 
 
 def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, Any]) -> DataclassT:
@@ -266,11 +296,14 @@ def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, An
     Home Assistant adds keys to event data and contexts between releases. Dropping the ones a payload doesn't
     know keeps a new key from failing every event of that type. Each dropped key name is logged once at debug
     level; values are never logged, since they can carry user data.
+
+    Raises:
+        MissingPayloadFieldsError: If `data` lacks a field `cls` requires.
     """
     known = {f.name for f in fields(cls)}
     unknown = [key for key in data if key not in known]
     if not unknown:
-        return cls(**data)  # common case: skip copying the dict on every event
+        return construct_or_name_missing(cls, data)  # common case: skip copying the dict on every event
 
     for key in unknown:
         if (cls.__name__, key) not in reported_unknown_keys:
@@ -281,7 +314,23 @@ def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, An
                 cls.__name__,
                 extra={"payload": cls.__name__, "key": key},
             )
-    return cls(**{k: v for k, v in data.items() if k in known})
+    return construct_or_name_missing(cls, {k: v for k, v in data.items() if k in known})
+
+
+def construct_or_name_missing(cls: type[DataclassT], data: Mapping[str, Any]) -> DataclassT:
+    """Construct `cls` from `data`; when that fails for missing required fields, raise naming them."""
+    try:
+        return cls(**data)
+    except TypeError as exc:
+        missing = tuple(
+            f.name
+            for f in fields(cls)
+            if f.init and f.name not in data and f.default is MISSING and f.default_factory is MISSING
+        )
+        if not missing:
+            # Not a missing-field failure (e.g. a wrong-typed argument a custom __init__ rejects): keep it as is.
+            raise
+        raise MissingPayloadFieldsError(cls.__name__, missing) from exc
 
 
 def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:

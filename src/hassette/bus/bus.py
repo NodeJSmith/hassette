@@ -708,6 +708,7 @@ class Bus(Resource):
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
+        # dup-ignore-start: forwards the same registration kwargs as the Shape B delegates' _subscribe() calls
         sub = await self._on_internal(
             topic=topic,
             handler=handler,
@@ -721,6 +722,7 @@ class Bus(Resource):
             registration_source=registration_source,
             **opts,
         )
+        # dup-ignore-end
         # After registration succeeds, so a forgotten await or a rejected registration never warns.
         if entity_id and name:
             warn_if_unknown_entity(self.logger, self.parent, self.hassette.try_state_proxy(), entity_id, name)
@@ -1161,6 +1163,67 @@ class Bus(Resource):
             owner=self.parent,
             source_location=source_location,
             method_name="on_service_registered",
+        )
+
+    def on_hassette_message(
+        self,
+        message: str | None = None,
+        *,
+        handler: "HandlerType",
+        where: WhereClause = None,
+        kwargs: Mapping[str, Any] | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
+        **opts: Unpack[Options],
+    ) -> "Coroutine[Any, Any, Subscription]":
+        """Subscribe to messages sent with the hass-hassette integration's ``hassette.send`` action.
+
+        A dashboard button, script or automation runs ``hassette.send`` with a ``name`` and an optional
+        ``data`` mapping. Annotate the handler's parameter as ``D.MessageData[T]`` to receive ``data``
+        validated into ``T``.
+
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
+
+        Args:
+            message: Only messages sent with this ``name`` (e.g. ``"tracker_done"``). ``None`` matches every message.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+        _require_name(name, handler, str(Topic.HASS_EVENT_HASSETTE_MESSAGE))
+        preds: list[Predicate] = []
+
+        if message is not None:
+            # payload.data is the HassetteMessagePayload; its .name is the message's name.
+            preds.append(P.ValueIs(source=get_path("payload.data.name"), condition=message))
+
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
+        return guard_await(
+            self._subscribe(
+                log_label="hassette_message",
+                topic=Topic.HASS_EVENT_HASSETTE_MESSAGE,
+                handler=handler,
+                scope=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"message": message, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
+            method_name="on_hassette_message",
         )
 
     def on_homeassistant_restart(

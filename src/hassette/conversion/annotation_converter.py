@@ -45,12 +45,21 @@ class AnnotationConverter:
         # Union / Optional: try arms
         if is_union(tp):
             last_err: Exception | None = None
+            arm_errors: list[str] = []
             for arm in get_args(tp):
                 try:
                     return self.convert(value, arm)
                 except Exception as exc:
                     last_err = exc
-            raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}") from last_err
+                    # NoneType's own failure ("not None") says nothing about why the value didn't fit.
+                    if arm is not type(None):
+                        arm_errors.append(f"{arm!r}: {type(exc).__name__}: {exc}")
+            # Each non-None arm's error is in the message itself: the injector reports only this
+            # exception's text, so a chained cause alone would hide e.g. a model's field errors.
+            detail = "; ".join(arm_errors)
+            raise UnableToConvertValueError(
+                f"Unable to convert {value!r} to {tp!r}" + (f"; {detail}" if detail else "")
+            ) from last_err
 
         # Literal: match exact allowed values (conversion generally not meaningful)
         if get_origin(tp) is Literal:

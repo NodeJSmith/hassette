@@ -1,0 +1,9 @@
+type: button
+name: Kitchen tracker done
+tap_action:
+  action: perform-action
+  perform_action: hassette.send
+  data:
+    name: tracker_done
+    data:
+      room: kitchen
