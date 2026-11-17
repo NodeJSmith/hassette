@@ -32,6 +32,7 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
             "app_manifests",
             "blocking_events",
             "executions",
+            "lifecycle_events",
             "listener_misses",
             "listeners",
             "log_records",
@@ -44,8 +45,8 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         # 001.sql defines 13 idx_* indexes (2 listeners, 2 scheduled_jobs, 6 executions, 3 log_records);
         # 004.sql adds 3 more (idx_be_ts, idx_be_app_ts, idx_be_session); 016.sql adds idx_lr_default_view;
         # 022.sql adds idx_lr_debug_time; 024.sql adds 7 on api_writes (idx_aw_*); 025.sql adds 3 on
-        # listener_misses (idx_lm_*) → 28 total.
-        assert len(indexes) == 28
+        # listener_misses (idx_lm_*); 026.sql adds 3 on lifecycle_events (idx_le_*) → 31 total.
+        assert len(indexes) == 31
         assert "idx_listeners_app" in indexes
         assert "idx_listeners_natural" in indexes
         assert "idx_scheduled_jobs_app" in indexes

@@ -12,6 +12,7 @@ from hassette.event_handling.accessors import (
     get_attr_old,
     get_attr_old_new,
     get_state_object_new,
+    get_state_object_old,
     get_state_value_new,
     get_state_value_old,
     get_state_value_old_new,
@@ -21,11 +22,11 @@ from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils import date_utils
 from hassette.utils.func_utils import callable_stable_name as callable_name
 
-from .combinators import _PredicateOps, summarize_condition
+from .combinators import CUSTOM_CONDITION_SUMMARY, _PredicateOps, summarize_condition
 from .comparison import compare_value
 
 if typing.TYPE_CHECKING:
-    from hassette import RawStateChangeEvent
+    from hassette.events import RawStateChangeEvent
 
 V = TypeVar("V")
 
@@ -65,7 +66,7 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
         if callable(self.condition):
             if hasattr(self.condition, "summarize"):
                 return f"value {summarize_condition(self.condition)} from {source_name}"
-            return f"custom condition from {source_name}"
+            return f"{CUSTOM_CONDITION_SUMMARY} from {source_name}"
         return f"value is {self.condition} from {source_name}"
 
 
@@ -161,9 +162,7 @@ class StateComparison(_PredicateOps):
     condition: ComparisonCondition
 
     def __post_init__(self) -> None:
-        if isinstance(self.condition, type):
-            name = self.condition.__name__
-            raise TypeError(f"StateComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
+        reject_class_condition(type(self).__name__, self.condition)
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return the result of calling ``condition`` with the event's old and new state values."""
@@ -176,7 +175,7 @@ class StateComparison(_PredicateOps):
 
 @dataclass(frozen=True)
 class AttrFrom(_PredicateOps):
-    """Checks if a specific attribute changed in a RawStateChangeEvent."""
+    """Checks if a specific attribute's old value in a RawStateChangeEvent satisfies a condition."""
 
     attr_name: str
     condition: "ChangeType"
@@ -192,7 +191,7 @@ class AttrFrom(_PredicateOps):
 
 @dataclass(frozen=True)
 class AttrTo(_PredicateOps):
-    """Checks if a specific attribute changed in a RawStateChangeEvent."""
+    """Checks if a specific attribute's new value in a RawStateChangeEvent satisfies a condition."""
 
     attr_name: str
     condition: "ChangeType"
@@ -214,9 +213,7 @@ class AttrComparison(_PredicateOps):
     condition: ComparisonCondition
 
     def __post_init__(self) -> None:
-        if isinstance(self.condition, type):
-            name = self.condition.__name__
-            raise TypeError(f"AttrComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
+        reject_class_condition(type(self).__name__, self.condition)
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return the result of calling ``condition`` with attribute ``attr_name``'s old and new values."""
@@ -246,16 +243,14 @@ class StateDidChange(_PredicateOps):
 class AttrDidChange(_PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent.
 
-    When ``old_state`` is None, the attribute is treated as having changed if it is present on ``new_state``.  This
-    applies to synthetic immediate-fire/bootstrap events, the cancel handler's old_state stripping in DurationTimer,
-    and real state-change events where there is no prior state yet (first observation / first-time state set).
+    When ``old_state`` is None, the attribute is treated as having changed if it is present on ``new_state``.
     """
 
     attr_name: str
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return True if ``attr_name`` differs between old and new state; with no old state, if it exists on new."""
-        if value.payload.data.old_state is None:
+        if get_state_object_old(value) is None:
             return get_attr_new(self.attr_name)(value) is not MISSING_VALUE
         return DidChange(get_attr_old_new(self.attr_name))(value)
 
@@ -331,3 +326,10 @@ class EventEntityFresh(_PredicateOps):
     def summarize(self) -> str:
         """Return ``"event within <max_age>s"`` (e.g. ``"event within 10s"``)."""
         return f"event within {self.max_age:g}s"
+
+
+def reject_class_condition(owner: str, condition: object) -> None:
+    """Raise TypeError when ``condition`` is a class rather than an instance of one."""
+    if isinstance(condition, type):
+        name = condition.__name__
+        raise TypeError(f"{owner} was passed the class {name}; pass an instance instead, e.g. {name}().")

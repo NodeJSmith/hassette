@@ -20,11 +20,11 @@ from hassette.resources.shutdown_deadline import elapsed_since
 from hassette.types.types import CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
-_CROSS_THREAD_SPAWN_TIMEOUT_SECS = 10.0
-
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.sync_executor import SyncExecutor
+
+_CROSS_THREAD_SPAWN_TIMEOUT_SECONDS = 10.0
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -60,7 +60,7 @@ class TaskBucket(Resource):
         self,
         hassette: "Hassette",
         *,
-        parent: "Resource | None" = None,
+        parent: Resource | None = None,
         sync_executor: "SyncExecutor",
         max_tasks: int | None = None,
     ) -> None:
@@ -84,7 +84,7 @@ class TaskBucket(Resource):
             raise ValueError(f"max_tasks must be a positive integer or None, got {max_tasks!r}")
         super().__init__(hassette, parent=parent)
         self._slots = asyncio.Semaphore(max_tasks) if max_tasks is not None else None
-        self._tasks: set[asyncio.Task[Any]] = set()
+        self._tasks = set()
         self._exception_recorders = []
         self._sync_executor = sync_executor
         self._sealed = False
@@ -134,11 +134,6 @@ class TaskBucket(Resource):
     def _sealed_rejection(self, name: str) -> TaskBucketSealedError:
         return TaskBucketSealedError(f"TaskBucket({self.unique_name}) is sealed and rejected new work: {name}")
 
-    def _close_rejected_coro(self, coro: "CoroLikeT[Any]") -> None:
-        close = getattr(coro, "close", None)
-        if callable(close):
-            close()
-
     def pending_task_names(self) -> tuple[str, ...]:
         """Return a deterministic, synchronous snapshot of names for tasks still pending.
 
@@ -161,7 +156,7 @@ class TaskBucket(Resource):
             task.cancel()
 
             def _consume_rejected(done_task: asyncio.Task[Any]) -> None:
-                with contextlib.suppress(BaseException):
+                with contextlib.suppress(asyncio.CancelledError):
                     done_task.exception()
 
             task.add_done_callback(_consume_rejected)
@@ -174,8 +169,6 @@ class TaskBucket(Resource):
                 exc = done_task.exception()
             except asyncio.CancelledError:  # noqa: ASYNC103 — cancelled task is expected, not an error
                 return  # noqa: ASYNC104
-            except Exception:
-                return
             if exc:
                 self.logger.error("[%s] task %s crashed", self.unique_name, done_task.get_name(), exc_info=exc)
                 for recorder in list(self._exception_recorders):
@@ -224,7 +217,7 @@ class TaskBucket(Resource):
             self._exception_recorders.remove(recorder)
 
     def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
-        """Convenience: create and track a new task.
+        """Create and track a new task.
 
         Raises ``TaskBucketSealedError`` (a ``RuntimeError`` subclass) without creating a
         task if the bucket is sealed. The unsubmitted coroutine is closed first (when it
@@ -239,16 +232,14 @@ class TaskBucket(Resource):
         task_name: str = name if name is not None else (getattr(coro, "__qualname__", None) or repr(coro))
 
         if self._sealed:
-            self._close_rejected_coro(coro)
+            _close_rejected_coro(coro)
             raise self._sealed_rejection(task_name)
 
         self.logger.debug("Spawning task %s in bucket %s", task_name, self.unique_name)
         current_thread = threading.get_ident()
 
         if current_thread == self.hassette.loop_thread_id:
-            # Fast path: already on loop thread
             return self._create_spawned_task(coro, task_name)
-        # Dev-mode tracking: log cross-thread spawn
         if self.hassette.config.dev_mode:
             self.logger.debug(
                 "Cross-thread spawn: %s from thread %s (loop thread %s)",
@@ -257,21 +248,21 @@ class TaskBucket(Resource):
                 self.hassette.loop_thread_id,
             )
         # Cross-thread: create the task on the real loop thread and wait for the handle
-        result: Future[asyncio.Task[T]] = Future()
+        task_future: Future[asyncio.Task[T]] = Future()
 
         def _create() -> None:
             if self._sealed:
-                self._close_rejected_coro(coro)
-                result.set_exception(self._sealed_rejection(task_name))
+                _close_rejected_coro(coro)
+                task_future.set_exception(self._sealed_rejection(task_name))
                 return
             try:
-                result.set_result(self._create_spawned_task(coro, task_name))
+                task_future.set_result(self._create_spawned_task(coro, task_name))
             except Exception as exc:
-                result.set_exception(exc)
+                task_future.set_exception(exc)
 
         self.hassette.loop.call_soon_threadsafe(_create)
         try:
-            return result.result(timeout=_CROSS_THREAD_SPAWN_TIMEOUT_SECS)
+            return task_future.result(timeout=_CROSS_THREAD_SPAWN_TIMEOUT_SECONDS)
         except CfTimeoutError:
             # Accepted risk, not fixed: _create() is scheduled via call_soon_threadsafe()
             # and may still run on the loop thread after this timeout fires here on the
@@ -284,7 +275,7 @@ class TaskBucket(Resource):
             self.logger.error(
                 "Cross-thread spawn of '%s' timed out after %.0fs waiting for the event loop",
                 task_name,
-                _CROSS_THREAD_SPAWN_TIMEOUT_SECS,
+                _CROSS_THREAD_SPAWN_TIMEOUT_SECONDS,
             )
             raise RuntimeError(
                 f"Cross-thread spawn of '{task_name}' timed out waiting for the event loop "
@@ -301,12 +292,12 @@ class TaskBucket(Resource):
             with ctx.use_task_bucket(self):
                 task = asyncio.create_task(_run_when_slot_free(self._slots, coro), name=name)
         except BaseException:
-            coro.close()
+            _close_rejected_coro(coro)
             raise
         # A task cancelled before its first step, or while waiting for a slot, never starts
         # `coro`; closing it once the task is done avoids a "never awaited" warning. Closing a
         # coroutine that already ran to completion is a no-op.
-        task.add_done_callback(lambda _: coro.close())
+        task.add_done_callback(lambda _: _close_rejected_coro(coro))
         return task
 
     def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
@@ -363,18 +354,14 @@ class TaskBucket(Resource):
     def run_sync(
         self, fn: Coroutine[Any, Any, R], timeout_seconds: int | float | FalseySentinel | None = NOT_PROVIDED
     ) -> R:
-        """Run an async function in a synchronous context.
+        """Run a coroutine in a synchronous context.
 
         Args:
-            fn: The async function to run.
+            fn: The coroutine to run (an awaited call's result, e.g. ``self.api.get_state(...)``, not the function).
             timeout_seconds: The timeout for the function call. Omit (or pass ``NOT_PROVIDED``)
                 to use the config value; ``None`` blocks forever (no timeout — the same spelling
                 ``concurrent.futures.Future.result()`` itself uses); ``0`` fails immediately; any
                 other number is the timeout in seconds.
-
-                Breaking change: prior to this, ``None`` meant "use the config value" and
-                ``float("inf")`` meant "block forever." Any caller that explicitly passed
-                ``timeout_seconds=None`` to get the config default must omit the argument instead.
 
         Returns:
             The result of the function call.
@@ -415,7 +402,7 @@ class TaskBucket(Resource):
             if fut is not None and not fut.done():
                 fut.cancel()
 
-    async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args: Any, **kwargs: Any) -> R:
+    async def run_on_loop_thread(self, fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
         """Run a synchronous function on the main event loop thread.
 
         This is useful for ensuring that loop-affine code runs in the correct context.
@@ -448,11 +435,18 @@ class TaskBucket(Resource):
         """
         return [t for t in list(self._tasks) if not t.done()]
 
+    def cancellable_tasks(self) -> list[asyncio.Task[Any]]:
+        """Return a snapshot of pending tasks, excluding the task calling this method.
+
+        Returns:
+            The tasks from :meth:`pending_tasks` other than ``asyncio.current_task()``.
+        """
+        current = asyncio.current_task()
+        return [t for t in self.pending_tasks() if t is not current]
+
     def cancel_all_sync(self) -> None:
         """Cancel all tracked tasks without awaiting completion (fire-and-forget)."""
-        current = asyncio.current_task()
-        tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
-        for t in tasks:
+        for t in self.cancellable_tasks():
             t.cancel()
 
     async def cancel_all(self, *, timeout: float | None = None) -> tuple[str, ...]:
@@ -467,9 +461,7 @@ class TaskBucket(Resource):
             wait. Duplicate names are not removed. Empty if every tracked task finished, or
             if there was nothing to cancel.
         """
-        # snapshot to avoid mutation during iteration
-        current = asyncio.current_task()
-        tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
+        tasks = self.cancellable_tasks()
 
         if not tasks:
             self.logger.debug("No tasks to cancel in bucket %s", self.unique_name)
@@ -517,6 +509,13 @@ async def _run_when_slot_free(slots: asyncio.Semaphore, coro: CoroLikeT[T]) -> T
         slots.release()
 
 
+def _close_rejected_coro(coro: CoroLikeT[Any]) -> None:
+    """Close ``coro`` if it supports ``close()``, so it never warns that it was never awaited."""
+    close = getattr(coro, "close", None)
+    if callable(close):
+        close()
+
+
 def make_task_factory(
     global_bucket: TaskBucket,
 ) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
@@ -538,10 +537,8 @@ def make_task_factory(
         to the task factory. We pop ``name`` and apply it after construction so the
         auto-naming fallback still works for callers that don't pass one.
         """
-        # note: ensure we pass loop=loop here, to handle cases where we're calling this from something like
-        # anyio's to_thread.run_sync
-        # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not
-        # i'm honestly not sure where they get that idea from
+        # Pass loop=loop explicitly: this factory can run from foreign-thread contexts (e.g. anyio's
+        # to_thread.run_sync) where there is no running loop to infer.
         explicit_name = kwargs.pop("name", None)
         # kwargs is whatever asyncio's event loop decides to pass a task factory -- a stdlib
         # calling convention this code doesn't control (see docstring above).

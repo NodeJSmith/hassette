@@ -1,8 +1,8 @@
 """Shared dependency injection primitives.
 
-Consumers (the event bus, and future consumers like the scheduler) use this package to
-inspect handler/predicate signatures, build an injection plan, and resolve kwargs at
-dispatch time - without needing to know about each other's source types.
+Consumers (the event bus and the scheduler) use this package to inspect handler/predicate
+signatures, build an injection plan, and resolve kwargs at dispatch time - without needing
+to know about each other's source types.
 
 See `design/specs/004-extract-event-handling-di/design.md` for the full architecture.
 """

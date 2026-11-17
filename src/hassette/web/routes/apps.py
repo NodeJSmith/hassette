@@ -124,7 +124,7 @@ def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
     """Raise ``ACTION_IN_PROGRESS`` when another action holds or is queued for ``app_key``'s lock.
 
     Runs before any existence or instance-range check: an in-flight action can mutate the
-    registry those checks read (a stop in flight unregisters each instance as its teardown ends),
+    registry those checks read (a stop in flight removes each instance's entry as its teardown ends),
     so checking existence first could turn a concurrent request into a spurious 404 instead of
     the 409 it should get.
     """
@@ -150,7 +150,7 @@ def _orphan_instance_permitted(app_key: str, instance_name: str, hassette: Hasse
     """Whether ``instance_name`` is a still-tracked instance outside the app's current config.
 
     When an instance leaves the config while it is still running, it is orphaned —
-    ``AppRegistry.prune_stale_failed`` only prunes stale *failed* entries, never running ones, and
+    ``AppRegistry.stale_failed_names`` covers stale *failed* entries only, never running ones, and
     ``build_manifest_info`` keeps reporting it in ``instances``, after the configured ones. Only
     ``stop`` is permitted through, for the same reason as ``_orphan_app_permitted``:
     ``AppLifecycleService.stop_instance()`` matches this permissiveness, while

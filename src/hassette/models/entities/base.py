@@ -29,19 +29,29 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     """The ``Api`` that fetched this entity (set by ``Api.get_entity``), so its actions are that app's writes."""
 
     async def refresh(self) -> StateT:
+        """Re-fetch this entity's state from Home Assistant and replace ``state`` with it.
+
+        The fetch goes through ``api`` (see that property).
+
+        Returns:
+            The newly fetched state.
+        """
         self.state = cast("StateT", await self.api.get_state(self.entity_id))
         return self.state
 
     @property
     def value(self) -> StateValueT:
+        """The value of the entity's current state, typed as ``StateValueT``."""
         return cast("StateValueT", self.state.value)
 
     @property
     def entity_id(self) -> str:
+        """The entity's ID (e.g. ``light.kitchen``), read from ``state``."""
         return self.state.entity_id
 
     @property
     def domain(self) -> str:
+        """The entity's domain (e.g. ``light``), read from ``state``."""
         return self.state.domain
 
     @property
@@ -90,7 +100,11 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
 
 
 class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
-    """Synchronous facade for BaseEntity to allow easier access to properties without async/await."""
+    """Base for the synchronous facades returned by an entity's ``sync`` property.
+
+    Holds the wrapped ``entity``. Domain facades (e.g. ``LightEntitySyncFacade``) extend it with
+    synchronous wrappers for their entity's actions.
+    """
 
     entity: BaseEntity[StateT, StateValueT]
 

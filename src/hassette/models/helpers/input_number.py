@@ -1,4 +1,4 @@
-# dup-ignore-file: HA helper models — Create/Update/State param classes share fields by API design
+# dup-ignore-file: HA helper models — Record/Create/Update classes share fields by API design
 """Pydantic models for the ``input_number`` helper domain.
 
 Models here represent the stored configuration for ``input_number`` helpers,
@@ -53,10 +53,9 @@ class CreateInputNumberParams(BaseModel):
 class UpdateInputNumberParams(BaseModel):
     """Parameters accepted by ``input_number/update``.
 
-    Note: HA requires ``min``/``max`` to be valid floats when set — passing
-    explicit ``None`` for these fields is not a valid operation. The harness
-    does not enforce this constraint; production HA will reject the request
-    server-side.
+    Note:
+        HA requires ``min``/``max`` to be valid floats when set and rejects an
+        explicit ``None``.
     """
 
     model_config = ConfigDict(extra="ignore")

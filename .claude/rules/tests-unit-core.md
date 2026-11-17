@@ -29,9 +29,9 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 ## Available fixtures (re-exported from this directory's conftest.py)
 
 - `mock_hassette` — `make_mock_hassette()` wired for `AppLifecycleService` tests
-- `mock_registry`, `mock_factory`, `mock_manifest`, `mock_app_instance` — mocked collaborators for lifecycle tests
+- `mock_registry`, `mock_factory`, `mock_manifest`, `mock_app_instance` — mocked collaborators for lifecycle tests that assert which writes were made (`status_writes`/`failure_writes`); `mock_registry.set_status` is a `fake_set_status` mock that returns a change for every write, so tests asserting an emitted app-state event use `real_registry_service` instead
 - `lifecycle_service` — `AppLifecycleService` built from the mocks above
-- `real_registry_service` — `AppLifecycleService` over a real `AppRegistry` (mocked hassette and factory), for tests of registry state such as stop ordering and needs-restart records
+- `real_registry_service` — `AppLifecycleService` over a real `AppRegistry` (mocked hassette and factory), for tests of registry state such as stop ordering and needs-restart records, and of emitted app-state events (seed state with `seed_running`/`seed_failed`, or `registry.set_status`); the registry decides which writes emit
 - `telemetry_db`, `telemetry_repo`, `telemetry_session_id` — SQLite-backed telemetry test chain
 - `websocket_service` — `WebsocketService` on a mocked hassette stub
 
@@ -40,7 +40,8 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `assert_load_completed_count(event_capture, expected)` — assert how many `APP_LOAD_COMPLETED` broadcasts fired (the signal a connected dashboard refetches on)
 - `assert_acquires_app_key_lock_once(lifecycle_service, app_key, operation)` — await `operation()` and assert it took the per-app-key lock exactly once and released it; the internal `asyncio.wait_for` turns a non-reentrant-lock deadlock into a test failure instead of a hung run
 - `stub_detected_changes(lifecycle_service, changes)` — make `detect_changes` report `changes` and stub `apply_changes`, for tests of `handle_change_event`'s own apply/defer/broadcast decisions
-- `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get(app_key, instance_name=None)` from an `apps`-shaped dict (`dict[str, dict[str, App]]`, instances keyed by instance name); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
+- `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_live_apps()`, and `get(app_key, instance_name=None)` from an `apps`-shaped dict (`dict[str, dict[str, App]]`, instances keyed by instance name); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
+- `fake_set_status(...)`, `last_written_status(registry, app_key, name)`, `status_writes(registry)`, `failure_writes(registry)` — the `mock_registry`'s `set_status` side effect, its `get_status` side effect (the last status written, NOT_STARTED before any), the `(instance_name, status)` pairs written through it, and its FAILED calls; assert on these, not on deleted registry methods
 - `make_manifest_obj(app_key, **kw)` — `SimpleNamespace` AppManifest stand-in for `AppRegistry` tests; shared by the `test_app_registry*.py` files
 - `make_app_instance(app_key, instance_name=None)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same files
 - `stub_refused_attempts(websocket_service, *, failures)` — make `run_connection` raise `ConnectionRefusedError` `failures` times, then return so `serve()` ends; returns the `AsyncMock` (assert `await_count` for the attempt total)

@@ -55,10 +55,9 @@ class UpdateInputDatetimeParams(BaseModel):
     them in isolation would reject legitimate updates that leave the other
     flag at its stored value. HA validates the merged state server-side.
 
-    Note: HA requires ``has_date``/``has_time`` to be valid booleans when set —
-    passing explicit ``None`` for these fields is not a valid operation. The
-    harness does not enforce this constraint; production HA will reject the
-    request server-side.
+    Note:
+        HA requires ``has_date``/``has_time`` to be valid booleans when set and
+        rejects an explicit ``None``.
     """
 
     model_config = ConfigDict(extra="ignore")

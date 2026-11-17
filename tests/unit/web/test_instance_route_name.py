@@ -11,6 +11,7 @@ from hassette import Hassette
 from hassette.core.app_registry import AppRegistry
 from hassette.web.errors import WebApiError
 from hassette.web.routes.apps import _require_addressable_instance
+from tests.support.app_registry_helpers import seed_running
 from tests.support.factories import make_app
 from tests.support.helpers import create_app_manifest
 
@@ -43,14 +44,14 @@ def test_a_reorder_does_not_change_what_a_name_addresses(registry: AppRegistry, 
 
 
 def test_stop_addresses_a_running_orphan_by_name(registry: AppRegistry) -> None:
-    registry.register_app(APP_KEY, make_app(instance_name="attic"))
+    seed_running(registry, APP_KEY, make_app(instance_name="attic"))
 
     _require_addressable_instance(APP_KEY, "attic", hassette_with(registry), "stop")
 
 
 @pytest.mark.parametrize("action", ["start", "reload"])
 def test_only_stop_addresses_an_orphan(registry: AppRegistry, action: str) -> None:
-    registry.register_app(APP_KEY, make_app(instance_name="attic"))
+    seed_running(registry, APP_KEY, make_app(instance_name="attic"))
 
     with pytest.raises(WebApiError) as exc_info:
         _require_addressable_instance(APP_KEY, "attic", hassette_with(registry), action)  # pyright: ignore[reportArgumentType]
@@ -67,7 +68,7 @@ def test_a_name_with_no_instance_is_not_found_with_no_fallback(registry: AppRegi
 
 
 def test_an_app_removed_from_config_stops_only_a_tracked_name(registry: AppRegistry) -> None:
-    registry.register_app(APP_KEY, make_app(instance_name="one"))
+    seed_running(registry, APP_KEY, make_app(instance_name="one"))
     registry.set_manifests({})
 
     _require_addressable_instance(APP_KEY, "one", hassette_with(registry), "stop")

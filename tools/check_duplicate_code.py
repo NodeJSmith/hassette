@@ -55,7 +55,7 @@ own source — it's a balanced pair, so it's harmless, but adding a second, unba
 below it would break `main()` on this file. Keep any doc examples of the marker syntax balanced.)
 
 For files where the *entire* file is intentional duplication (e.g. HA helper models whose
-Create/Update/State param classes share fields by API design), a single file-level marker
+Record/Create/Update classes share fields by API design), a single file-level marker
 excludes every fragment from that file without wrapping individual blocks:
 
     # dup-ignore-file: <reason>

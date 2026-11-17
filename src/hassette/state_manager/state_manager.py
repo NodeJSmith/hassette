@@ -66,12 +66,18 @@ class DomainStates(Mapping[str, StateT]):
     (not one-shot iterators), and ``for entity_id in domain_states`` yields entity ID strings, matching Python
     convention. Use ``.items()`` for ``(entity_id, state)`` pairs.
 
+    ``.get()`` returns ``None`` when the entity is missing or, on a predicate-filtered view, not a member.
+    On an unfiltered view (``self.states.light`` and other plain domain views), an entity that exists but
+    whose state does not convert to the view's model makes ``.get()`` and ``[]`` raise
+    ``UnableToConvertStateError``, while ``in``, iteration, and ``len()`` skip it. A schema mismatch stays
+    visible instead of reading as a missing entity.
+
     Examples:
     ```python
         # if you know the entity exists
         light_state = self.states.light["bedroom"]
 
-        # to safely access an entity that may not exist
+        # to access an entity that may not exist (None if missing; still raises on a conversion failure)
         light_state = self.states.light.get("bedroom")
         if light_state is not None:
             self.logger.info("Light state: %s", light_state.value)
@@ -187,7 +193,11 @@ class DomainStates(Mapping[str, StateT]):
         return sum(1 for _ in self)
 
     def __contains__(self, entity_id: object) -> bool:
-        """Check if a specific entity ID is a member of this view (predicate AND convertibility)."""
+        """Check if a specific entity ID is a member of this view (predicate AND convertibility).
+
+        Returns ``False`` for an entity whose state does not convert to the view's model, even on an
+        unfiltered view where ``[]`` and ``.get()`` raise ``UnableToConvertStateError`` for it.
+        """
         if not isinstance(entity_id, str):
             return False
         try:

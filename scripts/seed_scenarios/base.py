@@ -153,7 +153,7 @@ def _quote_column(name: str) -> str:
     return f'"{name}"' if name in _RESERVED_COLUMNS else name
 
 
-def _build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = False) -> str:
+def build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = False) -> str:
     """Build a plain INSERT statement from a table name and column names.
 
     Column order matches the order of ``columns`` (dict key order, for callers that pass
@@ -169,11 +169,11 @@ def _build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = F
     return sql
 
 
-_SESSION_INSERT_SQL = _build_insert_sql("sessions", _SESSION_COLUMNS, returning=True)
-_LOG_INSERT_SQL = _build_insert_sql("log_records", LOG_RECORD_COLUMNS)
-_BLOCKING_EVENT_INSERT_SQL = _build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
-_API_WRITE_INSERT_SQL = _build_insert_sql("api_writes", _API_WRITE_COLUMNS)
-_LISTENER_MISS_INSERT_SQL = _build_insert_sql("listener_misses", _LISTENER_MISS_COLUMNS)
+_SESSION_INSERT_SQL = build_insert_sql("sessions", _SESSION_COLUMNS, returning=True)
+_LOG_INSERT_SQL = build_insert_sql("log_records", LOG_RECORD_COLUMNS)
+_BLOCKING_EVENT_INSERT_SQL = build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
+_API_WRITE_INSERT_SQL = build_insert_sql("api_writes", _API_WRITE_COLUMNS)
+_LISTENER_MISS_INSERT_SQL = build_insert_sql("listener_misses", _LISTENER_MISS_COLUMNS)
 
 
 def insert_row(cursor: sqlite3.Cursor, sql: str, params: dict[str, Any]) -> int:
@@ -271,7 +271,7 @@ class SeedContext:
         params = listener_insert_params(registration)
         params["retired_at"] = retired_at
         params["removed_at"] = removed_at
-        sql = _build_insert_sql("listeners", params, returning=True)
+        sql = build_insert_sql("listeners", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
     def add_job(
@@ -285,7 +285,7 @@ class SeedContext:
         params = job_insert_params(registration)
         params["retired_at"] = retired_at
         params["removed_at"] = removed_at
-        sql = _build_insert_sql("scheduled_jobs", params, returning=True)
+        sql = build_insert_sql("scheduled_jobs", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
     def add_app_manifest(
@@ -323,7 +323,7 @@ class SeedContext:
             "enabled": 1 if enabled else 0,
             "autostart": 1 if autostart else 0,
         }
-        sql = _build_insert_sql("app_manifests", params, returning=True)
+        sql = build_insert_sql("app_manifests", params, returning=True)
         return insert_row(self.cursor, sql, params)
 
     def add_execution(self, record: ExecutionRecord) -> str:
@@ -335,7 +335,7 @@ class SeedContext:
         if not record.execution_id:
             raise ValueError("Seeded executions must have a deterministic execution_id")
         params = execution_insert_params(record)
-        sql = _build_insert_sql("executions", params)
+        sql = build_insert_sql("executions", params)
         insert_row(self.cursor, sql, params)
         return record.execution_id
 
@@ -415,6 +415,17 @@ class SeedContext:
     def add_listener_miss(self, params: dict[str, Any]) -> None:
         """Insert a listener_misses row; ``params`` carries every column in ``_LISTENER_MISS_COLUMNS``."""
         insert_row(self.cursor, _LISTENER_MISS_INSERT_SQL, params)
+
+    def session_bounds(self, session_id: int) -> tuple[float, float | None]:
+        """The ``(started_at, stopped_at)`` of a seeded session; ``stopped_at`` is ``None`` while it runs.
+
+        Raises:
+            ValueError: No session with that id was seeded.
+        """
+        row = self.cursor.execute("SELECT started_at, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"unknown session {session_id}")
+        return row[0], row[1]
 
 
 @contextmanager

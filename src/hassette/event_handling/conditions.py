@@ -1,4 +1,3 @@
-# dup-ignore-file: collection-condition dataclasses share __post_init__ + __call__ + summarize by design
 """Conditions test values extracted from an event and return whether the condition is met.
 
 Conditions receive one or more values extracted from an event and return a boolean indicating
@@ -71,7 +70,21 @@ OP_LIST = list(OPS.__args__)
 ARROW = "→"
 ELLIPSIS_CHAR = "…"
 
-_OP_DISPLAY: dict[str, str] = {"gt": ">", "lt": "<", "ge": ">=", "le": "<=", "eq": "==", "ne": "!="}
+_OPERATORS: dict[str, tuple[Callable[[Any, Any], bool], str]] = {
+    ">": (operator.gt, ">"),
+    "gt": (operator.gt, ">"),
+    "<": (operator.lt, "<"),
+    "lt": (operator.lt, "<"),
+    ">=": (operator.ge, ">="),
+    "ge": (operator.ge, ">="),
+    "<=": (operator.le, "<="),
+    "le": (operator.le, "<="),
+    "==": (operator.eq, "=="),
+    "eq": (operator.eq, "=="),
+    "!=": (operator.ne, "!="),
+    "ne": (operator.ne, "!="),
+}
+"""Every ``OPS`` token mapped to its operator function and display symbol."""
 
 _COLLECTION_DISPLAY_LIMIT = 3
 
@@ -282,9 +295,9 @@ class Exact:
 
     value: Any
 
-    def __call__(self, value: Any) -> bool:
-        """Return True if ``value`` equals the stored value, comparing the raw value without type coercion."""
-        return value == self.value
+    def __call__(self, actual: Any) -> bool:
+        """Return True if ``actual`` equals the stored value, comparing the raw value without type coercion."""
+        return actual == self.value
 
     def summarize(self) -> str:
         """Return ``"exactly <value repr>"`` (e.g. ``"exactly 1"`` or ``"exactly 'on'"``)."""
@@ -318,7 +331,17 @@ class Missing:
 
 
 @dataclass(frozen=True)
-class IsIn:
+class _CollectionCondition:
+    """Shared shell for conditions that test a value against a validated ``collection``."""
+
+    collection: Sequence[Any]
+
+    def __post_init__(self) -> None:
+        _validate_collection(self.collection)
+
+
+@dataclass(frozen=True)
+class IsIn(_CollectionCondition):
     """Condition that checks if a value is in a given collection.
 
     Examples:
@@ -326,12 +349,6 @@ class IsIn:
     ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
     ```
     """
-
-    collection: Sequence[Any]
-
-    def __post_init__(self) -> None:
-        _validate_collection(self.collection)
-        object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
         """Return True if ``value`` is a member of ``collection``."""
@@ -343,7 +360,7 @@ class IsIn:
 
 
 @dataclass(frozen=True)
-class NotIn:
+class NotIn(_CollectionCondition):
     """Condition that checks if a value is not in a given collection.
 
     Examples:
@@ -351,12 +368,6 @@ class NotIn:
     ValueIs(source=get_entity_id, condition=NotIn(collection=["light.kitchen", "light.living"]))
     ```
     """
-
-    collection: Sequence[Any]
-
-    def __post_init__(self) -> None:
-        _validate_collection(self.collection)
-        object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
         """Return True if ``value`` is not a member of ``collection``."""
@@ -368,7 +379,7 @@ class NotIn:
 
 
 @dataclass(frozen=True)
-class Intersects:
+class Intersects(_CollectionCondition):
     """Condition that checks if a collection value intersects with a given collection.
 
     Examples:
@@ -376,12 +387,6 @@ class Intersects:
     ValueIs(source=get_tags, condition=Intersects(collection=["kitchen", "living"]))
     ```
     """
-
-    collection: Sequence[Any]
-
-    def __post_init__(self) -> None:
-        _validate_collection(self.collection)
-        object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
         """Return True if any item of the sequence ``value`` is in ``collection``; a non-sequence never matches."""
@@ -396,7 +401,7 @@ class Intersects:
 
 
 @dataclass(frozen=True)
-class NotIntersects:
+class NotIntersects(_CollectionCondition):
     """Condition that checks if a collection value does not intersect with a given collection.
 
     Examples:
@@ -404,12 +409,6 @@ class NotIntersects:
     ValueIs(source=get_tags, condition=NotIntersects(collection=["kitchen", "living"]))
     ```
     """
-
-    collection: Sequence[Any]
-
-    def __post_init__(self) -> None:
-        _validate_collection(self.collection)
-        object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
         """Return True if no item of the sequence ``value`` is in ``collection``; a non-sequence always matches."""
@@ -434,7 +433,7 @@ class IsOrContains:
     ```
     """
 
-    condition: str
+    condition: Any
 
     def __call__(self, value: Sequence[Any] | Any) -> bool:
         """Return True if ``value`` equals ``condition`` or, for a non-string sequence, contains an item equal to it."""
@@ -495,28 +494,15 @@ class Comparison:
     op: OPS
     """Comparison operator to use"""
 
-    op_fn: Callable[[Any, Any], bool]
-    """Operator function"""
+    op_fn: Callable[[Any, Any], bool] = field(init=False, compare=False, repr=False)
+    """Operator function, derived from ``op``"""
 
-    def __init__(self, op: OPS, value: Any):
+    def __init__(self, op: OPS, value: Any) -> None:
+        if op not in _OPERATORS:
+            raise ValueError(f"Invalid comparison operator {op}. Allowed operators are {OP_LIST}")
         object.__setattr__(self, "compare_to", value)
         object.__setattr__(self, "op", op)
-        match op:
-            case ">" | "gt":
-                op_fn = operator.gt
-            case "<" | "lt":
-                op_fn = operator.lt
-            case ">=" | "ge":
-                op_fn = operator.ge
-            case "<=" | "le":
-                op_fn = operator.le
-            case "==" | "eq":
-                op_fn = operator.eq
-            case "!=" | "ne":
-                op_fn = operator.ne
-            case _:
-                raise ValueError(f"Invalid comparison operator {op}. Allowed operators are {OP_LIST}")
-        object.__setattr__(self, "op_fn", op_fn)
+        object.__setattr__(self, "op_fn", _OPERATORS[op][0])
 
     def __call__(self, value: Any) -> bool:
         """Return the result of applying ``op`` to ``value`` (coerced to ``compare_to``'s type) and ``compare_to``."""
@@ -529,7 +515,7 @@ class Comparison:
 
     def summarize(self) -> str:
         """Return the operator's display symbol followed by ``compare_to`` (e.g. ``"> 20"``)."""
-        return f"{_OP_DISPLAY.get(self.op, self.op)} {self.compare_to}"
+        return f"{_OPERATORS[self.op][1]} {self.compare_to}"
 
 
 @dataclass(frozen=True)

@@ -227,7 +227,7 @@ def normalize_constructible(tp: Any) -> Any:
     args = get_args(tp)
     try:
         # origin is usually a real class like list/dict/tuple
-        return origin[args] if args else origin  # pyright: ignore
+        return origin[args] if args else origin  # pyright: ignore[reportIndexIssue]
     except TypeError:
         return tp
 

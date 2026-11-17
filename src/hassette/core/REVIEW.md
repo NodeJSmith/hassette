@@ -62,30 +62,38 @@ still attached turns a deliberate teardown into a spurious DISCONNECTED transiti
 ## Connection State Has One Writer
 `WebsocketService.set_connection_state` in `src/hassette/core/websocket_service.py` is the only
 writer of `_connection_state` under `src/` after `__init__`; it latches ever-connected, clears the
-connected event and generation, and checks the edge against `WS_VALID_TRANSITIONS`. Does new code
-(including `src/hassette/testing/`) assign `_connection_state` directly, skipping all three? And
+connected event and generation, checks the edge against `WS_VALID_TRANSITIONS`, and records the
+transition as a `lifecycle_events` row. Does new code (including `src/hassette/testing/`) assign
+`_connection_state` directly, skipping all four? And
 does a new state or edge land in `WS_VALID_TRANSITIONS` and the test table `ALLOWED_TRANSITIONS`
 together?
 
-## Needs-Restart Flag Sourcing
-`AppRegistry.resolve_instance_info()` in `src/hassette/core/app_registry.py` is the one reader of an
-instance entry and its needs-restart record combined; a flagged name can outlive its entry.
-Does a new reader of per-instance state go through it (or `resolve_instance_infos()`) rather than
-reading the instance map directly, which drops flagged names? And does every new FAILED outcome in
-`src/hassette/core/app_lifecycle_instances.py` whose `ShutdownOutcome` is not restart-safe flag the
-instance before the status event is sent? Does a new path that creates an instance go through
+## App Status Writes and the Needs-Restart Flag
+`AppRegistry.set_status()` in `src/hassette/core/app_registry.py` is the only writer of app instance status,
+and lifecycle code reaches it only through `AppInstanceLifecycleMixin.set_app_status()`, which writes, records
+a `lifecycle_events` row and sends the event in one call. Does a new status write go through `set_app_status()`
+rather than calling `registry.set_status()` directly (whose returned change would then go unsent and unrecorded)? The needs-restart flag lives on
+the FAILED entry and is set by the FAILED write itself (`needs_restart=`); its `StatusChange` and
+`HassetteAppStateEvent` carry it. Does a consumer of app status events read the flag from the event rather than
+the registry, which may already hold a later write? Does every new FAILED outcome in
+`src/hassette/core/app_lifecycle_instances.py` whose `ShutdownOutcome` is not restart-safe pass the flag on that
+write (`fail_needs_restart()`)? Does a new path that creates an instance go through
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
-whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged name? That gate covers `(app_key, name)` only: a renamed instance
+whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged name? Does `initialize_instance` keep
+both `admits_init` checks, one before the STARTING write and one before `initialize()`, with no `await` between a
+check and the step it gates? That gate covers `(app_key, name)` only: a renamed instance
 or a name moved to another app passes it by design (see the `refusal_reason` docstring).
 
 ## Debug-Capture State Sourcing
 `AppRegistry` holds per-instance debug capture; `App.debug_capture` is a mirror that level resolution reads.
 Does a new toggle or writer go through `AppHandler.set_debug_capture` (registry first, then the live instance)
-rather than setting the attribute directly? Does every new path that removes an app or an instance name from
+rather than setting the attribute directly? The one exception is `_record_created`, which copies the registry's
+flag onto each new `App` right before registering it, since `AppHandler.set_debug_capture` can't reach an
+unregistered instance. Does every new path that removes an app or an instance name from
 the config reach `prune_stale_debug_capture` or `clear_debug_capture`, so no pair is left that no route or
 status read can see?
 
 A capture pair is name-keyed intent, so it isn't pruned on every exit path, but an instance's logger levels must be
-reset when it leaves. Does a new path that unregisters a live instance go through `shutdown_instance`, whose `finally`
-returns a departing captured instance's loggers to config, rather than calling `unregister_app` on its own? Discarding
+reset when it leaves. Does a new path that removes a live instance's entry go through `shutdown_instance`, whose `finally`
+returns a departing captured instance's loggers to config, rather than writing its STOPPED or FAILED status on its own? Discarding
 a failure entry, which holds no live instance, is the exception.

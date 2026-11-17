@@ -91,8 +91,8 @@ class ExecutionQueriesMixin:
     ) -> list[Execution]:
         """Return recent execution records from the unified executions table.
 
-        Exactly one of ``listener_id``, ``job_id``, or ``kind`` should be supplied to
-        narrow the query. Supplying none returns all executions up to ``limit``.
+        Each supplied filter narrows the query (combined with AND); supplying none returns
+        all executions up to ``limit``.
 
         Args:
             listener_id: When provided, restrict to handler executions for this listener.
@@ -353,8 +353,8 @@ class ExecutionQueriesMixin:
         A single lookup against the unified ``executions`` table by ``execution_id``.
         """
         async with self.execute(
-            "SELECT execution_start_ts FROM executions WHERE execution_id = :eid LIMIT 1",
-            {"eid": execution_id},
+            "SELECT execution_start_ts FROM executions WHERE execution_id = :execution_id LIMIT 1",
+            {"execution_id": execution_id},
         ) as cursor:
             row = await cursor.fetchone()
         if row is not None:

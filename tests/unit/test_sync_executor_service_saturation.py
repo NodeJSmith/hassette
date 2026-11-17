@@ -308,7 +308,7 @@ class TestSubmissionTimeSaturationWarning:
             first_count = len(warning_calls)
 
             # Manually expire the rate-limit window
-            sync_executor._last_saturation_warn_ts = (
+            sync_executor.saturation_warn_pacer.last_ts = (
                 time.monotonic() - sync_executor.saturation_warn_rate_limit_seconds - 1.0
             )
 
@@ -342,8 +342,8 @@ class TestSubmissionTimeSaturationWarning:
         that remain on SyncExecutorService.
         """
         with saturation_probe(max_workers=2, outstanding=2) as (sync_executor, warning_calls):
-            # Pre-expire the rate-limit so the probe can fire immediately
-            sync_executor._last_saturation_warn_ts = 0.0
+            # Reset the pacer so the probe can fire immediately
+            sync_executor.saturation_warn_pacer.last_ts = None
 
             sync_executor.log_saturation_rate_limited()
 
@@ -396,8 +396,8 @@ class TestPeriodicSaturationProbe:
             ready.wait(timeout=2)
             # Simulate full saturation via active counter
             svc.sync_executor._outstanding_submissions = 1
-            # Pre-expire rate-limit
-            svc.sync_executor._last_saturation_warn_ts = 0.0
+            # Reset the pacer so the probe can fire immediately
+            svc.sync_executor.saturation_warn_pacer.last_ts = None
 
             probe_calls: list[None] = []
             original_log = svc.sync_executor.log_saturation_rate_limited

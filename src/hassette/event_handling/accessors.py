@@ -65,7 +65,7 @@ DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
     """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
 
-    def extract_path(obj):
+    def _inner(obj: Any) -> Any | FalseySentinel:
         try:
             return glom(obj, path)
         except PathAccessError:
@@ -75,7 +75,20 @@ def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
             LOGGER.error("Error accessing path %r: %s - %s", path, type(exc).__name__, exc)
             return MISSING_VALUE
 
-    return extract_path
+    return _inner
+
+
+# Prebuilt extractors for the fixed paths the accessors below read on every event.
+DOMAIN_PATH = get_path("payload.data.domain")
+ENTITY_ID_PATH = get_path("payload.data.entity_id")
+CONTEXT_PATH = get_path("payload.context")
+SERVICE_PATH = get_path("payload.data.service")
+SERVICE_DATA_PATH = get_path("payload.data.service_data")
+
+
+def attributes_of(state: "HassStateDict | None") -> dict[str, Any]:
+    """Return the attributes dict of a state object, or an empty dict if the state is `None`."""
+    return state.get("attributes", {}) if state else {}
 
 
 def get_state_value_old(event: "RawStateChangeEvent") -> Any | FalseySentinel:
@@ -112,9 +125,7 @@ def get_attr_old(name: str) -> Callable[["RawStateChangeEvent"], Any]:
     """Get a specific attribute from the old state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> Any:
-        data = event.payload.data
-        old_attrs: dict[str, Any] = data.old_state.get("attributes", {}) if data.old_state else {}
-        return old_attrs.get(name, MISSING_VALUE)
+        return attributes_of(event.payload.data.old_state).get(name, MISSING_VALUE)
 
     return _inner
 
@@ -123,9 +134,7 @@ def get_attr_new(name: str) -> Callable[["RawStateChangeEvent"], Any]:
     """Get a specific attribute from the new state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> Any:
-        data = event.payload.data
-        new_attrs: dict[str, Any] = data.new_state.get("attributes", {}) if data.new_state else {}
-        return new_attrs.get(name, MISSING_VALUE)
+        return attributes_of(event.payload.data.new_state).get(name, MISSING_VALUE)
 
     return _inner
 
@@ -136,9 +145,7 @@ def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, 
     new_getter = get_attr_new(name)
 
     def _inner(event: "RawStateChangeEvent") -> tuple[Any, Any]:
-        old = old_getter(event)
-        new = new_getter(event)
-        return (old, new)
+        return (old_getter(event), new_getter(event))
 
     return _inner
 
@@ -147,8 +154,7 @@ def get_attrs_new(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[st
     """Get specific attributes from the new state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
-        data = event.payload.data
-        new_attrs: dict[str, Any] = data.new_state.get("attributes", {}) if data.new_state else {}
+        new_attrs = attributes_of(event.payload.data.new_state)
         return {name: new_attrs.get(name, MISSING_VALUE) for name in names}
 
     return _inner
@@ -158,8 +164,7 @@ def get_attrs_old(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[st
     """Get specific attributes from the old state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
-        data = event.payload.data
-        old_attrs: dict[str, Any] = data.old_state.get("attributes", {}) if data.old_state else {}
+        old_attrs = attributes_of(event.payload.data.old_state)
         return {name: old_attrs.get(name, MISSING_VALUE) for name in names}
 
     return _inner
@@ -173,9 +178,7 @@ def get_attrs_old_new(
     new_getter = get_attrs_new(names)
 
     def _inner(event: "RawStateChangeEvent") -> tuple[dict[str, Any], dict[str, Any]]:
-        old = old_getter(event)
-        new = new_getter(event)
-        return (old, new)
+        return (old_getter(event), new_getter(event))
 
     return _inner
 
@@ -202,14 +205,12 @@ def get_all_attrs_old_new(
     event: "RawStateChangeEvent",
 ) -> tuple[dict[str, Any] | FalseySentinel, dict[str, Any] | FalseySentinel]:
     """Get all attributes from the old and new state in a RawStateChangeEvent."""
-    old = get_all_attrs_old(event)
-    new = get_all_attrs_new(event)
-    return (old, new)
+    return (get_all_attrs_old(event), get_all_attrs_new(event))
 
 
 def get_domain(event: "HassEvent") -> str | FalseySentinel:
     """Get the domain from the event payload."""
-    domain = cast("str", get_path("payload.data.domain")(event))
+    domain = DOMAIN_PATH(event)
     if domain is not MISSING_VALUE:
         return domain
 
@@ -225,7 +226,7 @@ def get_domain(event: "HassEvent") -> str | FalseySentinel:
 
 def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
     """Get the entity_id from the event payload."""
-    entity_id = cast("str", get_path("payload.data.entity_id")(event))
+    entity_id = ENTITY_ID_PATH(event)
     if entity_id is not MISSING_VALUE:
         return entity_id
 
@@ -237,12 +238,12 @@ def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
 
 def get_context(event: "HassEvent") -> "HassContext":
     """Get the `HassContext` object (`id`, `parent_id`, `user_id`) from the event payload."""
-    return cast("HassContext", get_path("payload.context")(event))
+    return cast("HassContext", CONTEXT_PATH(event))
 
 
 def get_all_changes(
     exclude: Sequence[str] = DEFAULT_EXCLUDE,
-) -> Callable[["RawStateChangeEvent"], dict[str, dict[str, Any]]]:
+) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
     """Get a dict of changed state and attribute values between old and new states.
 
     Args:
@@ -250,7 +251,8 @@ def get_all_changes(
             that change every state update (e.g., `last_updated`, `last_changed`, `context`).
 
     Returns:
-        dict[str, dict[str, Any]]: A nested dict mapping names to tuples of (old_value, new_value).
+        dict[str, Any]: A dict mapping each changed key to an (old_value, new_value) tuple, or to a nested dict of the
+            same shape for dict values.
 
     Example return value:
         ```
@@ -267,10 +269,7 @@ def get_all_changes(
     def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
         old = cast("dict", event.payload.data.old_state or {})
         new = cast("dict", event.payload.data.new_state or {})
-
-        changed_dict = _recursive_get_differences(old, new, exclude=exclude)
-
-        return changed_dict
+        return _recursive_get_differences(old, new, exclude=exclude)
 
     return _inner
 
@@ -297,40 +296,39 @@ def _recursive_get_differences(
 
 def get_service(event: "CallServiceEvent") -> str | FalseySentinel:
     """Return the service name being called."""
-    return get_path("payload.data.service")(event)
+    return SERVICE_PATH(event)
 
 
 def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | FalseySentinel:
-    """Return the service_data dict (or empty dict if missing).
+    """Return the service_data dict, or MISSING_VALUE if missing.
 
     Returns:
         dict[str, Any] | FalseySentinel: The service_data dict, or MISSING_VALUE if not present.
     """
-    return get_path("payload.data.service_data")(event)
+    return SERVICE_DATA_PATH(event)
 
 
 def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
     """Return an accessor that extracts a specific key from service_data.
 
     Examples:
-    --------
-    Basic equality against a literal
+        Basic equality against a literal
 
+        ```python
         ValueIs(source=get_service_data_key("entity_id"), condition="light.living_room")
+        ```
 
-    Callable condition (value must be an int > 200)
+        Callable condition (value must be an int > 200)
 
+        ```python
         ValueIs(source=get_service_data_key("brightness"), condition=lambda v: isinstance(v, int) and v > 200)
-
+        ```
     """
 
     def _inner(event: "CallServiceEvent") -> Any:
         service_data = get_service_data(event)
-        if service_data is MISSING_VALUE:
+        if not isinstance(service_data, dict):
             return MISSING_VALUE
-
-        if typing.TYPE_CHECKING:
-            assert not isinstance(service_data, FalseySentinel)
 
         return service_data.get(key, MISSING_VALUE)
 

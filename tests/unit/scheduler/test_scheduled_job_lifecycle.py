@@ -215,6 +215,7 @@ class TestTransitionTo:
 
         assert job.next_run == next_run.round("second")
         assert job.fire_at == jittered_fire_at
+        assert job.sort_index[0] == jittered_fire_at.timestamp(unit="nanosecond")
 
     def test_transition_to_non_scheduled_clears_next_run_and_fire_at(self) -> None:
         """Leaving SCHEDULED clears next_run/fire_at regardless of what a caller passes."""

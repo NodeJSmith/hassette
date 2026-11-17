@@ -228,7 +228,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     def set_debug_capture(self, enabled: bool) -> None:
         """Turn debug capture on or off for this live instance and re-apply every owned logger's level.
 
-        Framework-internal: ``AppHandler.set_debug_capture`` calls it after updating the registry.
+        Framework-internal: ``AppHandler.set_debug_capture`` calls it after updating the registry, and
+        ``AppLifecycleService`` calls it to bring a new instance in line with the registry just before registering it.
         """
         self.debug_capture = enabled
         self.reapply_log_levels()

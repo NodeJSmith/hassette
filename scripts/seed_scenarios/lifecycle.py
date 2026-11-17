@@ -9,6 +9,7 @@ from seed_scenarios.base import (
     STATE_CHANGED_TOPIC,
     SeedContext,
     add_running_session,
+    make_instance_name,
     seed_app_blocking_event,
     seed_executions,
     seed_job,
@@ -16,6 +17,12 @@ from seed_scenarios.base import (
     seed_log_records,
     seed_simple_app,
     ts,
+)
+from seed_scenarios.lifecycle_events import (
+    app_lifecycle_steps,
+    block_change_step,
+    connection_lifecycle_steps,
+    seed_session_lifecycle,
 )
 
 
@@ -60,7 +67,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     app_key, class_name = "alarm_system", "AlarmSystem"
     base = APP_TIME_SPACING_SECONDS
     ctx.add_app_manifest(app_key=app_key, class_name=class_name)
-    ctx.add_session(
+    crashed_session_id = ctx.add_session(
         started_at=ts(base),
         last_heartbeat_at=ts(base + 30.0),
         stopped_at=ts(base + 30.0),
@@ -79,6 +86,30 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         topic=STATE_CHANGED_TOPIC,
         name=f"{app_key}_motion_listener",
         source_location=f"{app_key}.py:15",
+    )
+    # The crashed session's app failed before the process died; the restart rides out an HA restart.
+    instance_name = make_instance_name(class_name, 0)
+    seed_session_lifecycle(
+        ctx,
+        session_id=crashed_session_id,
+        steps=[
+            *connection_lifecycle_steps(base),
+            *app_lifecycle_steps(
+                app_key=app_key,
+                instance_name=instance_name,
+                base_offset=base,
+                failure="RuntimeError",
+                failure_offset=20.0,
+            ),
+        ],
+    )
+    seed_session_lifecycle(
+        ctx,
+        session_id=running_session_id,
+        steps=[
+            *connection_lifecycle_steps(base + 90.0, ha_restart_offset=600.0),
+            *app_lifecycle_steps(app_key=app_key, instance_name=instance_name, base_offset=base + 90.0),
+        ],
     )
     seed_job(
         ctx,
@@ -211,4 +242,14 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         class_name=class_name,
         detected_ts=ts(base + 500.0),
         stall_duration_ms=900.0,
+    )
+    # This session ran under `run --app`, so an app outside the filter was blocked; it was later
+    # disabled in config, which closes the block as removed rather than unblocked.
+    seed_session_lifecycle(
+        ctx,
+        session_id=session_id,
+        steps=[
+            block_change_step(app_key="legacy_lights", to_status="blocked", at_offset=base + 1.5),
+            block_change_step(app_key="legacy_lights", to_status="removed", at_offset=base + 900.0),
+        ],
     )

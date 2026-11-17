@@ -133,6 +133,18 @@ CREATE TABLE listener_misses (
     last_ts     REAL NOT NULL
 );
 
+CREATE TABLE lifecycle_events (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id    INTEGER NOT NULL REFERENCES sessions(id),
+    kind          TEXT NOT NULL,
+    app_key       TEXT,
+    instance_name TEXT,
+    from_status   TEXT,
+    to_status     TEXT NOT NULL,
+    details       TEXT NOT NULL,
+    ts            REAL NOT NULL
+);
+
 CREATE TABLE app_manifests (
     id           INTEGER PRIMARY KEY,
     app_key      TEXT NOT NULL UNIQUE,

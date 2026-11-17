@@ -543,6 +543,7 @@ class Job:
             self.set_next_run(next_run)
             if fire_at is not None:
                 self.fire_at = fire_at
+                self.sort_index = (fire_at.timestamp(unit="nanosecond"), id(self))
         else:
             self.next_run = None
             self.fire_at = None

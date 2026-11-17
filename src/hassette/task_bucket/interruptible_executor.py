@@ -21,18 +21,20 @@ from typing import Any
 
 LOGGER = getLogger(__name__)
 
-# Number of join/interrupt loop iterations before giving up on remaining threads.
+# Each join round gets 1/_JOIN_ATTEMPTS of the remaining budget (HA's divisor); rounds continue until all threads
+# join or the budget runs out.
 _JOIN_ATTEMPTS = 10
 
 # Maximum number of attempts on which straggler stacks are logged (to avoid log spam).
 _MAX_LOG_ATTEMPTS = 2
 
+DEFAULT_SHUTDOWN_TIMEOUT_SECONDS = 10.0  # HA's EXECUTOR_SHUTDOWN_TIMEOUT
+
 
 def async_raise(tid: int, exctype: type[BaseException]) -> None:
     """Raise an exception asynchronously in the thread with id *tid*.
 
-    Ported verbatim from ``homeassistant.util.thread.async_raise`` (HA
-    ``homeassistant/util/thread.py:38-55``).
+    Ported verbatim from ``homeassistant.util.thread.async_raise``.
 
     Args:
         tid: The native integer thread id (``thread.ident``).
@@ -47,7 +49,7 @@ def async_raise(tid: int, exctype: type[BaseException]) -> None:
     if not inspect.isclass(exctype):
         raise TypeError("Only types can be raised (not instances)")
 
-    c_tid = ctypes.c_ulong(tid)  # changed in python 3.7+
+    c_tid = ctypes.c_ulong(tid)
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(c_tid, ctypes.py_object(exctype))
 
     if res == 1:
@@ -65,10 +67,10 @@ def async_raise(tid: int, exctype: type[BaseException]) -> None:
 def log_thread_running_at_shutdown(name: str, ident: int) -> None:
     """Log the name and current stack of a thread still alive at shutdown.
 
-    Equivalent to HA's ``_log_thread_running_at_shutdown``
-    (``homeassistant/util/executor.py:23-32``). A thread with no Python frame (blocked inside a C call made
-    directly, such as ``time.sleep`` registered as an atexit handler) is logged without a stack, since
-    ``traceback.format_stack(None)`` would print the caller's stack instead.
+    Equivalent to HA's ``homeassistant.util.executor._log_thread_running_at_shutdown``. A thread with no
+    Python frame (blocked inside a C call made directly, such as ``time.sleep`` registered as an atexit
+    handler) is logged without a stack, since ``traceback.format_stack(None)`` would print the caller's
+    stack instead.
     """
     stack = sys._current_frames().get(ident)
     formatted_stack = "".join(traceback.format_stack(stack)).strip() if stack is not None else "(no Python frames)"
@@ -119,8 +121,7 @@ def join_or_interrupt_threads(threads: set[Thread], timeout: float, log: bool) -
 class InterruptibleThreadPoolExecutor(ThreadPoolExecutor):
     """A ``ThreadPoolExecutor`` that will not deadlock on shutdown.
 
-    Ported from ``homeassistant.util.executor.InterruptibleThreadPoolExecutor``
-    (HA ``homeassistant/util/executor.py:61-101``). The only deviation from a verbatim
+    Ported from ``homeassistant.util.executor.InterruptibleThreadPoolExecutor``. The only deviation from a verbatim
     port is that the join/interrupt budget is a ``timeout: float`` parameter on
     ``shutdown()`` and ``join_threads_or_timeout()``, instead of the HA module constant
     ``EXECUTOR_SHUTDOWN_TIMEOUT``.
@@ -136,7 +137,7 @@ class InterruptibleThreadPoolExecutor(ThreadPoolExecutor):
         self,
         *args: Any,
         join_threads_or_timeout: bool = True,
-        timeout: float = 10.0,
+        timeout: float = DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
         **kwargs: Any,
     ) -> None:
         """Shut down the executor with optional join/interrupt support.
@@ -146,14 +147,16 @@ class InterruptibleThreadPoolExecutor(ThreadPoolExecutor):
         *join_threads_or_timeout* is ``True``.
 
         Args:
-            *args: Forwarded to the base ``ThreadPoolExecutor.shutdown``.
+            *args: Accepted for signature compatibility with ``ThreadPoolExecutor.shutdown`` and ignored:
+                this override always uses ``wait=False, cancel_futures=True``.
             join_threads_or_timeout: When ``True`` (default), attempt to join live
                 worker threads and interrupt stragglers within *timeout* seconds.
             timeout: Total seconds budgeted for the join/interrupt loop. Defaults to
-                ``10.0`` (HA's ``EXECUTOR_SHUTDOWN_TIMEOUT``). The caller should pass
+                ``DEFAULT_SHUTDOWN_TIMEOUT_SECONDS`` (HA's ``EXECUTOR_SHUTDOWN_TIMEOUT``). The caller should pass
                 its cap clamped to what is left of its shutdown deadline, so the loop
                 never overruns that deadline.
-            **kwargs: Forwarded to the base ``ThreadPoolExecutor.shutdown``.
+            **kwargs: Accepted for signature compatibility with ``ThreadPoolExecutor.shutdown`` and ignored:
+                this override always uses ``wait=False, cancel_futures=True``.
         """
         super().shutdown(wait=False, cancel_futures=True)
         if join_threads_or_timeout:
@@ -167,8 +170,8 @@ class InterruptibleThreadPoolExecutor(ThreadPoolExecutor):
     def join_threads_or_timeout(self, timeout: float) -> None:
         """Join worker threads or give up after *timeout* seconds.
 
-        Runs up to ``_JOIN_ATTEMPTS`` rounds of ``join_or_interrupt_threads``, each
-        given a slice of the remaining budget. Exits early if all threads have joined.
+        Runs rounds of ``join_or_interrupt_threads``, each given ``1/_JOIN_ATTEMPTS`` of
+        the remaining budget, until every thread has joined or *timeout* elapses.
         C-blocked threads that survive the full budget are abandoned — shutdown still
         completes, matching HA's best-effort guarantee.
 

@@ -13,7 +13,7 @@ import inspect
 from collections.abc import Mapping
 from difflib import get_close_matches
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Never, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Never, Protocol, cast, runtime_checkable
 
 import aiohttp
 from pydantic import BaseModel
@@ -62,6 +62,7 @@ from hassette.testing.api_call import ApiCall
 
 if TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.api import Api
     from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
 
@@ -749,6 +750,14 @@ class RecordingApi(Resource):
         """
         return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
+    def _build_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity:
+        """Build ``model`` bound to this recorder, like ``Api.get_entity``; sync so the sync facade binds its parent."""
+        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
+            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
+        entity = model.model_validate({"state": self._get_raw_state(entity_id)})
+        entity._api = cast("Api", self)  # pyright: ignore[reportPrivateUsage]
+        return entity
+
     async def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""
         raw = self._get_raw_state(entity_id)
@@ -772,28 +781,17 @@ class RecordingApi(Resource):
             TypeError: If ``model`` is not a ``BaseEntity`` subclass.
             EntityNotFoundError: If ``entity_id`` is not seeded.
         """
-        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
-            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
-
-        raw = self._get_raw_state(entity_id)
-        return model.model_validate({"state": raw})
+        return self._build_entity(entity_id, model)
 
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
         """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
 
-        Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
-        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``RecordingSyncFacade`` generator. Matches the real
-        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
+        Matches the real ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
         """
-        if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
-            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
-
         try:
-            raw = self._get_raw_state(entity_id)
+            return self._build_entity(entity_id, model)
         except EntityNotFoundError:
             return None
-        return model.model_validate({"state": raw})
 
     async def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""

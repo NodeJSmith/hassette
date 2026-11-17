@@ -1,13 +1,4 @@
-"""Pydantic models for app-health telemetry DB query results.
-
-These typed models replace raw ``dict`` returns, preventing the
-"column rename -> silent template failure" class of bugs.
-
-For app-registry snapshots, see ``hassette.schemas.app_snapshots``. For the live
-system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
-
-See ``schemas/__init__.py`` for the domain-file map.
-"""
+"""Pydantic models for app-health telemetry DB query results."""
 
 from typing import Self
 

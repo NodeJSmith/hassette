@@ -133,16 +133,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
     @property
     def is_group(self) -> bool:
         """Whether this entity is a group entity (i.e. has multiple entity_ids)."""
-        if not self.attributes:
-            return False
-
-        if not hasattr(self.attributes, "entity_id"):
-            return False
-
-        if not isinstance(self.attributes.entity_id, list):  # pyright: ignore[reportAttributeAccessIssue]
-            return False
-
-        return len(self.attributes.entity_id) > 1  # pyright: ignore[reportAttributeAccessIssue]
+        ids = self.attributes.entity_id
+        return ids is not None and len(ids) > 1
 
     @property
     def time_since_last_change(self) -> TimeDelta | None:
@@ -176,12 +168,15 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        # A subclass without its own `domain: Literal[...]` annotation is a narrowed view of a parent's
+        # domain and stays unregistered on purpose, so it can't replace the parent's converter
+        # process-wide (see the `sensor_shapes.py` module docstring).
         with suppress(NoDomainAnnotationError):
             register_state_converter(cls, domain=cls.get_domain())
 
     @field_validator("last_changed", "last_reported", "last_updated", mode="before")
     @classmethod
-    def _validate_datetime_fields(cls, value):
+    def _validate_datetime_fields(cls, value: Any) -> Any:
         if value is None:
             return None
         if isinstance(value, int | float):
@@ -194,50 +189,51 @@ class BaseState(BaseModel, Generic[StateValueT]):
 
     @model_validator(mode="before")
     @classmethod
-    def _validate_domain_and_state(cls, values):
+    def _validate_domain_and_state(cls, values: Any) -> Any:
         if not isinstance(values, dict):
             LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__, stacklevel=2)
             return values
 
-        values = dict(values)
-
-        entity_id = values.get("entity_id")
-        if entity_id:
-            domain = entity_id.split(".")[0]
-            values["domain"] = domain
-
-        state = values.get("state")
-        if state == "unknown":
-            values["is_unknown"] = True
-            values["state"] = state = None
-        elif state == "unavailable":
-            values["is_unavailable"] = True
-            values["state"] = state = None
-
-        return values
+        return normalize_raw_state(values)
 
     @classmethod
     def get_domain(cls) -> str:
         """Returns the domain string for this state class, extracted from the domain field annotation."""
-        fields = cls.model_fields
-        domain_field = fields.get("domain")
-        if not domain_field:
+        annotation = get_annotations(cls).get("domain") if "domain" in cls.model_fields else None
+        args = get_args(annotation) if annotation is not None else ()
+        if not args or not isinstance(args[0], str):
             raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
+        return args[0]
 
-        annotations = get_annotations(cls)
-        annotation = annotations.get("domain")
-        if annotation is None:
-            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
 
-        args = get_args(annotation)
-        if not args:
-            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
+def normalize_raw_state(values: dict[str, Any]) -> dict[str, Any]:
+    """Return a normalized copy of a raw Home Assistant state dict.
 
-        domain = args[0]
-        if not isinstance(domain, str):
-            raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
+    Sets `domain` from the `entity_id` prefix, and maps an `"unknown"` or `"unavailable"` state to
+    `None` with `is_unknown` or `is_unavailable` set. Shared by `BaseState` validation and the state
+    registry so both apply the same rules.
 
-        return domain
+    Args:
+        values: The raw state dict. Not modified.
+
+    Returns:
+        A new dict with the normalized fields.
+    """
+    prepared = dict(values)
+
+    entity_id = prepared.get("entity_id")
+    if entity_id:
+        prepared["domain"] = str(entity_id).split(".", 1)[0]
+
+    state = prepared.get("state")
+    if state == "unknown":
+        prepared["is_unknown"] = True
+        prepared["state"] = None
+    elif state == "unavailable":
+        prepared["is_unavailable"] = True
+        prepared["state"] = None
+
+    return prepared
 
 
 class StringBaseState(BaseState[str | None]):

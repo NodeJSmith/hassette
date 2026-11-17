@@ -7,13 +7,19 @@ or `build_retire_query` and doesn't find them by name should check this file nex
 """
 
 import time
+from collections.abc import Callable
 
 import aiosqlite
 import pytest
 from hassette_wire import ExecutionStatus
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry.reconcile_sql import build_delete_stale_jobs_query, build_retire_query
+from hassette.core.telemetry.reconcile_sql import (
+    build_delete_stale_jobs_query,
+    build_retire_query,
+    build_retire_unconfigured_instances_query,
+    history_exists_sql,
+)
 from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import (
     DEFAULT_TEST_APP_KEY,
@@ -236,3 +242,18 @@ def test_build_retire_query_omits_instance_name_clause_when_none(table: str) -> 
 
     assert "instance_name" not in sql
     assert "instance_name" not in params
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda table: history_exists_sql(table),
+        lambda table: build_retire_query(table, DEFAULT_TEST_APP_KEY, [], time.time(), only_with_history=False),
+        lambda table: build_retire_unconfigured_instances_query(table, [], time.time()),
+    ],
+    ids=["history_exists_sql", "build_retire_query", "build_retire_unconfigured_instances_query"],
+)
+def test_reconcile_builders_refuse_unknown_table(build: Callable[[str], object]) -> None:
+    """Every builder that interpolates a table name rejects one outside the allowlist."""
+    with pytest.raises(ValueError, match="unknown table"):
+        build("app_manifests; DROP TABLE executions")

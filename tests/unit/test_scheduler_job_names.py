@@ -245,6 +245,24 @@ class TestIfExistsReplace:
         service.remove_job.assert_awaited_once_with(job)
         service.mark_job_removed.assert_awaited_once_with(42)
 
+    async def test_rollback_failure_does_not_mask_registration_error(self) -> None:
+        """When the rollback's removal write also fails, the caller still sees the original
+        registration error, not the rollback's exception.
+        """
+        scheduler = make_scheduler(wire_dequeue=True)
+
+        async def _persist_then_fail(job) -> None:
+            job.mark_registered(42)
+            raise ValueError("simulated registration failure")
+
+        scheduler.scheduler_service.add_job = AsyncMock(side_effect=_persist_then_fail)
+        scheduler.scheduler_service.mark_job_removed = AsyncMock(side_effect=RuntimeError("write queue down"))
+
+        with pytest.raises(ValueError, match="simulated registration failure"):
+            await scheduler.add_job(make_scheduled_job(name="flaky_job"))
+
+        cast("Mock", scheduler.scheduler_service).mark_job_removed.assert_awaited_once_with(42)
+
 
 class TestSchedulerNameRequired:
     """Empty ``name=""`` raises SchedulerNameRequiredError on every registration entry point."""

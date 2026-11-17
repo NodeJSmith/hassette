@@ -76,7 +76,7 @@ EXECUTION_INSERT_SQL = (
 )
 
 
-def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
+def is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     """Return True if the IntegrityError is a foreign key constraint violation.
 
     SQLite error messages for FK violations contain "FOREIGN KEY". Other
@@ -225,7 +225,7 @@ async def insert_row_with_fk_fallback(
         await db.execute(EXECUTION_INSERT_SQL, record_params)
         return False
     except sqlite3.IntegrityError as exc:
-        if not _is_fk_violation(exc):
+        if not is_fk_violation(exc):
             logger.error(
                 "Non-FK IntegrityError on executions row (%s=%s) — dropping: %s",
                 fk_field,

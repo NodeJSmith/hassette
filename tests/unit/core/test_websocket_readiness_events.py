@@ -114,7 +114,7 @@ class TestWebsocketReadinessEvents:
     async def test_park_reports_the_auth_rejection_and_stays_ready(
         self, initialized_service: WebsocketService, event_capture: EventCapture
     ) -> None:
-        task = asyncio.create_task(initialized_service.park())
+        task = asyncio.create_task(initialized_service.park(AUTH_REJECTED_REASON))
         await asyncio.sleep(0)
         await asyncio.sleep(0)
         task.cancel()

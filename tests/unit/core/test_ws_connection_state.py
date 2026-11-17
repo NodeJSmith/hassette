@@ -4,7 +4,6 @@ Tests for the ConnectionState enum (DISCONNECTED, CONNECTING, WAITING_FOR_CORE, 
 set_connection_state() validation, and the transitions serve() and cleanup() write.
 """
 
-import asyncio
 from dataclasses import dataclass, field
 from typing import cast
 from unittest.mock import AsyncMock, Mock
@@ -13,14 +12,14 @@ import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
 import hassette.core.websocket_service as service_module
+from hassette.core.telemetry.lifecycle_rows import ConnectionDetails
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import InvalidAuthError, WebsocketClosedError
-from hassette.testing import wait_for
+from hassette.exceptions import WebsocketClosedError
 from hassette.testing._ws_mocks import mark_websocket_service_connected
 from hassette.testing.config import TEST_WS_URL
 from hassette.types.enums import ConnectionState
 
-from .conftest import HA_CONFIG, cleanup_disconnected, run_core_running_gate, stub_refused_attempts
+from .conftest import HA_CONFIG, cleanup_disconnected, run_core_running_gate, serve_until_parked, stub_refused_attempts
 
 ALLOWED_TRANSITIONS = {
     (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
@@ -351,25 +350,7 @@ class TestServeTransitions:
         self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A token rejected on every attempt, retries included, parks: AUTH_FAILED, and serve() keeps running."""
-        monkeypatch.setattr(reconnect_module, "AUTH_RETRY_SECONDS", 0.0)
-
-        async def fake_run_connection(_session) -> None:
-            raise InvalidAuthError("bad token")
-
-        websocket_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service._emit_readiness_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        task = asyncio.create_task(websocket_service.serve())
-        try:
-            await wait_for(
-                lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED,
-                timeout=5.0,
-                desc="parked",
-            )
-            assert not task.done()
-        finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+        await serve_until_parked(websocket_service, monkeypatch)
 
 
 def record_states(websocket_service: WebsocketService) -> list[ConnectionState]:
@@ -377,9 +358,9 @@ def record_states(websocket_service: WebsocketService) -> list[ConnectionState]:
     states: list[ConnectionState] = []
     original_set = websocket_service.set_connection_state
 
-    def capture_set(new: ConnectionState) -> None:
+    def capture_set(new: ConnectionState, *, detail: ConnectionDetails | None = None) -> None:
         before = websocket_service.connection_state
-        original_set(new)
+        original_set(new, detail=detail)
         if websocket_service.connection_state != before:
             states.append(websocket_service.connection_state)
 

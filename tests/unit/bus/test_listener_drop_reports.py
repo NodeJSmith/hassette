@@ -26,6 +26,7 @@ from hassette.core.duration_hold_adapters import strip_old_state
 from hassette.event_handling import predicates as P
 from hassette.events import AnyEvent
 from hassette.testing import create_state_change_event, wait_for
+from hassette.utils.warn_pacer import WarnPacer
 from tests.support.factories import make_hassette_event, make_mock_executor, make_mock_invoking_executor
 from tests.support.helpers import async_noop, create_listener, make_controlled_clock, make_delivery, make_task_bucket
 from tests.unit.core._fixtures_bus_scheduler import make_bus_service
@@ -374,7 +375,8 @@ class TestBackpressure:
         service = BusService.__new__(BusService)
         service.logger = QUIET_LOGGER
         service._dispatch_semaphore = asyncio.Semaphore(0)
-        service._last_saturation_warn_ts = time.monotonic()  # inside the warning window: no config read
+        service.saturation_warn_pacer = WarnPacer()
+        service.saturation_warn_pacer.last_ts = time.monotonic()  # inside the warning window: no config read
         event = state_event("off", "on")
 
         await service._spawn_dispatch_task(make_delivery(listener, event))

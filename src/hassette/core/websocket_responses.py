@@ -12,7 +12,6 @@ exactly once, and the entry leaves the table at the same moment.
 """
 
 import logging
-import time
 import typing
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -22,6 +21,7 @@ from hassette_wire import ApiWriteOutcome
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.exceptions import CommandRejectedError, WebsocketClosedError
 from hassette.utils.hass_utils import context_id_of
+from hassette.utils.warn_pacer import WarnPacer
 
 if typing.TYPE_CHECKING:
     import asyncio
@@ -90,7 +90,7 @@ class PendingResponses:
         self.eviction_warn_interval = eviction_warn_interval
         self.background_count = 0
         """Running count of background entries, so the cap check never rescans the table."""
-        self.last_eviction_warn_ts: float | None = None
+        self.eviction_warn_pacer = WarnPacer()
 
     def register(
         self,
@@ -146,11 +146,9 @@ class PendingResponses:
                 self.run_callback(entry, "unresolved")
 
     def warn_eviction(self) -> None:
-        """Log one WARNING per eviction episode, paced like the execution write queue's capacity WARNING."""
-        now = time.monotonic()
-        if self.last_eviction_warn_ts is not None and now - self.last_eviction_warn_ts < self.eviction_warn_interval:
+        """Log one WARNING per eviction episode, paced by its own ``WarnPacer``."""
+        if not self.eviction_warn_pacer.allow(self.eviction_warn_interval):
             return
-        self.last_eviction_warn_ts = now
         self.logger.warning(
             "More than %d sent writes are awaiting a Home Assistant reply; evicting the oldest, whose records "
             "read 'unresolved' (counted under %s)",
@@ -183,9 +181,9 @@ class PendingResponses:
             if success:
                 entry.future.set_result(message.get("result"))
             else:
-                entry.future.set_exception(self.rejection(message, error_envelope))
+                entry.future.set_exception(self.rejection(message, error_envelope, code))
         elif not entry.fire_and_forget:
-            self.log_late_reply(msg_id, entry.command_type, message)
+            self.log_late_reply(msg_id, entry.command_type, success, code)
 
         if entry.on_resolve is None:
             return
@@ -199,12 +197,11 @@ class PendingResponses:
                 error_message=error_envelope.get("message"),
             )
 
-    def rejection(self, message: dict, error_envelope: dict) -> CommandRejectedError:
+    def rejection(self, message: dict, error_envelope: dict, code: Any) -> CommandRejectedError:
         """Build the exception an awaited caller gets for an error reply."""
         # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
         #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
         err = error_envelope.get("message", "Unknown error")
-        code = error_envelope.get("code")
         if code is None and error_envelope:
             self.logger.debug(
                 "HA error envelope has no 'code' field (raw envelope: %r). "
@@ -232,7 +229,7 @@ class PendingResponses:
         except Exception:
             self.logger.exception("Failed to record the %r outcome of a %r write", outcome, entry.command_type)
 
-    def log_late_reply(self, msg_id: int, command_type: str, message: dict) -> None:
+    def log_late_reply(self, msg_id: int, command_type: str, success: bool, code: Any) -> None:
         """Log a late reply to a non-retried write whose caller stopped waiting.
 
         A late success proves the write applied. A late failure only reports that Home
@@ -240,7 +237,7 @@ class PendingResponses:
         service) can partly apply before failing, so a failure reply does not prove the
         command had no effect.
         """
-        if message.get("success"):
+        if success:
             self.logger.info(
                 "Late reply to abandoned %r (id %s): it succeeded, so the command applied after its caller stopped "
                 "waiting",
@@ -248,7 +245,6 @@ class PendingResponses:
                 msg_id,
             )
         else:
-            code = (message.get("error") or {}).get("code")
             self.logger.warning(
                 "Late reply to abandoned %r (id %s): Home Assistant reported failure (code %r); "
                 "check state before re-sending",

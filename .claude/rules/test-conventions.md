@@ -14,6 +14,8 @@ Before defining a local `make_*` or `build_*` function in a test file, check `te
 
 If a matching factory exists, import it instead of redefining it. If it doesn't exist and the same shape is needed in 3+ files, add it to `factories.py` (or the appropriate `web_*_helpers.py` submodule for web-layer models) rather than letting a fourth local copy accumulate.
 
+To put an `AppRegistry` in a state, use `seed_running` / `seed_failed` from `tests/support/app_registry_helpers.py`; they write through `set_status`, the registry's only writer.
+
 When checking whether a fixture or helper is unused, search `src/hassette/testing/` as well as `tests/` — it ships pytest fixtures that consume other fixtures.
 
 ## Choosing a mock strategy
