@@ -1,4 +1,4 @@
-"""hassette_message events built from what HA sends, and `D.MessageData` on malformed data (ledger D3)."""
+"""hassette_message events built from what HA sends, and `D.MessageData` on missing or malformed data."""
 
 from dataclasses import dataclass
 from typing import Any

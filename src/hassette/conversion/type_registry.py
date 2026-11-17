@@ -27,8 +27,9 @@ FALSE_STRINGS = frozenset({"off", "false", "no", "0"})
 """Lowercased strings ``from_string_to_bool`` parses as ``False``."""
 
 LOGGER = getLogger(__name__)
-# Dataclass types whose validation adapters stay cached; far more than the dataclasses apps annotate.
+
 DATACLASS_ADAPTER_CACHE_SIZE = 128
+"""Dataclass types whose validation adapters stay cached; far more than the dataclasses apps annotate."""
 
 
 def get_format_fields(string_value: str) -> list[str]:
@@ -212,18 +213,20 @@ class TypeRegistry:
             LOGGER.debug("Not attempting to convert %r to NoneType", value)
             raise UnableToConvertValueError(f"Cannot convert {value!r} to NoneType")
 
-        # if we don't have this in our map, validate into a model or dataclass (e.g. a custom HA event's JSON
-        # data) rather than calling it, since a dataclass constructor takes a lone raw value as its first field;
-        # otherwise attempt to just convert using it as a constructor
-        if key not in self.conversion_map:
+        # Not in our map: validate into a model or dataclass target (e.g. a custom HA event's JSON data) rather
+        # than calling it, since a dataclass constructor would take a lone raw value as its first field.
+        if key not in self.conversion_map and isinstance(to_type, type):
             try:
-                if isinstance(to_type, type) and issubclass(to_type, BaseModel):
+                if issubclass(to_type, BaseModel):
                     return to_type.model_validate(value)
-                if isinstance(to_type, type) and is_dataclass(to_type):
+                if is_dataclass(to_type):
                     return dataclass_adapter(to_type).validate_python(value)
             except ValidationError as exc:
                 # pydantic's text names each failing field (and its input), so it is the message.
                 raise UnableToConvertValueError(str(exc)) from exc
+
+        # Not in our map: attempt to just convert using the target as a constructor
+        if key not in self.conversion_map:
             try:
                 new_value = to_type(value)
             except Exception as exc:

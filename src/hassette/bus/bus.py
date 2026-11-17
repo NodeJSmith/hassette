@@ -708,6 +708,7 @@ class Bus(Resource):
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
+        # dup-ignore-start: forwards the same registration kwargs as the Shape B delegates' _subscribe() calls
         sub = await self._on_internal(
             topic=topic,
             handler=handler,
@@ -721,6 +722,7 @@ class Bus(Resource):
             registration_source=registration_source,
             **opts,
         )
+        # dup-ignore-end
         # After registration succeeds, so a forgotten await or a rejected registration never warns.
         if entity_id and name:
             warn_if_unknown_entity(self.logger, self.parent, self.hassette.try_state_proxy(), entity_id, name)
