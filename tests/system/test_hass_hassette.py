@@ -10,7 +10,7 @@ changed the integration's entity scheme (``APP_ENTITY_KEYS``), config flow field
 import json
 import secrets
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -107,7 +107,8 @@ async def config_entry(ha: httpx.AsyncClient, hassette_url: str, token: str) -> 
     try:
         yield entry_id
     finally:
-        await ha.delete(f"/api/config/config_entries/entry/{entry_id}")
+        with suppress(httpx.HTTPError):
+            await ha.delete(f"/api/config/config_entries/entry/{entry_id}")
 
 
 async def app_entities(ha_url: str, entry_id: str) -> dict[str, dict[str, Any]]:
