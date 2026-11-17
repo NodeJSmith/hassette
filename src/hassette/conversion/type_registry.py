@@ -1,12 +1,14 @@
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from logging import getLogger
 from string import Formatter
 from typing import Any, ClassVar, Generic, TypeVar, overload
 
+from pydantic import BaseModel, TypeAdapter, ValidationError
 from whenever import Date, Instant, OffsetDateTime, PlainDateTime, Time, ZonedDateTime
 
 from hassette.exceptions import UnableToConvertValueError
@@ -25,6 +27,8 @@ FALSE_STRINGS = frozenset({"off", "false", "no", "0"})
 """Lowercased strings ``from_string_to_bool`` parses as ``False``."""
 
 LOGGER = getLogger(__name__)
+# Dataclass types whose validation adapters stay cached; far more than the dataclasses apps annotate.
+DATACLASS_ADAPTER_CACHE_SIZE = 128
 
 
 def get_format_fields(string_value: str) -> list[str]:
@@ -208,8 +212,18 @@ class TypeRegistry:
             LOGGER.debug("Not attempting to convert %r to NoneType", value)
             raise UnableToConvertValueError(f"Cannot convert {value!r} to NoneType")
 
-        # if we don't have this in our map, attempt to just convert using it as a constructor
+        # if we don't have this in our map, validate into a model or dataclass (e.g. a custom HA event's JSON
+        # data) rather than calling it, since a dataclass constructor takes a lone raw value as its first field;
+        # otherwise attempt to just convert using it as a constructor
         if key not in self.conversion_map:
+            try:
+                if isinstance(to_type, type) and issubclass(to_type, BaseModel):
+                    return to_type.model_validate(value)
+                if isinstance(to_type, type) and is_dataclass(to_type):
+                    return dataclass_adapter(to_type).validate_python(value)
+            except ValidationError as exc:
+                # pydantic's text names each failing field (and its input), so it is the message.
+                raise UnableToConvertValueError(str(exc)) from exc
             try:
                 new_value = to_type(value)
             except Exception as exc:
@@ -364,3 +378,12 @@ def from_string_to_bool(value: str) -> bool:
 
 
 TYPE_REGISTRY = TypeRegistry()
+
+
+@lru_cache(maxsize=DATACLASS_ADAPTER_CACHE_SIZE)
+def dataclass_adapter(tp: type) -> TypeAdapter[Any]:
+    """Return the `TypeAdapter` for dataclass `tp`, cached because building its schema is costly.
+
+    Bounded so the classes an app hot reload replaces are evicted instead of kept alive.
+    """
+    return TypeAdapter(tp)

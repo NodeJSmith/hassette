@@ -4,11 +4,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from hassette import D
 from hassette.bus.injection import ParameterInjector
 from hassette.conversion import ANNOTATION_CONVERTER
+from hassette.conversion.type_registry import TYPE_REGISTRY, TypeRegistry, register_simple_type_converter
 from hassette.events.hass.hass import create_event_from_hass
 from hassette.exceptions import DependencyResolutionError, UnableToConvertValueError
 from hassette.utils.type_utils import get_typed_signature
@@ -52,7 +53,7 @@ def test_mapping_converts_into_model(target: type):
 @pytest.mark.parametrize("target", [RoomModel, RoomData], ids=["pydantic", "dataclass"])
 def test_missing_required_field_raises_naming_field(target: type):
     """A dict missing a required field raises pydantic's error, which names the field."""
-    with pytest.raises(ValidationError, match="room"):
+    with pytest.raises(UnableToConvertValueError, match="room"):
         ANNOTATION_CONVERTER.convert({"count": 1}, target)
 
 
@@ -94,3 +95,19 @@ def test_event_data_invalid_custom_hass_event_names_the_field():
     injector = ParameterInjector("handler", get_typed_signature(handler))
     with pytest.raises(DependencyResolutionError, match="room"):
         injector.inject_parameters(custom_event({"count": 1}))
+
+
+@pytest.mark.parametrize("target", [RoomModel, RoomData], ids=["pydantic", "dataclass"])
+def test_registered_dict_converter_wins_over_generic_validation(target: type, monkeypatch: pytest.MonkeyPatch):
+    """A converter registered for (dict, target) runs instead of the generic model/dataclass validation."""
+    monkeypatch.setattr(TypeRegistry, "conversion_map", dict(TypeRegistry.conversion_map))
+    register_simple_type_converter(dict, target, fn=lambda value: target(room=value["where"]))
+
+    assert ANNOTATION_CONVERTER.convert({"where": "kitchen"}, target) == target(room="kitchen")
+
+
+@pytest.mark.parametrize("target", [RoomModel, RoomData], ids=["pydantic", "dataclass"])
+def test_registry_raises_its_own_error_for_invalid_model_input(target: type):
+    """`TYPE_REGISTRY.convert` keeps its contract: invalid model/dataclass input raises UnableToConvertValueError."""
+    with pytest.raises(UnableToConvertValueError, match=target.__name__):
+        TYPE_REGISTRY.convert("kitchen", target)

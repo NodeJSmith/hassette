@@ -71,7 +71,7 @@ Hassette publishes each Home Assistant event on the topic `hass.event.<event_typ
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_event_data.py"
 ```
 
-Validation is pydantic's lax mode, so a string `"2"` becomes `2` for an `int` field. Data that fails validation skips the handler, and the logged error names each failing field.
+A converter registered for `dict` to that type in the [type registry](../states/conversion.md#value-conversion) runs instead of this validation. Validation is pydantic's lax mode, so a string `"2"` becomes `2` for an `int` field. Data that fails validation skips the handler, and the logged error names each failing field.
 
 Keys the model doesn't declare are ignored by default, so a misspelled key on a field with a default validates without complaint. `extra="forbid"` in the model's `model_config`, as above, rejects undeclared keys instead. A dataclass gets the same check from `__pydantic_config__ = ConfigDict(extra="forbid")`.
 
