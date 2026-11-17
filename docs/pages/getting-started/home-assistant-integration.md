@@ -135,6 +135,8 @@ Press the button and the app logs `Tracker done in kitchen`. If `data` is missin
 
 The action fails, and sends nothing, when Hassette is unreachable or not connected to Home Assistant. Hassette receives the message over that connection, so a message sent while it's down is lost.
 
+A successful action means Hassette was connected when you sent it, not that your handler ran: the connection can drop in the moment between that check and the message, and a handler can fail on its own. When a script must know the message landed, have the handler confirm it. For example, the script turns an `input_boolean` off, sends the message, and waits for the handler to turn it back on with a `wait_template` that has a `timeout`. Make the handler safe to run twice, so the script can resend when the wait times out.
+
 ## Reaching Hassette from Home Assistant
 
 ### Same LAN
