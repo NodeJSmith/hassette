@@ -14,7 +14,7 @@ from hassette.exceptions import (
     UnableToConvertStateError,
     UnableToConvertValueError,
 )
-from hassette.models.states.base import BaseState
+from hassette.models.states.base import BaseState, normalize_raw_state
 from hassette.models.states.catalog import (
     _STATE_CATALOG,
     resolve,
@@ -291,12 +291,9 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
     if not isinstance(value, dict):
         raise TypeError(f"Cannot convert {type(value).__name__} to {model.__name__}, expected dict")
 
-    prepared = dict(value)
+    prepared = normalize_raw_state(value)
 
     entity_id = prepared.get("entity_id")
-    if entity_id:
-        prepared["domain"] = str(entity_id).split(".", 1)[0]
-
     entity_id_str = str(entity_id) if entity_id else "<unknown>"
     raw_attributes = prepared.get("attributes")
     attributes = raw_attributes if isinstance(raw_attributes, Mapping) else {}
@@ -309,16 +306,8 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
             raise SensorShapeMismatchError(entity_id_str, device_class, model)
 
     if "state" in prepared:
-        state = prepared["state"]
-        if state == "unknown":
-            prepared["is_unknown"] = True
-            prepared["state"] = state = None
-        elif state == "unavailable":
-            prepared["is_unavailable"] = True
-            prepared["state"] = state = None
-
         with suppress(UnableToConvertValueError):
-            prepared["state"] = TYPE_REGISTRY.convert(state, model.value_type)
+            prepared["state"] = TYPE_REGISTRY.convert(prepared["state"], model.value_type)
 
     try:
         return model.model_validate(prepared)
