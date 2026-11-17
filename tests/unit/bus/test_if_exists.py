@@ -22,6 +22,7 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.bus.listeners import Listener, Subscription
 from hassette.exceptions import DuplicateListenerError
@@ -491,3 +492,24 @@ async def test_if_exists_replace_accepted_on_on_method(bus: "Bus") -> None:
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
     assert sub is not None
+
+
+@pytest.mark.parametrize(
+    ("method", "filters"),
+    [
+        ("on_hassette_message", {"message": "tracker_done"}),
+        ("on_component_loaded", {"component": "light"}),
+        ("on_hassette_service_status", {"status": ResourceStatus.RUNNING}),
+        ("on_app_state_changed", {"app_key": "my_app", "status": ResourceStatus.RUNNING}),
+    ],
+)
+async def test_skip_identical_filtered_registration_is_not_drift(
+    bus: "Bus", method: str, filters: dict[str, typing.Any]
+) -> None:
+    """Re-registering a filtered convenience method with the same filter value is skipped, not drift."""
+    register = getattr(bus, method)
+    with mock_add_listener(bus):
+        sub1 = await register(**filters, handler=handler_a, name="my_listener")
+        sub2 = await register(**filters, handler=handler_a, name="my_listener", if_exists="skip")
+
+    assert sub2.listener is sub1.listener

@@ -47,6 +47,7 @@ Examples:
 
 import typing
 from collections.abc import Callable, Sequence
+from functools import cache
 from logging import getLogger
 from typing import Any, cast
 
@@ -62,8 +63,13 @@ LOGGER = getLogger(__name__)
 DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 
 
+@cache
 def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
-    """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
+    """Return a callable that extracts a nested value, returning MISSING_VALUE on failure.
+
+    The same path returns the same callable, so a predicate built from it compares equal across
+    registrations (``if_exists="skip"`` compares predicate sources by identity).
+    """
 
     def _inner(obj: Any) -> Any | FalseySentinel:
         try:
