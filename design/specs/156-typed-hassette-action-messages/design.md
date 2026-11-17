@@ -218,3 +218,6 @@ Note: the listener's required `name=` keyword already exists on every `on_*` met
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- `MissingPayloadFieldsError` (D7) lives in `src/hassette/events/hass/hass.py` next to `construct_ignoring_unknown_keys`, not `exceptions.py`: it's raised and caught internally, and `exceptions.py` sits at 791 of 800 lines.
+- `construct_or_name_missing` only computes missing fields after `cls(**data)` raises `TypeError`, so the per-event happy path does no extra work.
+- `bus.py` and `testing/_simulation.py` grow past the file-size threshold; per the user, the PR carries `lint:file-size-allowed` and a follow-up issue tracks splitting the HA-event shortcuts out of both files.
