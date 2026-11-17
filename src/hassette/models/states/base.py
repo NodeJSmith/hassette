@@ -194,22 +194,7 @@ class BaseState(BaseModel, Generic[StateValueT]):
             LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__, stacklevel=2)
             return values
 
-        values = dict(values)
-
-        entity_id = values.get("entity_id")
-        if entity_id:
-            domain = entity_id.split(".")[0]
-            values["domain"] = domain
-
-        state = values.get("state")
-        if state == "unknown":
-            values["is_unknown"] = True
-            values["state"] = state = None
-        elif state == "unavailable":
-            values["is_unavailable"] = True
-            values["state"] = state = None
-
-        return values
+        return normalize_raw_state(values)
 
     @classmethod
     def get_domain(cls) -> str:
@@ -219,6 +204,36 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if not args or not isinstance(args[0], str):
             raise NoDomainAnnotationError(cls, accessor_hint=cls.accessor_hint)
         return args[0]
+
+
+def normalize_raw_state(values: dict[str, Any]) -> dict[str, Any]:
+    """Return a normalized copy of a raw Home Assistant state dict.
+
+    Sets `domain` from the `entity_id` prefix, and maps an `"unknown"` or `"unavailable"` state to
+    `None` with `is_unknown` or `is_unavailable` set. Shared by `BaseState` validation and the state
+    registry so both apply the same rules.
+
+    Args:
+        values: The raw state dict. Not modified.
+
+    Returns:
+        A new dict with the normalized fields.
+    """
+    prepared = dict(values)
+
+    entity_id = prepared.get("entity_id")
+    if entity_id:
+        prepared["domain"] = str(entity_id).split(".", 1)[0]
+
+    state = prepared.get("state")
+    if state == "unknown":
+        prepared["is_unknown"] = True
+        prepared["state"] = None
+    elif state == "unavailable":
+        prepared["is_unavailable"] = True
+        prepared["state"] = None
+
+    return prepared
 
 
 class StringBaseState(BaseState[str | None]):
