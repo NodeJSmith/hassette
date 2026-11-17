@@ -71,11 +71,14 @@ hassette status
 ```
 
 ```console
-╭──────────────────── SystemStatusResponse ────────────────────╮
+╭─────────────────────── System Status ────────────────────────╮
 │  status               ok                                     │
-│  websocket_connected  True                                   │
-│  uptime_seconds       4.21                                   │
+│  websocket_connected  true                                   │
+│  bootstrap_released   true                                   │
+│  uptime_seconds       4s                                     │
+│  entity_count         312                                    │
 │  app_count            1 tracked instance                     │
+│  …                                                           │
 ╰──────────────────────────────────────────────────────────────╯
 ```
 
@@ -84,14 +87,14 @@ hassette app
 ```
 
 ```console
-┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
-┃ App    ┃ Status  ┃ Display Name ┃ Instances ┃ Restart ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
-┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
-│ my_app │ running │ my_app       │ 1         │         │ 0              │ True    │ True      │ main.py │
-└────────┴─────────┴──────────────┴───────────┴─────────┴────────────────┴─────────┴───────────┴─────────┘
+┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
+┃ App    ┃ Status  ┃ Display Name ┃ Instances ┃ Restart ┃ Debug ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
+┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
+│ my_app │ running │ my_app       │ 1         │         │       │ 0              │ True    │ True      │ main.py │
+└────────┴─────────┴──────────────┴───────────┴─────────┴───────┴────────────────┴─────────┴───────────┴─────────┘
 ```
 
-`websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invocations/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
+`websocket_connected: true` confirms the Home Assistant connection. `my_app` shows `running`. `Invocations/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
 
 Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and `HASSETTE__TOKEN` is not it. On first start, Hassette wrote a separate token to `<data_dir>/.web_api_token` (or to `web_api.token_file`, if you set it). `<data_dir>` is the directory where Hassette keeps its own files, such as its database. The CLI finds that file and uses it automatically, which is why the commands above needed no setup. Point the CLI at a *different* instance — a remote host, or a second instance on this machine — and it needs that instance's token instead. See [CLI Configuration: Web API Token](../cli/configuration.md#web-api-token) for how to supply one. An `Error 401` names the credential the CLI sent and what to do about it.
 
