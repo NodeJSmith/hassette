@@ -17,11 +17,11 @@ names here flow into `models/states/__init__.py` and `__all__` automatically.
 
 None of the four classes re-declares `domain`. `BaseState.__init_subclass__` registers a
 subclass into the state catalog by reading its *own* `domain` annotation
-(`base.py:197-218`, `get_domain()` uses `inspect.get_annotations`, which does not walk the
-MRO); re-declaring `domain` here would register a class under `StateKey("sensor")` and
-silently replace `SensorState` process-wide. Leaving it undeclared means `get_domain()`
-raises `NoDomainAnnotationError`, `__init_subclass__` suppresses it, and the class never
-registers — `resolve(domain="sensor")` returns `SensorState` before and after import.
+(`BaseState.get_domain()` uses `inspect.get_annotations`, which does not walk the MRO);
+re-declaring `domain` here would register a class under `StateKey("sensor")` and silently
+replace `SensorState` process-wide. Leaving it undeclared means `get_domain()` raises
+`NoDomainAnnotationError`, `__init_subclass__` suppresses it, and the class never registers —
+`resolve(domain="sensor")` returns `SensorState` before and after import.
 """
 
 from collections.abc import Mapping
@@ -37,7 +37,7 @@ from hassette.models.states.sensor import SensorState
 _KNOWN_DEVICE_CLASSES: frozenset[str] = frozenset(get_args(DEVICE_CLASS))
 """Every `SensorDeviceClass` member, generated from HA core. Used to normalize an unknown
 or custom `device_class` string to `None` before classification, mirroring HA's own
-`try_parse_enum(SensorDeviceClass, ...)` (`sensor/__init__.py:609`).
+`try_parse_enum(SensorDeviceClass, ...)` in `SensorEntity`'s device-class handling.
 """
 
 
@@ -104,9 +104,9 @@ class TimestampSensorState(SensorState):
     """A sensor whose value is a timezone-aware point in time.
 
     Applies to sensors with `device_class: timestamp` **or** `device_class: uptime`. HA
-    renders both through the identical branch of its own `state` property
-    (`sensor/__init__.py:657-674`) — `uptime` differs only by a drift-normalization step
-    that does not change the value's type, so there is no separate uptime class.
+    renders both through the identical branch of its own `state` property (the
+    timestamp/uptime branch of `SensorEntity.state`) — `uptime` differs only by a
+    drift-normalization step that does not change the value's type, so there is no separate uptime class.
 
     `self.states[TimestampSensorState]` is unsupported — this class deliberately does not
     re-declare `domain` (see module docstring), so generic indexing raises
@@ -191,10 +191,10 @@ def _numeric_state_expected(
 ) -> bool:
     """Port of Home Assistant's `_numeric_state_expected`.
 
-    Source: `~/source/core/homeassistant/components/sensor/__init__.py:126-145`. The
-    upstream source is pinned at `codegen/snapshots/numeric_state_expected.py.txt`; codegen's
-    freshness check fails when upstream no longer matches that snapshot, forcing a human to
-    re-verify this port at version-bump time.
+    Source: `homeassistant/components/sensor/__init__.py` (`_numeric_state_expected`) in
+    home-assistant/core. The upstream source is pinned at
+    `codegen/snapshots/numeric_state_expected.py.txt`; codegen's freshness check fails when
+    upstream no longer matches that snapshot, forcing a human to re-verify this port at version-bump time.
 
     Two documented divergences from upstream:
 
@@ -202,8 +202,7 @@ def _numeric_state_expected(
        with a native unit always has a display unit in state attributes, so the two are
        equivalent here.
     2. Drops the `suggested_display_precision` term — that attribute never reaches real
-       state attributes (0 of 270 sensors on a live instance carried it), so it can never
-       change the result in practice.
+       state attributes, so it can never change the result in practice.
 
     Both divergences, and the numeric branch's overall behavior, are pinned by the
     fixture test in `tests/unit/models/test_sensor_shapes.py`.
@@ -229,6 +228,6 @@ def _numeric_state_expected(
     if state_class is not None or unit_of_measurement is not None:
         return True
     # Sensors with custom device classes were already normalized to None by
-    # classify_sensor_shape's caller; a real device class outside NON_NUMERIC_DEVICE_CLASSES
-    # still counts as numeric.
+    # classify_sensor_shape before this call; a real device class outside
+    # NON_NUMERIC_DEVICE_CLASSES still counts as numeric.
     return device_class is not None
