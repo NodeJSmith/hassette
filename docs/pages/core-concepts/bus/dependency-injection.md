@@ -48,7 +48,8 @@ Identity extractors resolve entity IDs and domains from events.
 
 | Annotation | Returns | If missing | Use case |
 |---|---|---|---|
-| `D.EventData[T]` | `T` | Handler skipped | Typed payload from `Bus.emit` broadcast events |
+| `D.EventData[T]` | `T` | Handler skipped | Typed payload from `Bus.emit` broadcast events, or a custom Home Assistant event's data |
+| `D.MessageData[T]` | `T` | Handler skipped | A hass-hassette message's `data`, used with [`on_hassette_message`](methods.md#on_hassette_messagemessage) |
 | `D.EventContext` | `HassContext` | Handler skipped | Home Assistant event context (context ID, parent ID, user ID) |
 | `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
@@ -57,6 +58,22 @@ Identity extractors resolve entity IDs and domains from events.
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py"
 ```
+
+`D.EventData[T]` also reads custom Home Assistant events, the ones a script or automation fires with an `event:` action. The event's data arrives as JSON, so Hassette validates it into `T` when `T` is a pydantic model or a dataclass. This script fires a `doorbell_pressed` event:
+
+```yaml
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_event_fire.yaml"
+```
+
+Hassette publishes each Home Assistant event on the topic `hass.event.<event_type>`, so this one arrives on `hass.event.doorbell_pressed`. The handler receives its data as a `DoorbellPressed`:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_event_data.py"
+```
+
+Validation is pydantic's lax mode, so a string `"2"` becomes `2` for an `int` field. Data that fails validation skips the handler, and the logged error names each failing field.
+
+Keys the model doesn't declare are ignored by default, so a misspelled key on a field with a default validates without complaint. `extra="forbid"` in the model's `model_config`, as above, rejects undeclared keys instead. A dataclass gets the same check from `__pydantic_config__ = ConfigDict(extra="forbid")`.
 
 ## Combining Annotations
 

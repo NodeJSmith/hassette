@@ -189,6 +189,30 @@ Fires when Home Assistant finishes loading a component.
 | `component` | `str \| None` | `None` | Component name to match (e.g., `"light"`). `None` matches all components. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates. |
 
+## `on_hassette_message(message)`
+
+Fires when Home Assistant's `hassette.send` action sends a message. The action comes from the [Hassette integration](../../getting-started/home-assistant-integration.md#send-messages-to-your-apps), and each message carries a `name` and a `data` mapping.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/on_hassette_message.py:subscribe"
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `message` | `str \| None` | `None` | Message name to match (e.g., `"tracker_done"`). `None` matches every message. |
+| `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates. |
+
+The filter is `message`, not `name`, because `name=` already names the listener.
+
+**Compatible [DI annotations](dependency-injection.md)**
+
+| Annotation | Provides |
+|---|---|
+| `D.MessageData[T]` | The message's `data`, validated into `T` (a pydantic model or dataclass). Invalid data skips the handler. |
+| `D.EventContext` | HA event context. |
+
+A message sent without `data` validates `{}`, so fields with defaults pass and a required field skips the handler. The handler can also take the whole [`HassetteMessageEvent`][hassette.events.hass.hass.HassetteMessageEvent]. Its `payload.data` has typed `name` and `data` attributes.
+
 ## Home Assistant Lifecycle Methods
 
 Three shorthands delegate to `on_call_service("homeassistant", ...)`.
