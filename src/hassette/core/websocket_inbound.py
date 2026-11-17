@@ -12,6 +12,7 @@ import traceback
 from typing import Any
 
 from hassette.core.websocket_responses import command_label
+from hassette.events.hass.hass import MissingPayloadFieldsError
 
 
 def parse_text_frame(raw: str, logger: logging.Logger) -> dict[str, Any] | None:
@@ -33,11 +34,19 @@ def parse_text_frame(raw: str, logger: logging.Logger) -> dict[str, Any] | None:
 def log_dispatch_failure(logger: logging.Logger, data: dict[str, Any], exc: Exception) -> None:
     """Log a failed dispatch with the message's command label, exception type, and traceback frames.
 
-    `logger.exception`/`exc_info` would render `str(exc)`, hence the hand-built traceback.
+    An event also names its HA event type, and a payload that lacks required fields names them: both are
+    metadata, not values. `logger.exception`/`exc_info` would render `str(exc)`, hence the hand-built traceback.
     """
+    label = command_label(data)
+    event_type = (data.get("event") or {}).get("event_type") if data.get("type") == "event" else None
+    if event_type:
+        label = f"{label} event_type={event_type!r}"
+    reason = type(exc).__name__
+    if isinstance(exc, MissingPayloadFieldsError):
+        reason = f"{reason}: {exc.payload} is missing required field(s) {', '.join(exc.missing)}"
     logger.error(
         "Failed to dispatch message %s: %s\nTraceback (most recent call last):\n%s",
-        command_label(data),
-        type(exc).__name__,
+        label,
+        reason,
         "".join(traceback.format_tb(exc.__traceback__)).rstrip(),
     )

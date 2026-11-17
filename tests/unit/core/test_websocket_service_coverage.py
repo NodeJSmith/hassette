@@ -475,6 +475,36 @@ class TestDispatchSuppressesErrors:
         assert "'event' (id 42)" in rendered
         assert "ValueError" in rendered
 
+    async def test_dispatch_failure_log_names_event_type_and_missing_fields(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """A typed event missing a required field is logged with its event type and the field name, never values."""
+        sentinel = "s3cret-sentinel-value"
+        logger_mock = Mock()
+        mark_websocket_service_connected(websocket_service, reason="test: events dispatch only once connected")
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.dispatch(
+                {
+                    "type": "event",
+                    "id": 43,
+                    "event": {
+                        "event_type": "component_loaded",
+                        "origin": "LOCAL",
+                        "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                        "time_fired": "2026-11-17T12:00:00+00:00",
+                        "data": {"unexpected": sentinel},
+                    },
+                }
+            )
+
+        logger_mock.error.assert_called_once()
+        msg, *args = logger_mock.error.call_args.args
+        rendered = msg % tuple(args)
+        assert sentinel not in rendered
+        assert "event_type='component_loaded'" in rendered
+        assert "ComponentLoadedPayload is missing required field(s) component" in rendered
+
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""
         respond_mock = Mock()

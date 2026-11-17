@@ -105,3 +105,13 @@ def test_unknown_key_logged_once_by_name_without_value(caplog: pytest.LogCapture
     assert getattr(records[0], "key", None) == "secret_key"
     assert getattr(records[0], "payload", None) == "UserAddedPayload"
     assert "secret-value" not in caplog.text
+
+
+@pytest.mark.parametrize("extra", [{}, {"added_in_future_ha": 1}], ids=["no_unknown_keys", "with_unknown_key"])
+def test_missing_required_field_raises_naming_the_field(extra: dict[str, Any]) -> None:
+    """A payload missing a required field raises an error naming the payload and the field."""
+    with pytest.raises(hass_events.MissingPayloadFieldsError) as exc_info:
+        create_hass_event("component_loaded", extra)
+
+    assert exc_info.value.payload == "ComponentLoadedPayload"
+    assert exc_info.value.missing == ("component",)
