@@ -8,7 +8,7 @@ from logging import getLogger
 from string import Formatter
 from typing import Any, ClassVar, Generic, TypeVar, overload
 
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, PydanticSchemaGenerationError, TypeAdapter, ValidationError
 from whenever import Date, Instant, OffsetDateTime, PlainDateTime, Time, ZonedDateTime
 
 from hassette.exceptions import UnableToConvertValueError
@@ -221,8 +221,9 @@ class TypeRegistry:
                     return to_type.model_validate(value)
                 if is_dataclass(to_type):
                     return dataclass_adapter(to_type).validate_python(value)
-            except ValidationError as exc:
-                # pydantic's text names each failing field (and its input), so it is the message.
+            except (ValidationError, PydanticSchemaGenerationError) as exc:
+                # pydantic's text names each failing field (and its input), or the field type it has no schema
+                # for, so it is the message.
                 raise UnableToConvertValueError(str(exc)) from exc
 
         # Not in our map: attempt to just convert using the target as a constructor

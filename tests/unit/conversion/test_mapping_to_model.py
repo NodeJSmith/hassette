@@ -114,3 +114,18 @@ def test_registry_raises_its_own_error_for_invalid_model_input(target: type):
     """`TYPE_REGISTRY.convert` keeps its contract: invalid model/dataclass input raises UnableToConvertValueError."""
     with pytest.raises(UnableToConvertValueError, match=target.__name__):
         TYPE_REGISTRY.convert("kitchen", target)
+
+
+class Opaque:
+    """A field type pydantic has no schema for."""
+
+
+@dataclass
+class UnschemableData:
+    thing: Opaque
+
+
+def test_registry_wraps_dataclass_schema_generation_error():
+    """A dataclass pydantic can't build a schema for raises UnableToConvertValueError, not pydantic's error."""
+    with pytest.raises(UnableToConvertValueError, match="Opaque"):
+        TYPE_REGISTRY.convert({"thing": 1}, UnschemableData)
