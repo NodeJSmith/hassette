@@ -305,7 +305,7 @@ async def test_cancel_from_worker_thread_redispatches_onto_loop_thread():
     both from the same worker thread, with no intervening await -- preserves ordering. Without
     this redispatch, cancel() would run synchronously on the worker thread and see
     _pending_start_task still None (start()'s own redispatch has not been processed by the loop
-    yet), report nothing to cancel, and let the queued _start_on_loop_thread callback go on to
+    yet), report nothing to cancel, and let the queued start() redispatch callback go on to
     initialize the resource despite the ordered cancellation request.
     """
     hassette = make_mock_hassette(sealed=False)

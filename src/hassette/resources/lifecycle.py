@@ -4,11 +4,9 @@ These functions replace methods that previously lived on ``LifecycleMixin``. The
 resource as their first argument instead of being bound methods, so lifecycle transitions are
 invoked as ``handle_failed(resource, exc)`` instead of ``resource.handle_failed(exc)``.
 
-Functions are typed against ``_LifecycleHostP`` (see ``hassette.resources.mixins``) at the public
-signature to keep the contract minimal, then narrowed internally to ``LifecycleMixin`` — the
-concrete implementation always in play at runtime — to access the mutable lifecycle state
-(``ready_event``, ``shutdown_event``, ``_ready_reason``, ``_init_task``, ``_pending_start_task``,
-``status``) that the Protocol intentionally does not declare.
+Functions take a ``LifecycleMixin`` (in practice, always a ``Resource``) and read and write its
+lifecycle state (``ready_event``, ``shutdown_event``, ``_ready_reason``, ``_init_task``,
+``_pending_start_task``, ``status``) directly.
 """
 
 import asyncio
@@ -22,17 +20,17 @@ from hassette_wire import ResourceStatus
 
 from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
-from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
+from hassette.resources.mixins import LifecycleMixin
 from hassette.resources.shutdown_deadline import elapsed_since, format_bound, shutdown_hook_bound
 from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete_outcome, merge_outcomes
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import Callable, Coroutine
 
 
 def create_service_status_event(
-    resource: _LifecycleHostP,
+    resource: LifecycleMixin,
     status: ResourceStatus,
     exception: Exception | BaseException | None = None,
     ready: bool = False,
@@ -51,21 +49,20 @@ def create_service_status_event(
         resource_name=resource.class_name,
         role=resource.role,
         status=status,
-        previous_status=typing.cast("LifecycleMixin", resource)._previous_status,
+        previous_status=resource._previous_status,
         exception=exception,
         ready=ready,
         ready_phase=ready_phase,
     )
 
 
-def mark_ready(resource: _LifecycleHostP, reason: str | None = None) -> None:
+def mark_ready(resource: LifecycleMixin, reason: str | None = None) -> None:
     """Mark the instance as ready.
 
     Args:
         resource: The resource to mark ready.
         reason: Optional reason for readiness.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if resource.ready_event.is_set():
         resource.lifecycle_logger.debug("%s already ready, skipping reason %s", resource.unique_name, reason)
         return
@@ -74,14 +71,13 @@ def mark_ready(resource: _LifecycleHostP, reason: str | None = None) -> None:
     resource.ready_event.set()
 
 
-def mark_not_ready(resource: _LifecycleHostP, reason: str | None = None) -> None:
+def mark_not_ready(resource: LifecycleMixin, reason: str | None = None) -> None:
     """Mark the instance as not ready.
 
     Args:
         resource: The resource to mark not ready.
         reason: Optional reason for lack of readiness.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if not resource.ready_event.is_set():
         resource.lifecycle_logger.debug("%s already not ready, skipping reason %s", resource.unique_name, reason)
         return
@@ -90,7 +86,7 @@ def mark_not_ready(resource: _LifecycleHostP, reason: str | None = None) -> None
     resource.ready_event.clear()
 
 
-def set_ready_reason(resource: _LifecycleHostP, reason: str | None) -> None:
+def set_ready_reason(resource: LifecycleMixin, reason: str | None) -> None:
     """Replace the readiness reason without changing readiness.
 
     For a resource whose readiness stays fixed while the status it reports changes, such as
@@ -100,13 +96,11 @@ def set_ready_reason(resource: _LifecycleHostP, reason: str | None) -> None:
         resource: The resource whose reason to replace.
         reason: The new reason.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     resource._ready_reason = reason
 
 
-def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> None:
+def request_shutdown(resource: LifecycleMixin, reason: str | None = None) -> None:
     """Set the sticky shutdown flag. Idempotent."""
-    resource = typing.cast("LifecycleMixin", resource)
     if not resource.shutdown_event.is_set():
         resource.lifecycle_logger.debug(
             "%s shutdown requested: %s", resource.unique_name, reason or "no reason", stacklevel=2
@@ -116,16 +110,15 @@ def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> No
     mark_not_ready(resource, reason or "shutdown requested")
 
 
-def skip_own_shutdown_hooks(resource: _LifecycleHostP) -> None:
+def skip_own_shutdown_hooks(resource: LifecycleMixin) -> None:
     """Make the next shutdown attempt skip ``resource``'s own shutdown hooks (not its children's).
 
     Called by the operation's owner before ``shutdown()``; see ``LifecycleMixin._skip_own_shutdown_hooks``.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     resource._skip_own_shutdown_hooks = True
 
 
-def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
+def start(resource: LifecycleMixin) -> asyncio.Task[None] | None:
     """Start the instance by spawning its coordinated ``initialize()`` front door in a task.
 
     Performs the same synchronous re-entry and restart-refusal checks the coordinator itself
@@ -163,21 +156,7 @@ def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
         pending, or the in-flight ``_init_task``. Each raises the attempt's exception when it
         fails. ``None`` only on cross-thread redispatch, where no task exists yet.
     """
-    resource = typing.cast("LifecycleMixin", resource)
-
-    loop_thread_id = resource.hassette.loop_thread_id
-    if loop_thread_id is not None and threading.get_ident() != loop_thread_id:
-
-        def _start_on_loop_thread() -> None:
-            try:
-                start(resource)
-            except Exception:
-                resource.lifecycle_logger.exception(
-                    "%s: cross-thread start() failed after re-dispatch onto the loop thread",
-                    resource.unique_name,
-                )
-
-        resource.hassette.loop.call_soon_threadsafe(_start_on_loop_thread)
+    if redispatch_to_loop_thread(resource, start, "start"):
         return None
 
     reject_lifecycle_reentry(resource, "start")
@@ -217,7 +196,7 @@ def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
     return joiner
 
 
-def cancel(resource: _LifecycleHostP) -> None:
+def cancel(resource: LifecycleMixin) -> None:
     """Cancel the main task of the instance, if it is running.
 
     Also cancels a still-pending ``start()`` joiner (``_pending_start_task``) when present --
@@ -240,21 +219,7 @@ def cancel(resource: _LifecycleHostP) -> None:
     ``_init_task``) instead of racing ahead of the not-yet-processed start() callback and
     finding nothing to cancel.
     """
-    resource = typing.cast("LifecycleMixin", resource)
-
-    loop_thread_id = resource.hassette.loop_thread_id
-    if loop_thread_id is not None and threading.get_ident() != loop_thread_id:
-
-        def _cancel_on_loop_thread() -> None:
-            try:
-                cancel(resource)
-            except Exception:
-                resource.lifecycle_logger.exception(
-                    "%s: cross-thread cancel() failed after re-dispatch onto the loop thread",
-                    resource.unique_name,
-                )
-
-        resource.hassette.loop.call_soon_threadsafe(_cancel_on_loop_thread)
+    if redispatch_to_loop_thread(resource, cancel, "cancel"):
         return
 
     cancelled_something = False
@@ -273,14 +238,51 @@ def cancel(resource: _LifecycleHostP) -> None:
         resource.lifecycle_logger.debug("%s no running task to cancel", resource.unique_name)
 
 
-# dup-ignore-start: lifecycle state handlers share cast → guard → transition → emit-event structure by design
-async def handle_stop(resource: _LifecycleHostP) -> None:
+def redispatch_to_loop_thread(resource: LifecycleMixin, fn: "Callable[[LifecycleMixin], object]", label: str) -> bool:
+    """Schedule ``fn(resource)`` on the event loop thread when called from any other thread.
+
+    Fire-and-forget: the calling thread does not wait, so an exception ``fn`` raises on the loop
+    thread is logged here instead of propagating. Calls are queued through ``call_soon_threadsafe``,
+    so redispatches from one thread run in the order they were submitted.
+
+    ``loop_thread_id`` is ``None`` before ``run_forever()`` captures it. Only a positively different
+    thread redispatches; "unknown" runs inline, since ``resource.hassette.loop`` raises before the
+    loop starts.
+
+    Args:
+        resource: The resource whose loop thread ``fn`` must run on.
+        fn: The lifecycle function to re-invoke with ``resource``.
+        label: The function's name, used in the failure log message.
+
+    Returns:
+        ``True`` when the call was scheduled on the loop thread and the caller should return;
+        ``False`` when the caller is already on the loop thread (or it is not known yet).
+    """
+    loop_thread_id = resource.hassette.loop_thread_id
+    if loop_thread_id is None or threading.get_ident() == loop_thread_id:
+        return False
+
+    def _run_on_loop_thread() -> None:
+        try:
+            fn(resource)
+        except Exception:
+            resource.lifecycle_logger.exception(
+                "%s: cross-thread %s() failed after re-dispatch onto the loop thread",
+                resource.unique_name,
+                label,
+            )
+
+    resource.hassette.loop.call_soon_threadsafe(_run_on_loop_thread)
+    return True
+
+
+# dup-ignore-start: lifecycle state handlers share guard → transition → emit-event structure by design
+async def handle_stop(resource: LifecycleMixin) -> None:
     """Transition the resource to STOPPED and emit a status event.
 
     Args:
         resource: The resource to stop.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.STOPPED:
         resource.lifecycle_logger.debug("%s already stopped", resource.unique_name, stacklevel=2)
         return
@@ -294,7 +296,7 @@ async def handle_stop(resource: _LifecycleHostP) -> None:
     await resource.hassette.send_event(event)
 
 
-async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, log_level: int = logging.ERROR) -> None:
+async def handle_failed(resource: LifecycleMixin, exception: BaseException, *, log_level: int = logging.ERROR) -> None:
     """Transition the resource to FAILED and emit a status event.
 
     Args:
@@ -310,7 +312,6 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
             ``_last_error_logged``, so a demoted failure is still logged at ERROR by a later
             exception observer when no outer layer exists.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.FAILED:
         resource.lifecycle_logger.debug("%s already in failed state", resource.unique_name, stacklevel=2)
         return
@@ -350,13 +351,12 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
     await resource.hassette.send_event(event)
 
 
-async def handle_running(resource: _LifecycleHostP) -> None:
+async def handle_running(resource: LifecycleMixin) -> None:
     """Transition the resource to RUNNING and emit a status event.
 
     Args:
         resource: The resource that is now running.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.RUNNING:
         resource.lifecycle_logger.debug("%s already running", resource.unique_name, stacklevel=2)
         return
@@ -369,13 +369,12 @@ async def handle_running(resource: _LifecycleHostP) -> None:
     await resource.hassette.send_event(event)
 
 
-async def handle_starting(resource: _LifecycleHostP) -> None:
+async def handle_starting(resource: LifecycleMixin) -> None:
     """Transition the resource to STARTING and emit a status event.
 
     Args:
         resource: The resource that is starting.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.STARTING:
         resource.lifecycle_logger.debug("%s already starting", resource.unique_name, stacklevel=2)
         return
@@ -387,14 +386,13 @@ async def handle_starting(resource: _LifecycleHostP) -> None:
     await resource.hassette.send_event(event)
 
 
-async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
+async def handle_crash(resource: LifecycleMixin, exception: Exception) -> None:
     """Transition the resource to CRASHED and emit a status event.
 
     Args:
         resource: The resource that crashed.
         exception: The exception that caused the crash.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.CRASHED:
         resource.lifecycle_logger.debug("%s already in crashed state", resource.unique_name, stacklevel=2)
         return
@@ -413,7 +411,7 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
 # dup-ignore-end
 
 
-def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> None:
+def reject_lifecycle_reentry(resource: LifecycleMixin, method_name: str) -> None:
     """Raise ``LifecycleReentryError`` when a lifecycle front door re-enters its own active lifecycle task.
 
     The active task is the resource's own initialization coordinator, shutdown coordinator, or shutdown body.
@@ -428,7 +426,6 @@ def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> Non
         method_name: The name of the front-door method performing the check, used in the
             raised error's message.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     current = asyncio.current_task()
     if current is not None and current in (resource._init_task, resource._shutdown_task, resource._shutdown_body_task):
         raise LifecycleReentryError(resource.unique_name, method_name)
@@ -458,7 +455,7 @@ def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asy
 
 
 def _install_exception_observer(
-    resource: _LifecycleHostP,
+    resource: LifecycleMixin,
     task: asyncio.Task,
     label: str,
     *,
@@ -485,7 +482,6 @@ def _install_exception_observer(
             ``AppLifecycleService.initialize_instances()``, or ``start()``'s joiner observer when
             the app is started directly. Every other resource keeps ERROR here.
     """
-    resource = typing.cast("LifecycleMixin", resource)
 
     def _observe(t: asyncio.Task) -> None:
         if t.cancelled():
@@ -507,7 +503,7 @@ def _install_exception_observer(
     task.add_done_callback(_observe)
 
 
-async def coordinate_initialize(resource: _LifecycleHostP) -> None:
+async def coordinate_initialize(resource: LifecycleMixin) -> None:
     """Coordinator front door for ``initialize()``.
 
     Every initialization path -- direct ``initialize()`` calls and ``start()``'s spawned
@@ -515,7 +511,6 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
     attempt. See the "Minimal lifecycle coordinator" section of
     ``design/specs/105-teardown-restart-safety/design.md`` for the full admission sequence.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     reject_lifecycle_reentry(resource, "initialize")
 
     shutdown_task = resource._shutdown_task
@@ -712,7 +707,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> ShutdownOutco
     return outcome
 
 
-async def coordinate_shutdown(resource: _LifecycleHostP) -> ShutdownOutcome:
+async def coordinate_shutdown(resource: LifecycleMixin) -> ShutdownOutcome:
     """Coordinator front door for ``shutdown()``.
 
     Creates ``_shutdown_task`` exactly once per shutdown attempt; every caller (concurrent or
@@ -732,7 +727,6 @@ async def coordinate_shutdown(resource: _LifecycleHostP) -> ShutdownOutcome:
     already completed and rerunning it would fire ``on_shutdown()`` hooks and emit STOPPED a
     second time, violating this method's own "never reruns hooks" contract above.
     """
-    resource = typing.cast("LifecycleMixin", resource)
     reject_lifecycle_reentry(resource, "shutdown")
 
     task = resource._shutdown_task
