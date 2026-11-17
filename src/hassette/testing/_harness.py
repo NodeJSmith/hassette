@@ -322,7 +322,13 @@ class HassetteHarness:
                     changed = True
 
     async def __aenter__(self) -> "HassetteHarness":
-        await self.start()
+        # Python skips __aexit__ when __aenter__ raises, so undo a partial start here —
+        # otherwise HASSETTE_INSTANCE, the timezone and the task factory leak to later tests.
+        try:
+            await self.start()
+        except BaseException:
+            await self.stop()
+            raise
 
         assert self.hassette._loop is not None, "Event loop is not running"
         assert self.hassette._loop.is_running(), "Event loop is not running"
