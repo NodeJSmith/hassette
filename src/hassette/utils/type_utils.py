@@ -51,23 +51,35 @@ def substitute_alias_args(alias: Any, args: tuple[Any, ...]) -> Any:
     public way to substitute them. So build a throwaway `typing.Callable[[*params], value]` whose
     parameters are exactly the alias's, in order, and subscript it: CPython's own substitution then
     handles reordered parameters, `TypeVarTuple` packs, `ParamSpec` lists, and a value that is a bare
-    parameter. Trailing parameters left out of `args` take their declared defaults (PEP 696).
+    parameter. Trailing parameters left out of `args` take their declared defaults (PEP 696), with any
+    earlier parameter a default refers to (`type Dep[T, U = T]`) replaced by its bound argument.
 
     If CPython rejects the arguments (too few with no defaults), the value is returned unsubstituted.
     """
     type_params = alias.__type_params__
     missing = type_params[len(args) :]
-    if missing and all(getattr(p, "has_default", lambda: False)() for p in missing):
-        args = (*args, *(p.__default__ for p in missing))
-
-    params = [Unpack[p] if isinstance(p, TypeVarTuple) else p for p in type_params]
-    # `typing.Callable`, not `collections.abc.Callable`: only the former accepts a parameter list it re-subscripts.
-    carrier = typing.Callable[[*params], alias.__value__]
     try:
-        substituted = carrier[args]  # pyright: ignore[reportIndexIssue]  # carrier is a runtime generic alias
+        if missing and all(getattr(p, "has_default", lambda: False)() for p in missing):
+            for i in range(len(args), len(type_params)):
+                args = (*args, substitute_params(type_params[:i], type_params[i].__default__, args))
+        return substitute_params(type_params, alias.__value__, args)
     except TypeError:
         LOGGER.debug("Could not substitute %r into type alias %r; using its unsubstituted value", args, alias)
         return alias.__value__
+
+
+def substitute_params(type_params: tuple[Any, ...], value: Any, args: tuple[Any, ...]) -> Any:
+    """Replace `type_params` in `value` with `args` through CPython's substitution.
+
+    Raises:
+        TypeError: CPython rejects `args` for `type_params`.
+    """
+    if not type_params:
+        return value
+    params = [Unpack[p] if isinstance(p, TypeVarTuple) else p for p in type_params]
+    # `typing.Callable`, not `collections.abc.Callable`: only the former accepts a parameter list it re-subscripts.
+    carrier = typing.Callable[[*params], value]
+    substituted = carrier[args]  # pyright: ignore[reportIndexIssue]  # carrier is a runtime generic alias
     return get_args(substituted)[-1]
 
 

@@ -10,6 +10,7 @@ from hassette.utils.type_utils import get_pretty_actual_type_from_value, unwrap_
 T = TypeVar("T")
 U = TypeVar("U")
 UDefault = TypeVar("UDefault", default=int)
+UDependent = TypeVar("UDependent", default=list[T])
 Ts = TypeVarTuple("Ts")
 
 # PEP 695 equivalents in the comments; `TypeAliasType` builds them on 3.11 too.
@@ -19,6 +20,9 @@ Pair = TypeAliasType("Pair", dict[T, U], type_params=(T, U))  # type Pair[T, U] 
 PairWithDefault = TypeAliasType(
     "PairWithDefault", dict[T, UDefault], type_params=(T, UDefault)
 )  # type PairWithDefault[T, U = int] = dict[T, U]
+DependentDefault = TypeAliasType(
+    "DependentDefault", dict[T, UDependent], type_params=(T, UDependent)
+)  # type DependentDefault[T, U = list[T]] = dict[T, U]
 Packed = TypeAliasType("Packed", tuple[*Ts], type_params=(Ts,))  # type Packed[*Ts] = tuple[*Ts]
 
 
@@ -89,9 +93,16 @@ def test_get_pretty_actual_type_from_dumped_state(hass_state_dicts: list[HassSta
         (Identity[Identity[int]], int),
         (NestedIdentity[str], str),
         (PairWithDefault[str], dict[str, int]),
+        (DependentDefault[str], dict[str, list[str]]),
         (Packed[()], tuple[()]),
     ],
-    ids=["repeated_alias_in_args", "repeated_alias_in_value", "defaulted_param", "empty_variadic_pack"],
+    ids=[
+        "repeated_alias_in_args",
+        "repeated_alias_in_value",
+        "defaulted_param",
+        "default_referencing_earlier_param",
+        "empty_variadic_pack",
+    ],
 )
 def test_unwrap_type_alias_resolves(alias: Any, expected: Any):
     assert unwrap_type_alias(alias) == expected
