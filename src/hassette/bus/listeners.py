@@ -360,6 +360,9 @@ class Listener:
         attached DurationTimer. Lambda/closure predicates and callable conditions
         compare by identity — two fresh lambdas with identical bodies will report
         drift. Use non-lambda predicates or if_exists='replace' to avoid this.
+        Literal filter values compare with ``==``, so values Python treats as equal
+        across bool, int and float (``True``/``1``, ``False``/``0``) are not drift,
+        even though they match different events.
         """
         return all(comparator(self, other) for _, comparator in _CONFIG_MATCH_FIELDS)
 
