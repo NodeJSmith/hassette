@@ -14,36 +14,32 @@ events — that lives in ``hassette.resources.lifecycle``.
 import asyncio
 import typing
 
-from hassette.resources.mixins import _LifecycleHostP
-
-if typing.TYPE_CHECKING:
-    from hassette.resources.mixins import LifecycleMixin
-
+from hassette.resources.mixins import LifecycleMixin
 
 CLEANUP_SECONDS = 0.5
 """Fixed cap on ``cleanup()``, clamped to the attempt's deadline."""
 
 
-def shutdown_deadline_remaining(resource: _LifecycleHostP) -> float | None:
+def shutdown_deadline_remaining(resource: LifecycleMixin) -> float | None:
     """Seconds left until the resource's shutdown deadline, or ``None`` when no owner set one.
 
     Never negative: a passed deadline reads as 0.
     """
-    deadline = typing.cast("LifecycleMixin", resource)._shutdown_deadline
+    deadline = resource._shutdown_deadline
     if deadline is None:
         return None
     return max(0.0, deadline - asyncio.get_running_loop().time())
 
 
 @typing.overload
-def clamp_to_shutdown_deadline(resource: _LifecycleHostP, cap: float) -> float: ...
+def clamp_to_shutdown_deadline(resource: LifecycleMixin, cap: float) -> float: ...
 
 
 @typing.overload
-def clamp_to_shutdown_deadline(resource: _LifecycleHostP, cap: None) -> float | None: ...
+def clamp_to_shutdown_deadline(resource: LifecycleMixin, cap: None) -> float | None: ...
 
 
-def clamp_to_shutdown_deadline(resource: _LifecycleHostP, cap: float | None) -> float | None:
+def clamp_to_shutdown_deadline(resource: LifecycleMixin, cap: float | None) -> float | None:
     """A leaf's bound: ``cap`` shortened to what is left of the deadline.
 
     With both, the smaller; with only one, that one; with neither, ``None`` (unbounded).
@@ -56,19 +52,20 @@ def clamp_to_shutdown_deadline(resource: _LifecycleHostP, cap: float | None) -> 
     return min(cap, remaining)
 
 
-def shutdown_hook_bound(resource: _LifecycleHostP) -> float | None:
+def shutdown_hook_bound(resource: LifecycleMixin) -> float | None:
     """Bound for one shutdown hook, the serve-task wait, or the initializer observation.
 
     ``shutdown_timeout_seconds`` clamped to the deadline, except for a resource whose
     ``shutdown_hook_timeout_applies`` is ``False`` (the foundation services, whose framework steps carry
     fixed caps of their own): those are bounded by the deadline alone.
     """
-    host = typing.cast("LifecycleMixin", resource)
-    cap = host.hassette.config.lifecycle.shutdown_timeout_seconds if host.shutdown_hook_timeout_applies else None
+    cap = (
+        resource.hassette.config.lifecycle.shutdown_timeout_seconds if resource.shutdown_hook_timeout_applies else None
+    )
     return clamp_to_shutdown_deadline(resource, cap)
 
 
-def tighten_shutdown_deadline(resource: _LifecycleHostP, deadline: float | None) -> None:
+def tighten_shutdown_deadline(resource: LifecycleMixin, deadline: float | None) -> None:
     """Shorten the resource's shutdown deadline to ``deadline``; never extends it.
 
     Called by an operation's owner before it starts the shutdown, and by a parent passing its own
@@ -76,9 +73,8 @@ def tighten_shutdown_deadline(resource: _LifecycleHostP, deadline: float | None)
     """
     if deadline is None:
         return
-    host = typing.cast("LifecycleMixin", resource)
-    current = host._shutdown_deadline
-    host._shutdown_deadline = deadline if current is None else min(current, deadline)
+    current = resource._shutdown_deadline
+    resource._shutdown_deadline = deadline if current is None else min(current, deadline)
 
 
 def deadline_in(seconds: float) -> float:
