@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.65.0](https://github.com/NodeJSmith/hassette/compare/v0.64.0...v0.65.0) (2026-11-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* Messages from hass-hassette's `hassette.send` now arrive as `HassetteMessageEvent` on `hass.event.hassette_message`, and need hass-hassette v0.8.0 or newer. Listeners on `hass.event.hassette_action` no longer receive them; subscribe with `bus.on_hassette_message(...)` and read `event.payload.data.name` / `.data` as attributes, or use `D.MessageData[T]`.
+
+### Features
+
+* receive hass-hassette messages as typed events ([#4254](https://github.com/NodeJSmith/hassette/issues/4254)) ([d2c0859](https://github.com/NodeJSmith/hassette/commit/d2c085964caa4fea4ae8c074593018e9cb22c174))
+
+
+### Bug Fixes
+
+* apply DI extractors behind subscripted PEP 695 type aliases ([#4154](https://github.com/NodeJSmith/hassette/issues/4154)) ([820b33e](https://github.com/NodeJSmith/hassette/commit/820b33e0847deb088d27b2ce3cf08bae91d03666))
+* **deps:** update dependency cyclopts to &gt;=5.5,&lt;5.6 ([#4245](https://github.com/NodeJSmith/hassette/issues/4245)) ([7822db3](https://github.com/NodeJSmith/hassette/commit/7822db3b1be1d3f2ca57460ec36bb1b1f72d60ff))
+* let on_call_service mapping where= listeners re-register under if_exists="skip" ([#4130](https://github.com/NodeJSmith/hassette/issues/4130)) ([72c808c](https://github.com/NodeJSmith/hassette/commit/72c808ccede0bf9f03b64a643f2211940bedf2f3))
+
+
+### Refactoring
+
+* share raw state normalization between BaseState and the state registry ([#4242](https://github.com/NodeJSmith/hassette/issues/4242)) ([bb11b35](https://github.com/NodeJSmith/hassette/commit/bb11b3545d4472c702c1e6686bac2ce28cb02d90))
+
+
+### Documentation
+
+* refresh hassette status and app sample output in getting started ([#4248](https://github.com/NodeJSmith/hassette/issues/4248)) ([9f85f27](https://github.com/NodeJSmith/hassette/commit/9f85f272d64000458650e26d686b5a2374ee3602))
+
 ## [0.64.0](https://github.com/NodeJSmith/hassette/compare/v0.63.0...v0.64.0) (2026-11-17)
 
 This release completes the **Diagnostic Evidence** milestone ([milestone 20](https://github.com/NodeJSmith/hassette/milestone/20)). When an automation misbehaves, Hassette now records enough to explain it without reading app source or `docker logs`: which events reached a listener and why they were dropped, which event triggered each run, which service calls each run made and how each one ended, and the app and connection lifecycle around it. You can also turn on full debug logging for one app on a running instance. The web UI doesn't show most of this yet; the API, `hassette-client` and the CLI do.
