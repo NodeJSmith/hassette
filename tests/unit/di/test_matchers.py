@@ -3,7 +3,7 @@
 """Unit tests for TypeMatcher and AnnotatedMatcher."""
 
 from collections.abc import Callable
-from typing import Annotated, Any, TypeVar
+from typing import Annotated, Any, TypeVar, TypeVarTuple
 
 import pytest
 from typing_extensions import TypeAliasType
@@ -19,6 +19,7 @@ MyChainedEvent = TypeAliasType("MyChainedEvent", MyEvent)
 
 T = TypeVar("T")
 U = TypeVar("U")
+Ts = TypeVarTuple("Ts")
 
 
 def payload_extractor(_source: AnyEvent) -> str:
@@ -30,6 +31,16 @@ Extracted = TypeAliasType("Extracted", Annotated[T, AnnotationDetails(extractor=
 # Value's free parameters are in a different order than the alias's: `type Swapped[T, U] = Annotated[dict[U, T], ...]`.
 Swapped = TypeAliasType(
     "Swapped", Annotated[dict[U, T], AnnotationDetails(extractor=payload_extractor)], type_params=(T, U)
+)
+# A chain of generic aliases: `type ChainB[T] = Extracted[T]`, `type ChainC[T] = ChainB[T]`, ...
+ChainB = TypeAliasType("ChainB", Extracted[T], type_params=(T,))
+ChainC = TypeAliasType("ChainC", ChainB[T], type_params=(T,))
+ChainD = TypeAliasType("ChainD", ChainC[T], type_params=(T,))
+# The value is the bare parameter: `type Identity[T] = T`.
+Identity = TypeAliasType("Identity", T, type_params=(T,))
+# A variadic alias: `type Packed[*Ts] = Annotated[tuple[*Ts], ...]`.
+Packed = TypeAliasType(
+    "Packed", Annotated[tuple[*Ts], AnnotationDetails(extractor=payload_extractor)], type_params=(Ts,)
 )
 
 
@@ -256,8 +267,14 @@ class TestAnnotatedMatcher:
 
     @pytest.mark.parametrize(
         ("alias", "expected"),
-        [(Extracted[int], int), (Swapped[int, str], dict[str, int])],
-        ids=["single_param", "reordered_params"],
+        [
+            (Extracted[int], int),
+            (Swapped[int, str], dict[str, int]),
+            (ChainD[str], str),
+            (Identity[Annotated[int, AnnotationDetails(extractor=payload_extractor)]], int),
+            (Packed[int, str], tuple[int, str]),
+        ],
+        ids=["single_param", "reordered_params", "alias_chain", "identity_alias", "variadic_alias"],
     )
     def test_subscripted_type_alias_substitutes_type_params(self, alias: Any, expected: Any):
         def handler(value):

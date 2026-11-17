@@ -1,11 +1,18 @@
 import inspect
+import typing
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from functools import lru_cache
+from logging import getLogger
 from types import UnionType
-from typing import Annotated, Any, ForwardRef, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Any, ForwardRef, TypeVar, TypeVarTuple, Union, Unpack, get_args, get_origin
 
 from pydantic._internal._typing_extra import try_eval_type
+
+LOGGER = getLogger(__name__)
+
+MAX_ALIAS_DEPTH = 64
+"""Alias expansions `unwrap_type_alias` performs before treating the alias as cyclic."""
 
 NoneType = type(None)
 
@@ -28,6 +35,42 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
     return tuple(uniq)
 
 
+def is_type_alias(tp: Any) -> bool:
+    """True if `tp` is a bare type alias.
+
+    Duck-typed on purpose: `typing_extensions.TypeAliasType` (the only alias type on 3.11) is a
+    different class from `typing.TypeAliasType` on 3.12+, and both must be recognized.
+    """
+    return hasattr(tp, "__value__") and hasattr(tp, "__type_params__")
+
+
+def substitute_alias_args(alias: Any, args: tuple[Any, ...]) -> Any:
+    """Return `alias.__value__` with the alias's type parameters replaced by `args`.
+
+    `Foo[int].__value__` forwards to the bare alias and drops the arguments, and CPython exposes no
+    public way to substitute them. So build a throwaway `typing.Callable[[*params], value]` whose
+    parameters are exactly the alias's, in order, and subscript it: CPython's own substitution then
+    handles reordered parameters, `TypeVarTuple` packs, `ParamSpec` lists, and a value that is a bare
+    parameter. Trailing parameters left out of `args` take their declared defaults (PEP 696).
+
+    If CPython rejects the arguments (too few with no defaults), the value is returned unsubstituted.
+    """
+    type_params = alias.__type_params__
+    missing = type_params[len(args) :]
+    if missing and all(getattr(p, "has_default", lambda: False)() for p in missing):
+        args = (*args, *(p.__default__ for p in missing))
+
+    params = [Unpack[p] if isinstance(p, TypeVarTuple) else p for p in type_params]
+    # `typing.Callable`, not `collections.abc.Callable`: only the former accepts a parameter list it re-subscripts.
+    carrier = typing.Callable[[*params], alias.__value__]
+    try:
+        substituted = carrier[args]  # pyright: ignore[reportIndexIssue]  # carrier is a runtime generic alias
+    except TypeError:
+        LOGGER.debug("Could not substitute %r into type alias %r; using its unsubstituted value", args, alias)
+        return alias.__value__
+    return get_args(substituted)[-1]
+
+
 def unwrap_type_alias(tp: Any) -> Any:
     """Resolve a PEP 695 type alias (`type Foo = ...`), including alias chains, to the type it names.
 
@@ -35,22 +78,20 @@ def unwrap_type_alias(tp: Any) -> Any:
     with the alias's type parameters replaced by the subscript's arguments. Anything that is not an
     alias is returned unchanged.
     """
-    seen: set[int] = set()  # stops a cyclic alias pair from looping forever
-    while id(tp) not in seen:
-        seen.add(id(tp))
+    # A cyclic (`type X = Y; type Y = X`) or ever-growing (`type G[T] = G[list[T]]`) alias never resolves;
+    # stop after a depth no real alias chain reaches.
+    for _ in range(MAX_ALIAS_DEPTH):
         origin = get_origin(tp)
-        if origin is not None and hasattr(origin, "__value__") and hasattr(origin, "__type_params__"):
-            # `getattr(Foo[int], "__value__")` forwards to the bare alias and loses the arguments,
-            # so substitute them into the value explicitly.
-            mapping = dict(zip(origin.__type_params__, get_args(tp), strict=False))
-            value = origin.__value__
-            params = getattr(value, "__parameters__", ())
-            tp = value[tuple(mapping.get(p, p) for p in params)] if params else value
-            continue
-        value = getattr(tp, "__value__", None)
-        if value is None:
-            break
-        tp = value
+        if is_type_alias(origin):
+            alias, args = origin, get_args(tp)
+        elif is_type_alias(tp):
+            alias, args = tp, None
+        else:
+            return tp
+
+        tp = alias.__value__ if args is None else substitute_alias_args(alias, args)
+
+    LOGGER.debug("Type alias did not resolve within %d expansions; stopping at %r", MAX_ALIAS_DEPTH, tp)
     return tp
 
 
