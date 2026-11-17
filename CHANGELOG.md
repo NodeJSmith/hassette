@@ -7,31 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.65.0](https://github.com/NodeJSmith/hassette/compare/v0.64.0...v0.65.0) (2026-11-17)
 
+Messages sent from Home Assistant with the hass-hassette integration's `hassette.send` action now arrive as typed events: subscribe with `bus.on_hassette_message`, get the message's data as your own model with `D.MessageData[T]`, and test with `harness.simulate_hassette_message`. Custom events fired from HA scripts and automations convert into pydantic models and dataclasses through `D.EventData` too.
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
-* Messages from hass-hassette's `hassette.send` now arrive as `HassetteMessageEvent` on `hass.event.hassette_message`, and need hass-hassette v0.8.0 or newer. Listeners on `hass.event.hassette_action` no longer receive them; subscribe with `bus.on_hassette_message(...)` and read `event.payload.data.name` / `.data` as attributes, or use `D.MessageData[T]`.
+- **hass-hassette messages moved to a typed event and need hass-hassette v0.8.0 or newer** (#4254). hass-hassette v0.8.0 fires `hassette.send` messages as `hassette_message` events instead of `hassette_action`, and Hassette delivers them as `HassetteMessageEvent` on `hass.event.hassette_message`. Upgrade the integration and Hassette together: a listener on `hass.event.hassette_action` no longer receives anything. Subscribe with `bus.on_hassette_message("<name>", handler=..., name=...)`, and read `event.payload.data.name` and `event.payload.data.data` as attributes (not `["name"]`), or annotate a handler parameter as `D.MessageData[T]`.
 
-### Features
+### For App Authors: You Can Now Delete
 
-* receive hass-hassette messages as typed events ([#4254](https://github.com/NodeJSmith/hassette/issues/4254)) ([d2c0859](https://github.com/NodeJSmith/hassette/commit/d2c085964caa4fea4ae8c074593018e9cb22c174))
+- **`bus.on(topic="hass.event.hassette_action", where=...)` with a predicate on `payload.data.name`.** Use `bus.on_hassette_message("<name>", ...)`. (#4254)
+- **A custom `AnnotationDetails` converter (or `Model(**data)` in the handler) to turn a message's or custom event's `data` dict into a model.** `D.MessageData[Model]` and `D.EventData[Model]` validate it for you. (#4254)
+- **Hand-built `hassette_action` events in tests via `create_event_from_hass` + `simulate_event`.** Use `await harness.simulate_hassette_message(name, data)`. (#4254)
+- **A `TypeAlias` (`Name: TypeAlias = Annotated[...]`) instead of a PEP 695 `type Name[T] = Annotated[...]` alias for a generic DI annotation.** Subscripted `type` aliases now inject the converted value. (#4154)
+- **`if_exists="replace"` where you meant `"skip"`, because re-registering the same filtered listener raised a drift error.** `on_call_service(where={...})`, `on_component_loaded`, `on_hassette_service_status`, `on_app_state_changed` and `on_hassette_message` with the same filter now skip cleanly, as do your own predicates built with `A.get_path`. (#4130, #4254)
 
+### Bus
+
+- `bus.on_hassette_message(message, ...)` subscribes to `hassette.send` messages, filtered by the message's `name`; `message=None` matches every message. The filter is `message=` because `name=` names the listener. (#4254)
+- `D.MessageData[T]` passes a handler the message's `data`, validated into a pydantic model or dataclass. Missing or invalid data skips the handler with an error naming the field. A message sent without `data` validates `{}`. (#4254)
+- `D.EventData[Model]` validates a custom event's data dict into a pydantic model or dataclass that has no registered converter, so events fired with `event:` from scripts and automations convert. Undeclared keys are ignored unless the model sets `extra="forbid"`; a converter registered for `(dict, Model)` still wins. When every arm of a union fails, the error names each arm's failing field. (#4254)
+
+### Test Utilities
+
+- `AppTestHarness.simulate_hassette_message(message, data)` sends a message as `hassette.send` would and waits for handlers. `data` is one mapping, so its keys can't collide with harness parameters. (#4254)
 
 ### Bug Fixes
 
-* apply DI extractors behind subscripted PEP 695 type aliases ([#4154](https://github.com/NodeJSmith/hassette/issues/4154)) ([820b33e](https://github.com/NodeJSmith/hassette/commit/820b33e0847deb088d27b2ce3cf08bae91d03666))
-* **deps:** update dependency cyclopts to &gt;=5.5,&lt;5.6 ([#4245](https://github.com/NodeJSmith/hassette/issues/4245)) ([7822db3](https://github.com/NodeJSmith/hassette/commit/7822db3b1be1d3f2ca57460ec36bb1b1f72d60ff))
-* let on_call_service mapping where= listeners re-register under if_exists="skip" ([#4130](https://github.com/NodeJSmith/hassette/issues/4130)) ([72c808c](https://github.com/NodeJSmith/hassette/commit/72c808ccede0bf9f03b64a643f2211940bedf2f3))
-
-
-### Refactoring
-
-* share raw state normalization between BaseState and the state registry ([#4242](https://github.com/NodeJSmith/hassette/issues/4242)) ([bb11b35](https://github.com/NodeJSmith/hassette/commit/bb11b3545d4472c702c1e6686bac2ce28cb02d90))
-
+- A handler parameter annotated with a subscripted PEP 695 alias (`Msg[Done]` for `type Msg[T] = Annotated[T, ...]`) receives the converted value instead of the raw one. (#4154)
+- An HA event missing a field its typed payload requires raises `MissingPayloadFieldsError`, and the dispatch-failure log names the event type and missing fields (never values) instead of logging a bare `TypeError`. (#4254)
+- A dataclass that pydantic can't build a schema for fails conversion with `UnableToConvertValueError`, like any other conversion failure, instead of leaking pydantic's error. (#4254)
 
 ### Documentation
 
-* refresh hassette status and app sample output in getting started ([#4248](https://github.com/NodeJSmith/hassette/issues/4248)) ([9f85f27](https://github.com/NodeJSmith/hassette/commit/9f85f272d64000458650e26d686b5a2374ee3602))
+- The Home Assistant integration page has a "Send Messages to Your Apps" section, including what a successful `hassette.send` does and doesn't guarantee. (#4254)
+- The getting-started samples for `hassette status` and `hassette app` match current CLI output. (#4248)
 
 ## [0.64.0](https://github.com/NodeJSmith/hassette/compare/v0.63.0...v0.64.0) (2026-11-17)
 
