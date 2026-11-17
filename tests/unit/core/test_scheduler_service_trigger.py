@@ -7,7 +7,7 @@ Tests cover:
 - run_job_with_guard() threads trigger_mode through for non-parallel modes (invoke lambda)
 - run_job_with_guard() defaults trigger_mode to None (existing call sites unaffected)
 - run_job_with_guard()/run_job() thread the dispatch-local fire_at fallback through
-- trigger_job() finds a job in the live registry by db_id, or raises ValueError when absent
+- get_live_job() finds a job in the live registry by db_id, or raises ValueError when absent
 - submit_job() spawns a manual invocation for a live registered job across all execution modes
 - submit_job() raises JobRemovedError for an unregistered or stale-handle job
 - submit_job() propagates TaskBucketSealedError when the service's bucket is sealed
@@ -108,25 +108,24 @@ class TestRunJobWithGuardTriggerMode:
         svc.run_job.assert_called_once_with(job, trigger_mode=None, fire_at=local_fire_at)
 
 
-class TestTriggerJob:
+class TestGetLiveJob:
     async def test_returns_job_found_in_registry(self) -> None:
-        """trigger_job() returns the ScheduledJob whose db_id matches in the live registry."""
+        """get_live_job() returns the ScheduledJob whose db_id matches in the live registry."""
         svc = _make_trigger_service()
         job = make_real_job(db_id=42)
-        svc.get_all_jobs = AsyncMock(return_value=[job])
+        svc._jobs_by_id[42] = job
 
-        result = await svc.trigger_job(42)
+        result = await svc.get_live_job(42)
 
         assert result is job
 
     async def test_raises_value_error_for_missing_db_id(self) -> None:
-        """trigger_job() raises ValueError when no job in the registry matches db_id."""
+        """get_live_job() raises ValueError when no job in the registry matches db_id."""
         svc = _make_trigger_service()
-        other_job = make_real_job(db_id=1)
-        svc.get_all_jobs = AsyncMock(return_value=[other_job])
+        svc._jobs_by_id[1] = make_real_job(db_id=1)
 
         with pytest.raises(ValueError, match="not currently triggerable"):
-            await svc.trigger_job(999)
+            await svc.get_live_job(999)
 
 
 def _track_spawned_tasks(svc) -> list[asyncio.Task]:

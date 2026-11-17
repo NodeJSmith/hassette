@@ -32,12 +32,12 @@ def make_registered_job(  # factory-local: wraps make_real_job for submission-ro
 async def post_trigger(
     client: "AsyncClient", mock_hassette: MagicMock, *, job: Job, submit_error: Exception | None = None, job_id: int = 1
 ) -> Response:
-    """Wire the scheduler to hand back `job` from trigger_job(), then POST the trigger route.
+    """Wire the scheduler to hand back `job` from get_live_job(), then POST the trigger route.
 
     `submit_error` makes `submit_job()` raise instead of accepting the submission, modelling a
     handle that went stale between lookup and submission.
     """
-    mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
+    mock_hassette.scheduler_service.get_live_job = AsyncMock(return_value=job)
     mock_hassette.scheduler_service.submit_job = MagicMock(return_value=None, side_effect=submit_error)
 
     return await client.post(TRIGGER_URL.format(job_id=job_id))
@@ -58,8 +58,8 @@ class TestTriggerJobEndpoint:
         mock_hassette.scheduler_service.submit_job.assert_called_once_with(job)
 
     async def test_returns_409_for_unknown_job_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """POST returns 409 when trigger_job() raises ValueError (job not in the registry)."""
-        mock_hassette.scheduler_service.trigger_job = AsyncMock(
+        """POST returns 409 when get_live_job() raises ValueError (job not in the registry)."""
+        mock_hassette.scheduler_service.get_live_job = AsyncMock(
             side_effect=ValueError("Job is not currently triggerable")
         )
 

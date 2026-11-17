@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import Field
 from whenever import Instant, ZonedDateTime
@@ -72,7 +72,7 @@ class InputDatetimeState(DateTimeBaseState):
 
 
 class InputNumberAttributes(InputAttributesBase):
-    max: float | None = Field(default=None)
+    max: int | float | None = Field(default=None)
     initial: float | None = Field(default=None)
     step: int | float | None = Field(default=None)
     mode: str | None = Field(default=None)
@@ -108,7 +108,7 @@ class InputSelectState(StringBaseState):
 class InputTextAttributes(InputAttributesBase):
     min: int | float | None = Field(default=None)
     max: int | float | None = Field(default=None)
-    pattern: Any | None = Field(default=None)
+    pattern: str | None = Field(default=None)
     mode: str | None = Field(default=None)
 
 

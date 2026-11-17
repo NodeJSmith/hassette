@@ -77,9 +77,11 @@ select = [
     "G",      #flake8-logging-format (G)
     "N",      #pep8-naming (N),
     "PERF",   # Perflint (PERF)
+    "TID251", # banned-api
     "TID252", # relative imports
     "D",      # pydocstyle (google convention)
     "PLC0415", # import-outside-top-level
+    "PGH003", # blanket "# type: ignore" (bracketed ones are house-lint's HSL105)
 ]
 
 ignore = [
@@ -178,3 +180,6 @@ line-ending = "auto"
 
 [lint.pydocstyle]
 convention = "google" # Accepts: "google", "numpy", or "pep257".
+
+[lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "breaks runtime annotation inspection (Pydantic, FastAPI, dataclasses, get_type_hints)"

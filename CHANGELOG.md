@@ -5,6 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.0](https://github.com/NodeJSmith/hassette/compare/v0.63.0...v0.64.0) (2026-11-17)
+
+This release completes the **Diagnostic Evidence** milestone ([milestone 20](https://github.com/NodeJSmith/hassette/milestone/20)). When an automation misbehaves, Hassette now records enough to explain it without reading app source or `docker logs`: which events reached a listener and why they were dropped, which event triggered each run, which service calls each run made and how each one ended, and the app and connection lifecycle around it. You can also turn on full debug logging for one app on a running instance. The web UI doesn't show most of this yet; the API, `hassette-client` and the CLI do.
+
+### Breaking Changes
+
+- **Transport exceptions are grouped by whether the command reached Home Assistant** (#3995):
+    - `CommandNotSentError` (new): the command never reached HA. `CommandRejectedError` (renamed from `FailedMessageError`): HA answered with an error. `OutcomeUnknownError`: the command was sent and no answer came; `ResponseTimeoutError` and `ResponseLostError` are now only its subclasses. To catch "HA unreachable", catch `(CommandNotSentError, OutcomeUnknownError)`.
+    - `ConnectionClosedError` and `RetryableConnectionClosedError` are removed (the latter is now internal). An `except CommandRejectedError` no longer catches a timeout, and `ResponseTimeoutError.code` is gone, so `e.code` raises `AttributeError`.
+    - REST calls now raise these classes for transport failures, so code catching `aiohttp.ClientError`, `OSError` or `TimeoutError` around REST calls stops matching. A failed WebSocket write raises `CommandNotSentError` instead of `aiohttp`'s `ClientConnectionResetError`, and a REST call made while the client session is closed raises `CommandNotSentError` instead of `ResourceNotReadyError`.
+    - Retries: an HA error reply without a code is no longer retried. Non-GET REST requests are retried only when they never reached HA, so a slow, dropped, or 5xx/408/429-answered write (and a timed-out `render_template`) fails on the first attempt, and a POST on a keep-alive connection the server just closed fails once as `ResponseLostError`.
+- **`log_persistence_level` is removed, and every log line a logger emits is stored** (#3853). A config that still sets `logging.log_persistence_level` fails at startup with the unknown-key error; delete the line. A logger set to `DEBUG` (a per-service level, an app's `log_level`, a runtime change, or debug capture) now has its `DEBUG` lines stored. The size limit deletes `DEBUG` lines first (see Diagnostics).
+- **Execution detail and trigger fields are reshaped** (#4002, #3843):
+    - `GET /api/executions/{id}` returns an `ExecutionDetailResponse` (the execution, its API writes and its logs) instead of `LogsByExecutionResponse`. `HassetteClient.get_execution_logs` is renamed `get_execution_detail`.
+    - `hassette execution <id> --json` prints `{"execution": ..., "logs": [...]}` instead of a list of log entries. Read the logs from `.logs`, and check `.execution` for `null` rather than relying on the exit code.
+    - `Execution.trigger_context_id` and `Execution.trigger_origin` are removed; read `Execution.trigger.context_id` and `Execution.trigger.origin` (`ExecutionTrigger`). `trigger` is `None` for job rows. Released `hassette-client` versions read the old fields as `None`.
+    - `DurationConfig` (exported from `hassette.bus`) is renamed `EntityWatch`, and `Listener.duration_config` is renamed `Listener.entity_watch`. Its `is_attribute_listener` flag is replaced by `attribute: str | None` (check `attribute is not None`).
+- **App status events** (#4148): `HassetteAppStateEvent.from_app` and `from_instance_info` are removed; build app status events in tests with the `hassette.testing` helpers (`simulate_app_state_changed`, `simulate_app_running`, `simulate_app_stopping`). Instances now emit `STARTING` before initialization, every event carries the real previous status, and `NOT_STARTED` is sent only when a failed instance is started again, not on a first start.
+- **Cover and number attributes are typed** (#3802): HA's `current_position`, `current_tilt_position`, `min` and `max` attributes now populate `current_cover_position`, `current_cover_tilt_position`, `min_value` and `max_value` instead of landing in extras, so `extra("current_position")` and friends now return `None`. Read the typed fields.
+- **Removed entity methods** (#3954): `VacuumEntity.turn_on`, `turn_off`, `toggle` and `start_pause` (and their sync versions) and `WeatherEntity.get_forecast` are removed. HA never registered those vacuum actions and has removed the legacy weather action, so the calls already failed. Use `WeatherEntity.get_forecasts` for forecasts.
+
+### For App Authors: You Can Now Delete
+
+- **`.get_secret_value()` before passing a secret to Home Assistant.** `call_service`, `fire_event` and `set_state` accept `SecretStr` anywhere in the payload, and logs and API write records still show it masked. (#3998)
+- **Restarting with `log_level = "DEBUG"` (or `log_persistence_level`) to debug one app.** Run `hassette app debug <key> on`, then `off` when done. (#3853)
+- **A try/except `EntityNotFoundError` around `set_state`.** It no longer fails when the entity is deleted mid-call. (#3933)
+- **`asyncio.shield` or `CancelledError` handling in debounced handlers.** A new event no longer cancels a debounced handler that's already running. (#3970)
+- **Asserting on `api_recorder` `call_service` calls because entity actions weren't recorded.** `await light.turn_on()` on an entity from `self.api.get_entity()` is now recorded by `AppTestHarness`. (#4165)
+- **Setting `MyApp.app_config_cls` by hand in tests.** It's set when the subclass is defined. (#4048)
+- **Interpolating values into the message because `extra=` fields vanished from JSON logs.** They're included now. (#4047)
+- **Annotating handler parameters with `Event` directly because a `type MyEvent = Event` alias wasn't injected.** Aliases work. (#4111)
+- **Deleting `cache.db` by hand after a cached value fails to unpickle.** Any unpickle failure is now treated as a cache miss. (#3982)
+- **Upper-casing `HASSETTE__LOGGING__LOG_LEVEL`.** A lowercase name now sets the startup log level too. (#4022)
+
+### Diagnostics
+
+- **Listener near-misses:** an event that reaches a listener and is dropped is recorded with the reason (`filter`, `throttled`, `debounce_superseded`, `once_spent`, `busy`, `queue_full`, `backpressure`, and three hold reasons), the filter that rejected it, and the last such event's entity and values. See them with `hassette listener <id> --misses`, `GET /api/telemetry/listener/{id}/misses` or the client. Events outside a listener's own entity or domain aren't recorded. (#4013)
+- **What triggered each run:** handler executions record the triggering event's topic, entity, old and new value, and parent context, shown by `hassette execution <id>` and the API. Runs from `immediate=True` and duration holds carry the cached state's real context. (#3843)
+- **API write records:** every named `Api` write (`call_service` and its helpers, `fire_event`, `set_state`, `delete_entity`, helper CRUD, entity actions) is stored with the execution that made it and how it ended: `success`, `rejected` (with HA's error), `not_sent`, `connection_lost` or `unresolved`. A run triggered by another app's write links back to that write. `SecretStr` values are stored masked; other credentials are stored as passed. A `call_service` without `wait_for_ack` that HA rejects now logs a WARNING. (#4002)
+- **Lifecycle history:** app status changes, Home Assistant connection state changes and app block/unblock events are stored in the database and survive restarts. They age out with `retention_days`. (#4183)
+- **Per-app debug capture:** `hassette app debug <key> on|off [--instance]`, `PUT /api/apps/{key}/debug` and `HassetteClient.set_debug_capture()` turn an app's logger and the framework loggers it owns up to `DEBUG` on a running instance, and store those lines for `hassette log` and the web UI. Capture survives reloads and ends at `off` or a restart. `hassette app` shows a **Debug** column. (#3853)
+- When the database exceeds `database.max_size_mb`, stored `DEBUG` log lines are deleted before executions and other records. (#3811)
+
+### Apps & Connection
+
+- `ConnectionState.WAITING_FOR_CORE` marks a connection that's authenticated while Home Assistant is still starting. Events are dropped while waiting, as in `CONNECTING`. (#4102)
+- `hassette app instances <key>` lists an app's instances with status, whether each is in config, the needs-restart flag and any error. (#3847)
+- Hot-reloading an app that overrides a `@final` method (`initialize`, `shutdown`) now fails the same way a fresh start does, instead of being accepted. (#4199)
+- A config reload no longer starts an app that's disabled in config when it was previously blocked by `--app`. (#4060)
+
+### Configuration
+
+- Config load rejects zero or negative values for the websocket, lifecycle and scheduler timeouts, `nan`, and a `web_api.port` outside 1–65535, instead of failing or hanging later. A config that relied on `0` must use a positive value. (#4021)
+- A `list`, `set` or `frozenset` app config field given a plain string, or a `dict` field given a non-mapping, now fails to convert instead of splitting the string into characters. (#4046)
+
+### API
+
+- `HelperClient.create`/`update` raise a `TypeError` for an unsupported params type, and `list`/`delete` raise a `ValueError` naming the supported domains, instead of a bare `KeyError`. `RecordingApi` raises the same errors. (#3935)
+- Minimal history responses set each entry's `last_updated` from its `last_changed`, instead of every entry inheriting the first entry's timestamp. (#4156)
+
+### State Models
+
+- Home Assistant 2026.11 is supported: `automation_triggered` and `script_started` events parse again (HA added `item_id` and `run_id`, now exposed as optional fields), and event payloads ignore keys HA adds in future instead of dropping the event. (#3954)
+- `InputNumberAttributes.max` is `int | float | None`, `InputTextAttributes.pattern` is `str | None`, and `ImageProcessingAttributes.faces` is `list[dict[str, Any]] | None`. (#4190)
+
+### Bug Fixes
+
+- Recurring jobs stay scheduled when writing their status to the database fails, instead of silently stopping. (#4078)
+- An `EntityTime` job removed while it was being registered no longer leaves an entity watcher that keeps rescheduling it. (#4214)
+- When a job registration fails and its rollback also fails, the original error is raised. (#4215)
+- The execution-record writer no longer busy-loops while a failed batch waits to retry, and executions saved by the FK fallback now appear in the execution feed. (#4079, #4073)
+- Re-registering a listener under the same name updates its description in the web UI. (#4098)
+- CLI tables and detail panels show server text literally; text like `[/x]` no longer crashes the command or gets restyled. (#3996)
+- Log lines from `hassette_wire` and `hassette_client` are attributed to the framework, not to an app. (#3919)
+- A state dict with no `entity_id` is reported as missing instead of as a malformed id. (#4112)
+- Dependency-resolution errors name the accessor that failed, the invalid `Annotated` metadata warning names the parameter, and the `C.Regex` docstring example now actually matches. (#4122, #4114)
+- `AsyncCache.sync` raises `RuntimeError` before `initialize()` instead of returning `None`. (#4030)
+
+### Documentation
+
+- Corrected claims across about 70 pages and docstrings: CLI output, exit codes and `--json` shapes; the lifecycle, diagnostics, blocking I/O and task bucket pages; the AppDaemon migration guide; the recipes' expected listener output; and the Api, states and dependency injection references.
+- Added a Caddy proxy-bypass example for CLI access behind forward-auth. (#3923)
+- The Docker upgrading guide shows how to verify an upgrade and where your data lives, and image tag examples use the bare version without a `v` prefix. (#3823, #3813)
+- The Api helper pages show imports and a runnable bootstrap app, and the cache page has a tested `DummyCache` example. (#4061, #4168)
+- Documented `BaseEntity` members, scheduler job removal and registration errors, `EntityTime` past-time behavior and custom trigger rules, and that custom state attribute fields need a default to be optional. (#4175, #3815, #3807, #3819, #4125)
+
 ## [0.63.0](https://github.com/NodeJSmith/hassette/compare/v0.62.0...v0.63.0) (2026-11-04)
 
 ### For App Authors: You Can Now Delete

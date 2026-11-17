@@ -260,10 +260,11 @@ class DatabaseRetentionMixin:
 
         Config alone is not enough: a hot reload installs the new config before it stops the
         apps it removed, so an app about to be stopped would look removed. The registry covers
-        an app until its stop begins (``stop_app`` unregisters before shutting down), so rows of
-        an app that is still shutting down can be retired; that is harmless, because retiring
-        deletes nothing and re-registration clears it. Read fresh on every cycle, so nothing
-        about an app's removal is stored and a failed cycle simply retries on the next one.
+        an app while any of its entries holds an ``App``, which lasts through each instance's
+        teardown, so a removed app's rows can be retired once its last teardown ends, even one that
+        failed; that is harmless, because retiring deletes nothing and re-registration clears it.
+        Read fresh on every cycle, so nothing about an app's removal is stored and a failed cycle
+        simply retries on the next one.
 
         A flagged needs-restart app stays listed (``listed_apps``) until a restart clears the flag, so its
         manifest row must outlive its history until then.
@@ -325,10 +326,10 @@ class DatabaseRetentionMixin:
         3. Delete ``app_manifests`` rows of apps not in ``live_app_keys`` that nothing references
            anymore (``build_prune_removed_app_manifests_query``).
         4. Delete ``sessions`` rows that stopped before the cutoff, are not the current session, and
-           are no longer referenced by any ``executions``, ``blocking_events`` or ``api_writes`` row. Sessions
-           still referenced wait until those rows age out under their own tier's window. A
-           session with ``stopped_at IS NULL`` (the live one, or a previous run's orphan not yet
-           backfilled by ``mark_orphaned_sessions``) is never deleted. The size failsafe does not
+           are no longer referenced by any ``executions``, ``blocking_events``, ``api_writes`` or
+           ``lifecycle_events`` row. Sessions still referenced wait until those rows age out under their own
+           tier's window. A session with ``stopped_at IS NULL`` (the live one, or a previous run's orphan not
+           yet backfilled by ``mark_orphaned_sessions``) is never deleted. The size failsafe does not
            reclaim sessions: they are small, and only age-based retention removes them.
 
         Args:
@@ -390,6 +391,7 @@ class DatabaseRetentionMixin:
               AND NOT EXISTS (SELECT 1 FROM executions WHERE session_id = sessions.id)
               AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE session_id = sessions.id)
               AND NOT EXISTS (SELECT 1 FROM api_writes WHERE session_id = sessions.id)
+              AND NOT EXISTS (SELECT 1 FROM lifecycle_events WHERE session_id = sessions.id)
             """,
             (cutoff, current_session_id),
         )

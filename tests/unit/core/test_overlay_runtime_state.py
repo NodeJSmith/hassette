@@ -9,6 +9,7 @@ from hassette_wire import AppStatus, ResourceStatus
 from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry, listed_apps, overlay_runtime_state
 from hassette.types.enums import BlockReason
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.helpers import create_app_manifest
 from tests.support.web_manifest_helpers import make_manifest_db_row
 
@@ -130,11 +131,11 @@ class TestOverlayRuntimeState:
         registry.set_manifests({manifest.app_key: manifest})
         if running:
             mock_app.instance_name = manifest.app_key
-            registry.register_app(manifest.app_key, mock_app)
+            seed_running(registry, manifest.app_key, mock_app)
         if failed:
-            # record_failure replaces the entry under the matching name, so the failure has to land on a
+            # A FAILED write replaces the entry under the matching name, so the failure has to land on a
             # different name than the running instance to produce the running/failed mix "degraded" requires.
-            registry.record_failure(manifest.app_key, "failed_instance", ValueError("boom"))
+            seed_failed(registry, manifest.app_key, "failed_instance", ValueError("boom"))
         if blocked:
             registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
 
@@ -194,7 +195,7 @@ class TestListedApps:
 
     def test_keeps_a_removed_app_whose_instance_is_still_flagged(self, registry: AppRegistry) -> None:
         """A flagged instance may still have work running, so its app stays listed until a restart."""
-        registry.flag_needs_restart("gone_app", "gone_app", class_name="MyApp", reason="hung", pending_tasks=("t1",))
+        seed_failed(registry, "gone_app", "gone_app", needs_restart="hung", pending_tasks=("t1",))
 
         listed = listed_apps(overlay_runtime_state([make_manifest_db_row("gone_app")], registry))
 
@@ -207,5 +208,5 @@ def configure_running_app(registry: AppRegistry, mock_app: MagicMock, tmp_path: 
     manifest = create_app_manifest(suffix, tmp_path)
     registry.set_manifests({manifest.app_key: manifest})
     mock_app.instance_name = manifest.app_key
-    registry.register_app(manifest.app_key, mock_app)
+    seed_running(registry, manifest.app_key, mock_app)
     return manifest

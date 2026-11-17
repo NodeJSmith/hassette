@@ -2,12 +2,17 @@
 
 import time
 import typing
+from collections.abc import Callable
 from typing import ClassVar
 
 from hassette_wire import LogLevel
 
+from hassette.core.pipeline_counters import PipelineCounter
+from hassette.core.telemetry.lifecycle_rows import LifecycleChange, serialize_details
+from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
+from hassette.utils.warn_pacer import WarnPacer
 
 SESSION_STATUS_RUNNING = "running"
 SESSION_STATUS_SUCCESS = "success"
@@ -23,8 +28,7 @@ if typing.TYPE_CHECKING:
 class SessionManager(Resource):
     """Manages session lifecycle: creation, orphan cleanup, and finalization.
 
-    This is a Resource (no background task). It extracts session CRUD logic that
-    was previously inline on ``Hassette``.
+    This is a Resource (no background task).
     """
 
     shutdown_hook_timeout_applies: ClassVar[bool] = False
@@ -40,6 +44,8 @@ class SessionManager(Resource):
         super().__init__(hassette, parent=parent)
         self._database_service = database_service
         self._session_id: int | None = None
+        self._repository = TelemetryRepository(database_service)
+        self.lifecycle_drop_warn_pacer = WarnPacer()
 
     async def on_initialize(self) -> None:
         """Signal readiness."""
@@ -60,6 +66,56 @@ class SessionManager(Resource):
         if self._session_id is None:
             raise RuntimeError("Session ID is not initialized")
         return self._session_id
+
+    def write_lifecycle_row(self, build: Callable[[], LifecycleChange]) -> None:
+        """Build a change and queue its ``lifecycle_events`` row, stamped with this session and the current time.
+
+        Never raises. Sync and enqueue-only, so sync callers (block reconciliation, the WebSocket receive task's
+        done-callback) can call it at the moment of change. A row that never reaches the queue (no session, a
+        failed build, a full queue or one yielding to a waiting ``submit()``, the queue not live) is counted under
+        ``LIFECYCLE_ROWS_DROPPED`` with a paced WARNING. A queued row whose insert fails is logged by the insert,
+        not counted.
+        """
+        try:
+            if self._session_id is None:
+                self.count_lifecycle_drop("no session")
+                return
+            change = build()
+            insert_coro = self._repository.insert_lifecycle_event(
+                change,
+                session_id=self._session_id,
+                details_json=serialize_details(change.details),
+                ts=time.time(),
+            )
+            try:
+                queued = self._database_service.enqueue(insert_coro)
+            except RuntimeError:
+                # enqueue() closes the coroutine and raises RuntimeError only when the queue isn't live.
+                self.count_lifecycle_drop("write queue not running")
+                return
+            if not queued:
+                self.count_lifecycle_drop("write queue full or yielding to a waiting submit")
+        except Exception:
+            self.count_lifecycle_drop("unexpected error", exc_info=True)
+
+    def count_lifecycle_drop(self, reason: str, *, exc_info: bool = False) -> None:
+        """Count one dropped lifecycle row and log a WARNING, paced by its own ``WarnPacer``.
+
+        Shares its interval setting, ``lifecycle.command_executor_capacity_warn_rate_limit_seconds``, with the
+        other paced telemetry WARNINGs, but has its own ``WarnPacer``, so an API-write drop never suppresses a
+        lifecycle WARNING.
+        """
+        self.hassette.pipeline_counters.increment(PipelineCounter.LIFECYCLE_ROWS_DROPPED)
+        if not self.lifecycle_drop_warn_pacer.allow(
+            self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
+        ):
+            return
+        self.logger.warning(
+            "Could not queue lifecycle row (%s); dropping it (counted under %s)",
+            reason,
+            PipelineCounter.LIFECYCLE_ROWS_DROPPED.name,
+            exc_info=exc_info,
+        )
 
     async def mark_orphaned_sessions(self) -> None:
         """Mark sessions left with stopped_at NULL as orphaned, and earlier runs' pending API writes as unresolved."""
@@ -227,31 +283,17 @@ class SessionManager(Resource):
         overflow, exhausted, shutdown = drop_counters
         try:
             now = time.time()
-            if self.hassette.fatal_shutdown_reason is not None:
-                # The fatal reason is recorded in memory at the decision site, before any teardown, so
-                # it is already set by the time the foundation stage gets here.
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
-                    " error_message = ?, dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
-                    " WHERE id = ?",
-                    (
-                        SESSION_STATUS_FAILURE,
-                        now,
-                        now,
-                        self.hassette.fatal_shutdown_reason,
-                        overflow,
-                        exhausted,
-                        shutdown,
-                        self._session_id,
-                    ),
-                )
-            else:
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
-                    " WHERE id = ?",
-                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, shutdown, self._session_id),
-                )
+            # The fatal reason is recorded in memory at the decision site, before any teardown, so
+            # it is already set by the time the foundation stage gets here. It is None on a clean
+            # shutdown, which leaves error_message NULL as the session INSERT wrote it.
+            fatal_reason = self.hassette.fatal_shutdown_reason
+            status = SESSION_STATUS_FAILURE if fatal_reason is not None else SESSION_STATUS_SUCCESS
+            await self._database_service.db.execute(
+                "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
+                " error_message = ?, dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
+                " WHERE id = ?",
+                (status, now, now, fatal_reason, overflow, exhausted, shutdown, self._session_id),
+            )
             await self._database_service.db.commit()
         except Exception:
             self.logger.exception("Failed to finalize session on shutdown")

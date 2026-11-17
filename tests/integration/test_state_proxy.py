@@ -91,7 +91,7 @@ async def test_failed_initial_sync_keeps_cold_cache_blocked() -> None:
     assert proxy.is_ready() is True
     assert proxy.cache_freshness == StateCacheFreshness.UNAVAILABLE
     with pytest.raises(ResourceNotReadyError):
-        proxy.get_state_once("light.kitchen")
+        proxy.get_state("light.kitchen")
 
     await proxy.on_shutdown()
 
@@ -140,7 +140,7 @@ async def test_pre_capability_event_does_not_unlock_partial_cold_cache() -> None
     assert proxy.states["light.kitchen"]["state"] == "on"
     assert proxy.cache_freshness == StateCacheFreshness.UNAVAILABLE
     with pytest.raises(ResourceNotReadyError):
-        proxy.get_state_once("light.kitchen")
+        proxy.get_state("light.kitchen")
 
     await proxy.on_shutdown()
 
@@ -162,7 +162,7 @@ async def test_pre_capability_event_during_failed_initial_sync_keeps_cold_cache_
     assert proxy.states["light.kitchen"]["state"] == "on"
     assert proxy.cache_freshness == StateCacheFreshness.UNAVAILABLE
     with pytest.raises(ResourceNotReadyError):
-        proxy.get_state_once("light.kitchen")
+        proxy.get_state("light.kitchen")
 
     await proxy.on_shutdown()
 
@@ -426,7 +426,7 @@ async def test_disconnect_preserves_stale_reads_and_reconnect_failure_keeps_list
     await state_proxy.on_disconnect()
 
     assert state_proxy.cache_freshness == StateCacheFreshness.STALE
-    assert state_proxy.get_state_once("light.kitchen") is not None
+    assert state_proxy.get_state("light.kitchen") is not None
     assert state_proxy.state_change_sub is not None
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom"))

@@ -91,17 +91,44 @@ def parse_entity_time(value: Any) -> ZonedDateTime | None:
         LOGGER.warning("Could not parse %r as a time value", value)
         return None
 
-    today = date_utils.now()
-    return ZonedDateTime(
-        today.year,
-        today.month,
-        today.day,
-        time_of_day.hour,
-        time_of_day.minute,
-        time_of_day.second,
-        tz=today.tz_id,
-        disambiguation="compatible",
-    )
+    return today_at(date_utils.now(), time_of_day.hour, time_of_day.minute, time_of_day.second)
+
+
+def today_at(now: ZonedDateTime, hour: int, minute: int, second: int = 0) -> ZonedDateTime:
+    """Return the wall-clock time ``hour:minute:second`` on ``now``'s date, in ``now``'s timezone.
+
+    A time that falls in a DST gap or fold resolves with ``disambiguation="compatible"``.
+    """
+    return ZonedDateTime(now.year, now.month, now.day, hour, minute, second, tz=now.tz_id, disambiguation="compatible")
+
+
+def daily_cron_expression(hour: int, minute: int, second: int | None = None) -> str:
+    """Return a cron expression that fires every day at the given wall-clock time.
+
+    Returns the 5-field form (``minute hour dom month dow``) when ``second`` is ``None``,
+    and the 6-field form with seconds appended (croniter convention) otherwise.
+    """
+    if second is None:
+        return f"{minute} {hour} * * *"
+    return f"{minute} {hour} * * * {second}"
+
+
+def require_whole_second_delay(total_seconds: float, what: str) -> None:
+    """Raise ``ValueError`` unless ``total_seconds`` is at least 1 second.
+
+    Args:
+        total_seconds: The delay or interval to check, in seconds.
+        what: Subject used to start the error message (e.g. ``"After trigger delay"``).
+
+    Raises:
+        ValueError: If ``total_seconds`` is not positive, or is under 1 second.
+    """
+    if total_seconds <= 0:
+        raise ValueError(f"{what} must be positive")
+    if total_seconds < 1:
+        raise ValueError(
+            f"{what} must be at least 1 second (got {total_seconds}s); the scheduler has whole-second resolution"
+        )
 
 
 def parse_hh_mm(at: str, label: str) -> tuple[int, int]:
@@ -118,13 +145,14 @@ def parse_hh_mm(at: str, label: str) -> tuple[int, int]:
     Raises:
         ValueError: If the string does not contain exactly two numeric fields or the time is out of range.
     """
+    format_error = ValueError(f"{label} 'at' must be 'HH:MM', got {at!r}")
     parts = at.split(":")
     if len(parts) != 2:
-        raise ValueError(f"{label} 'at' must be 'HH:MM', got {at!r}")
+        raise format_error
     try:
         hour, minute = int(parts[0]), int(parts[1])
     except ValueError:
-        raise ValueError(f"{label} 'at' must be 'HH:MM', got {at!r}") from None
+        raise format_error from None
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError(f"{label} 'at' time out of range: {at!r}")
     return hour, minute
@@ -166,14 +194,7 @@ class After:
             self._delay = timedelta
         else:
             self._delay = TimeDelta(seconds=seconds, minutes=minutes, hours=hours)
-        total_seconds = self._delay.total("seconds")
-        if total_seconds <= 0:
-            raise ValueError("After trigger delay must be positive")
-        if total_seconds < 1:
-            raise ValueError(
-                f"After trigger delay must be at least 1 second (got {total_seconds}s); "
-                "the scheduler has whole-second resolution"
-            )
+        require_whole_second_delay(self._delay.total("seconds"), "After trigger delay")
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return current_time plus the delay."""
@@ -228,14 +249,12 @@ class Once:
     ) -> None:
         self._if_past = if_past
         self._at_str: str | None = None
+        now = date_utils.now()
 
         if isinstance(at, str):
             self._at_str = at
             hour, minute = parse_hh_mm(at, "Once")
-            now = date_utils.now()
-            target = ZonedDateTime(
-                now.year, now.month, now.day, hour, minute, tz=now.tz_id, disambiguation="compatible"
-            )
+            target = today_at(now, hour, minute)
             if target <= now:
                 if if_past == "error":
                     raise ValueError(f"Once(at={at!r}) constructed after the target time and if_past='error'")
@@ -247,7 +266,6 @@ class Once:
                 target = target.add(days=1, disambiguation="compatible")
             self._fire_at = target
         else:
-            now = date_utils.now()
             if at <= now:
                 if if_past == "error":
                     raise ValueError(f"Once(at=<ZonedDateTime {at.format_iso()!r}>) is in the past and if_past='error'")
@@ -319,13 +337,7 @@ class Every:
     ) -> None:
         total = TimeDelta(seconds=seconds, minutes=minutes, hours=hours)
         total_seconds = total.total("seconds")
-        if total_seconds <= 0:
-            raise ValueError("Every trigger interval must be positive")
-        if total_seconds < 1:
-            raise ValueError(
-                f"Every trigger interval must be at least 1 second (got {total_seconds}s); "
-                "the scheduler has whole-second resolution"
-            )
+        require_whole_second_delay(total_seconds, "Every trigger interval")
         if total_seconds != int(total_seconds):
             raise ValueError("Every trigger interval must be a whole number of seconds")
         self._interval = total
@@ -378,7 +390,35 @@ class Every:
         return f"every:{int(self.interval_seconds)}"
 
 
-class Daily:
+class _CronBacked:
+    """Shared behavior for triggers that delegate scheduling to a cron expression.
+
+    Subclasses set ``_expression`` and ``_cron`` in ``__init__`` and supply their own
+    ``trigger_label``/``trigger_detail``. Kept separate from ``Cron`` so that a ``Daily``
+    is not an ``isinstance`` of ``Cron``.
+    """
+
+    _expression: str
+    _cron: CronTrigger
+
+    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the first cron-grid-aligned run time at or after current_time."""
+        return self._cron.first_run_time(current_time)
+
+    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+        """Return the next cron-grid-aligned run time after previous_run that is later than current_time."""
+        return self._cron.next_run_time(previous_run, current_time)
+
+    def trigger_db_type(self) -> Literal["cron"]:
+        """Return ``"cron"``, the stored type for cron-based triggers."""
+        return "cron"
+
+    def trigger_id(self) -> str:
+        """Return ``cron:<expression>``, so jobs with the same schedule share an identifier."""
+        return f"cron:{self._expression}"
+
+
+class Daily(_CronBacked):
     """Trigger that fires once per day at a fixed wall-clock time.
 
     Internally delegates to a 5-field cron expression to ensure DST-correct,
@@ -396,18 +436,9 @@ class Daily:
 
     def __init__(self, at: str) -> None:
         hour, minute = parse_hh_mm(at, "Daily")
-        # 5-field standard cron: minute hour dom month dow
-        self._expr = f"{minute} {hour} * * *"
+        self._expression = daily_cron_expression(hour, minute)
         self._at_str = at
-        self._cron = CronTrigger(self._expr)
-
-    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the next cron-grid-aligned daily run time at or after current_time."""
-        return self._cron.first_run_time(current_time)
-
-    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the next daily run time after previous_run that is later than current_time."""
-        return self._cron.next_run_time(previous_run, current_time)
+        self._cron = CronTrigger(self._expression)
 
     def trigger_label(self) -> str:
         """Return ``"daily"``, the UI label for a once-a-day trigger."""
@@ -417,16 +448,8 @@ class Daily:
         """Return the ``"HH:MM"`` string the trigger was built from."""
         return self._at_str
 
-    def trigger_db_type(self) -> Literal["cron"]:
-        """Return ``"cron"``; a daily trigger is stored as the cron expression it delegates to."""
-        return "cron"
 
-    def trigger_id(self) -> str:
-        """Return ``cron:<expression>``, matching a ``Cron`` trigger with the same schedule."""
-        return f"cron:{self._expr}"
-
-
-class Cron:
+class Cron(_CronBacked):
     """Trigger based on an arbitrary cron expression.
 
     Accepts both 5-field (standard Unix cron: ``minute hour dom month dow``)
@@ -451,14 +474,6 @@ class Cron:
         except ValueError as exc:
             raise ValueError(f"Invalid cron expression: {expression!r}") from exc
 
-    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the first cron-grid-aligned run time at or after current_time."""
-        return self._cron.first_run_time(current_time)
-
-    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the next cron-grid-aligned run time after previous_run that is later than current_time."""
-        return self._cron.next_run_time(previous_run, current_time)
-
     def trigger_label(self) -> str:
         """Return ``"cron"``, the UI label for a cron-expression trigger."""
         return "cron"
@@ -466,14 +481,6 @@ class Cron:
     def trigger_detail(self) -> str | None:
         """Return the cron expression as written."""
         return self._expression
-
-    def trigger_db_type(self) -> Literal["cron"]:
-        """Return ``"cron"``, the stored type for cron-based triggers."""
-        return "cron"
-
-    def trigger_id(self) -> str:
-        """Return ``cron:<expression>``, so jobs with the same expression share an identifier."""
-        return f"cron:{self._expression}"
 
 
 class EntityTime:
@@ -567,7 +574,9 @@ class EntityTime:
         """
         if state is None:
             return None
-        raw = state.get("attributes", {}).get(self.attribute) if self.attribute is not None else state.get("state")
+        raw = state.get("state")
+        if self.attribute is not None:
+            raw = state.get("attributes", {}).get(self.attribute)
 
         parsed = parse_entity_time(raw)
         if parsed is None:
@@ -578,7 +587,7 @@ class EntityTime:
             # Delegate the daily rollover to cron so it stays wall-clock aligned across
             # DST transitions, the same way Daily does.
             time_of_day = target.time()
-            expression = f"{time_of_day.minute} {time_of_day.hour} * * * {time_of_day.second}"
+            expression = daily_cron_expression(time_of_day.hour, time_of_day.minute, time_of_day.second)
             return CronTrigger(expression).first_run_time(current_time)
 
         if target <= current_time:

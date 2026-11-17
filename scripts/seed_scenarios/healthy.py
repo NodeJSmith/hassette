@@ -5,6 +5,7 @@ from seed_scenarios.base import (
     REASON_FRAMEWORK,
     WATCHDOG_TIER,
     SeedContext,
+    make_instance_name,
     seed_app_api_writes,
     seed_listener,
     seed_listener_misses,
@@ -12,6 +13,7 @@ from seed_scenarios.base import (
     seed_simple_app,
     ts,
 )
+from seed_scenarios.lifecycle_events import app_lifecycle_steps, connection_lifecycle_steps, seed_session_lifecycle
 
 
 def scenario_healthy(ctx: SeedContext) -> None:
@@ -41,6 +43,16 @@ def scenario_healthy(ctx: SeedContext) -> None:
             base_offset=base,
             exec_count=20,
             n_errors=n_errors,
+        )
+        # A clean start: the connection comes up, then the app instance starts.
+        instance_name = make_instance_name(class_name, 0)
+        seed_session_lifecycle(
+            ctx,
+            session_id=session_id,
+            steps=[
+                *connection_lifecycle_steps(base),
+                *app_lifecycle_steps(app_key=app_key, instance_name=instance_name, base_offset=base),
+            ],
         )
         # A few writes per app, linked to its first handler runs; one app has a rejected call.
         seed_app_api_writes(

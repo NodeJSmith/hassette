@@ -5,6 +5,7 @@ using SQLite's native PRAGMA user_version for version tracking. Each migration
 runs inside BEGIN IMMEDIATE / COMMIT — crash-safe atomic application.
 """
 
+import contextlib
 import sqlite3
 import threading
 import warnings
@@ -66,11 +67,8 @@ def _collect_migrations(target: int | None) -> dict[int, Path]:
 
 def _read_user_version(db_path: Path) -> int:
     """Return PRAGMA user_version from the database (0 for fresh databases)."""
-    conn = sqlite3.connect(db_path)
-    try:
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
         return conn.execute("PRAGMA user_version").fetchone()[0]
-    finally:
-        conn.close()
 
 
 def _set_auto_vacuum(db_path: Path) -> None:
@@ -79,8 +77,7 @@ def _set_auto_vacuum(db_path: Path) -> None:
     Must use a raw connection with no active transaction — SQLite refuses to
     change auto_vacuum when pages already exist or inside a transaction.
     """
-    conn = sqlite3.connect(db_path)
-    try:
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
         current_mode = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
         if current_mode == _AUTO_VACUUM_INCREMENTAL:
             return
@@ -95,8 +92,6 @@ def _set_auto_vacuum(db_path: Path) -> None:
                 RuntimeWarning,
                 stacklevel=2,
             )
-    finally:
-        conn.close()
 
 
 def _apply_migration(db_path: Path, version: int, sql_path: Path) -> None:
@@ -112,10 +107,8 @@ def _apply_migration(db_path: Path, version: int, sql_path: Path) -> None:
     """
     sql = sql_path.read_text(encoding="utf-8")
     script = f"BEGIN IMMEDIATE;\n{sql}\nPRAGMA user_version = {version};\nCOMMIT;\n"
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.executescript(script)
-    except sqlite3.Error as exc:
-        raise RuntimeError(f"Migration {version} ({sql_path.name}) failed: {exc}") from exc
-    finally:
-        conn.close()
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
+        try:
+            conn.executescript(script)
+        except sqlite3.Error as exc:
+            raise RuntimeError(f"Migration {version} ({sql_path.name}) failed: {exc}") from exc

@@ -13,6 +13,8 @@ if typing.TYPE_CHECKING:
     from hassette.events import AnyEvent
     from hassette.types import Predicate
 
+CUSTOM_CONDITION_SUMMARY = "custom condition"
+
 CombinatorT = TypeVar("CombinatorT", bound="_PredicateCombinator")
 
 
@@ -91,13 +93,13 @@ class Guard(_PredicateOps, typing.Generic[EventT]):
 
     fn: "Predicate[EventT]"
 
-    def __call__(self, value: "EventT") -> bool:
+    def __call__(self, value: "EventT", /) -> bool:
         """Return the wrapped function's result for ``value``."""
         return self.fn(value)
 
     def summarize(self) -> str:
         """Return ``"custom condition"``; an arbitrary callable has no inspectable meaning."""
-        return "custom condition"
+        return CUSTOM_CONDITION_SUMMARY
 
 
 def _summarize(obj: Any, non_callable_fallback: Callable[[Any], str]) -> str:
@@ -135,7 +137,7 @@ def _strip_outer_parens(s: str) -> str:
     """Strip balanced outer parentheses from a summary string.
 
     Only strips when the opening ``(`` at index 0 is matched by the closing ``)`` at the final index — i.e. the
-    parens wrap the entire string.  Unbalanced or non-wrapping parens are left untouched.
+    parens wrap the entire string. Unbalanced or non-wrapping parens are left untouched.
     """
     if len(s) < 2 or s[0] != "(" or s[-1] != ")":
         return s
@@ -174,12 +176,19 @@ class _PredicateCombinator(_PredicateOps):
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> Self:
         return cls(ensure_tuple(where))
 
+    def summarize_joined(self, separator: str) -> str:
+        """Join the contained predicates' summaries with ``separator``, parenthesized when there are two or more."""
+        joined = separator.join(_summarize_predicate(p) for p in self.predicates)
+        if len(self.predicates) >= 2:
+            return f"({joined})"
+        return joined
+
 
 @dataclass(frozen=True)
 class AllOf(_PredicateCombinator):
     """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
 
-    def __call__(self, value: "AnyEvent") -> bool:
+    def __call__(self, value: "AnyEvent", /) -> bool:
         """Return True if every contained predicate matches ``value``; an empty ``AllOf`` matches everything."""
         return all(p(value) for p in self.predicates)
 
@@ -190,32 +199,16 @@ class AllOf(_PredicateCombinator):
             Each contained predicate's summary joined with ``" and "``, wrapped in parentheses when there are
             two or more, e.g. ``"(domain light and state changed)"``.
         """
-        joined = " and ".join(_summarize_predicate(p) for p in self.predicates)
-        if len(self.predicates) >= 2:
-            return f"({joined})"
-        return joined
-
-
-def flatten_all_of(predicate: "Predicate | None") -> tuple["Predicate", ...]:
-    """Return the conjuncts of ``predicate``: the children of a top-level ``AllOf``, nested ``AllOf``s flattened.
-
-    Any other predicate (including ``AnyOf`` and ``Not``) is a single conjunct, and ``None`` has none. Evaluating
-    the conjuncts in order and stopping at the first false one is the same test as calling ``predicate``.
-    """
-    if predicate is None:
-        return ()
-    if isinstance(predicate, AllOf):
-        return tuple(child for nested in predicate.predicates for child in flatten_all_of(nested))
-    return (predicate,)
+        return self.summarize_joined(" and ")
 
 
 @dataclass(frozen=True)
 class AnyOf(_PredicateCombinator):
     """Predicate that evaluates to True if any of the contained predicates evaluate to True."""
 
-    def __call__(self, event: "AnyEvent") -> bool:
-        """Return True if any contained predicate matches ``event``; an empty ``AnyOf`` matches nothing."""
-        return any(p(event) for p in self.predicates)
+    def __call__(self, value: "AnyEvent", /) -> bool:
+        """Return True if any contained predicate matches ``value``; an empty ``AnyOf`` matches nothing."""
+        return any(p(value) for p in self.predicates)
 
     def summarize(self) -> str:
         """Describe the combination, which matches when at least one contained predicate matches.
@@ -224,10 +217,7 @@ class AnyOf(_PredicateCombinator):
             Each contained predicate's summary joined with ``" or "``, wrapped in parentheses when there are
             two or more, e.g. ``"(entity light.kitchen or entity light.hall)"``.
         """
-        joined = " or ".join(_summarize_predicate(p) for p in self.predicates)
-        if len(self.predicates) >= 2:
-            return f"({joined})"
-        return joined
+        return self.summarize_joined(" or ")
 
 
 @dataclass(frozen=True)
@@ -243,3 +233,16 @@ class Not(_PredicateOps):
     def summarize(self) -> str:
         """Return the wrapped predicate's summary prefixed with ``"not "``, e.g. ``"not domain light"``."""
         return "not " + _summarize_predicate(self.predicate)
+
+
+def flatten_all_of(predicate: "Predicate | None") -> tuple["Predicate", ...]:
+    """Return the conjuncts of ``predicate``: the children of a top-level ``AllOf``, nested ``AllOf``s flattened.
+
+    Any other predicate (including ``AnyOf`` and ``Not``) is a single conjunct, and ``None`` has none. Evaluating
+    the conjuncts in order and stopping at the first false one is the same test as calling ``predicate``.
+    """
+    if predicate is None:
+        return ()
+    if isinstance(predicate, AllOf):
+        return tuple(child for nested in predicate.predicates for child in flatten_all_of(nested))
+    return (predicate,)

@@ -21,7 +21,6 @@ from hassette.core.state_proxy_sync import (
     handle_synchronization_failure,
 )
 from hassette.events import RawStateChangeEvent
-from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
@@ -256,7 +255,8 @@ class StateProxy(Resource):
                 disconnect marks it STALE rather than UNAVAILABLE, so stale reads succeed
                 instead of raising.
         """
-        return self.get_state_once(entity_id)
+        self._check_ready()
+        return self.states.get(entity_id)
 
     def _check_ready(self) -> None:
         if self._cache_freshness == StateCacheFreshness.UNAVAILABLE:
@@ -264,24 +264,6 @@ class StateProxy(Resource):
                 f"StateProxy cache is not available yet (freshness={self._cache_freshness}, "
                 f"initial_capability={self.has_initial_state_capability()})."
             )
-
-    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
-        """Get the current cached state for an entity.
-
-        Equivalent to ``get_state``; kept as a distinct name for call sites that want to be
-        explicit that a single readiness check is all that happens.
-
-        Args:
-            entity_id: The entity ID to look up (e.g., "light.kitchen").
-
-        Returns:
-            The raw state dict if found, None otherwise.
-
-        Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE.
-        """
-        self._check_ready()
-        return self.states.get(entity_id)
 
     def get_domain_states(self, domain: str) -> dict[str, "HassStateDict"]:
         """Get all cached states for a specific domain.
@@ -339,7 +321,7 @@ class StateProxy(Resource):
         entity_id = event.payload.data.entity_id
         old_state_dict = event.payload.data.old_state
         new_state_dict = event.payload.data.new_state
-        event_generation = get_websocket_generation(event)
+        event_generation = event.websocket_generation
         current_generation = self.hassette.websocket_service.get_connected_generation()
         if event_generation is None:
             event_generation = current_generation
@@ -408,6 +390,10 @@ class StateProxy(Resource):
             sync_task.cancel()
             await asyncio.gather(sync_task, return_exceptions=True)
 
+        self.downgrade_cache_freshness()
+
+    def downgrade_cache_freshness(self) -> None:
+        """Mark the cache STALE if the initial-state capability was reached, else UNAVAILABLE."""
         if self.has_initial_state_capability():
             self._cache_freshness = StateCacheFreshness.STALE
         else:
@@ -584,8 +570,6 @@ class StateProxy(Resource):
                 status=status,
                 candidate_states=candidate_states,
             )
-        except asyncio.CancelledError:
-            raise
         except Exception as exc:
             if self._last_logged_sync_failure_generation == generation:
                 self.logger.warning(
@@ -611,7 +595,6 @@ class StateProxy(Resource):
                 request_id=request_id,
                 generation=generation,
                 status=status,
-                baseline_states=baseline_states,
                 journal=[],
             )
         return baseline_states

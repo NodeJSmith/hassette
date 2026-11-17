@@ -108,11 +108,11 @@ export function configStatusOverride(status: AppStatus | ResourceStatus): "disab
  *  Single-instance: WS status for that instance.
  *  Multi-instance: overlays live per-instance WS statuses (falling back to the snapshot's
  *  per-instance status where no WS update has arrived yet) and derives "degraded" from that
- *  live view whenever a "running" and a "failed" instance coexist — mirroring `AppRegistry`'s
- *  own binary model server-side (an instance entry is either running or failed, nothing else),
- *  though the live WS status of an individual instance can transiently be a finer-grained
- *  value (e.g. "starting") that this check doesn't treat as "running". This must be computed
- *  from live data, not read off the cached `row.status`: the app-grid query is
+ *  live view whenever a "failed" instance sits beside an active one, meaning any status but
+ *  "failed" and "stopped" ("starting", "stopping" and "not_started" count). This is the server's
+ *  rollup rule (`AppRegistry.build_manifest_info`): a "stopped" instance isn't running, so it
+ *  doesn't make a failed sibling "degraded". This must be computed from live data, not read
+ *  off the cached `row.status`: the app-grid query is
  *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
  *  stale in either direction (still "running" after an instance fails, or still "degraded"
  *  after all instances recover) for as long as no execution event happens to refetch it.
@@ -138,7 +138,9 @@ export function appLiveStatus(
   const liveStatuses = instances.map(
     (inst) => appStatuses[appStatusKey(row.app_key, inst.instance_name)]?.status ?? inst.status,
   );
-  if (liveStatuses.includes("running") && liveStatuses.includes("failed")) return "degraded";
+  const hasFailed = liveStatuses.includes("failed");
+  const hasActive = liveStatuses.some((live) => live !== "failed" && live !== "stopped");
+  if (hasFailed && hasActive) return "degraded";
   return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
 }
 

@@ -321,7 +321,10 @@ class Scheduler(Resource):
         try:
             await self.scheduler_service.add_job(job)
         except Exception:
-            await self._rollback_failed_registration(job)
+            try:
+                await self._rollback_failed_registration(job)
+            except Exception:
+                self.logger.exception("Rollback of failed registration for %s also failed", job)
             raise
 
         return job
@@ -329,14 +332,11 @@ class Scheduler(Resource):
     async def _rollback_failed_registration(self, job: "Job") -> None:
         """Undo a partial registration after ``scheduler_service.add_job()`` raised.
 
-        Delegates to the unified removal operation (``scheduler_service.remove_job()``).
-        In practice this is a lightweight case of it: no execution has been spawned yet at
-        registration time, so there is no guard state worth releasing and no queued
-        invocation to drain. Still removes registry membership (``_jobs_by_id``, if the job
-        reached it), any heap entry, and this scheduler's name/group indexes (via the
-        removal callback the operation fires), and persists ``removed_at`` when persistence
-        produced a row ID before a later step failed, so a failed registration can never
-        appear live.
+        Delegates to the unified removal operation (``scheduler_service.remove_job()``); no
+        execution has been spawned yet, so there is no guard state or queued invocation. It
+        removes registry membership, any heap entry, and this scheduler's name/group indexes,
+        and persists ``removed_at`` when a row ID was assigned, so the job never appears live.
+        A failure here is logged by the caller and never replaces the registration error.
         """
         await self.scheduler_service.remove_job(job)
 
@@ -731,13 +731,11 @@ class Scheduler(Resource):
     async def _add_job_and_watch_entity(self, job: "Job", trigger: EntityTime, *, if_exists: IfExistsPolicy) -> "Job":
         """Register an entity-driven job and the state-change listener that keeps it current.
 
-        The listener lives on the framework bus rather than the owning app's bus: it is
-        scheduler plumbing, not an app handler, and its lifetime is tied to the job through
-        ``_entity_time_subs`` instead of to the app's own subscriptions.
+        The listener lives on the framework bus; ``_entity_time_subs`` ties its lifetime to the job.
         """
         registered = await self.add_job(job, if_exists=if_exists)
-        if registered is not job:
-            # if_exists="skip" returned the pre-existing job; its listener is already running.
+        if registered is not job or self._jobs_by_name.get(job.name) is not job:
+            # "skip": the existing job's listener runs. Replaced mid-add_job: our watch would evict the new one's.
             return registered
 
         async def on_entity_change(event: RawStateChangeEvent) -> None:
@@ -745,8 +743,7 @@ class Scheduler(Resource):
 
         watch_name = f"scheduler.entity_time.{self.owner_id}.{job.name}"
         try:
-            # With attribute=, the time lives in that attribute, which can change while the main
-            # state doesn't, so watch the attribute rather than the state.
+            # With attribute=, watch the attribute: it can change while the main state doesn't.
             if trigger.attribute is not None:
                 watch = self.hassette.bus.on_attribute_change(
                     trigger.entity_id, trigger.attribute, handler=on_entity_change, name=watch_name, if_exists="replace"
@@ -755,15 +752,18 @@ class Scheduler(Resource):
                 watch = self.hassette.bus.on_state_change(
                     trigger.entity_id, handler=on_entity_change, name=watch_name, if_exists="replace"
                 )
-            self._entity_time_subs[job.name] = await watch
+            sub = await watch
         except Exception:
             self.remove_job(job)
             raise
+        # Removed while the watch registered (not _dequeued: remove_all_jobs() sets it only later).
+        if self._jobs_by_name.get(job.name) is not job:
+            sub.cancel()
+            return registered
+        self._entity_time_subs[job.name] = sub
 
-        # schedule() read the entity before add_job awaited a database write, and the listener
-        # only exists now — a change landing in that window reached neither. Re-read once so it
-        # is picked up here instead of waiting for whenever the entity next changes, which for
-        # something like an alarm sensor could be a day away.
+        # The listener only exists now, after add_job's database write: re-read so a change in that
+        # window isn't missed until the entity next changes, which for an alarm could be a day away.
         await self._move_entity_time_job(job, trigger.resolve(date_utils.now()))
         return registered
 

@@ -11,6 +11,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppRegistry
 from hassette.logging_ import LogIdentityFilter
+from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.factories import make_app
 
 from .conftest import make_app_instance, make_manifest_obj
@@ -47,18 +48,18 @@ def capture_warnings(buffer: BufferingHandler) -> list[logging.LogRecord]:
 
 
 class TestRegistryState:
-    def test_pair_survives_unregister_and_reregister(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "alpha"))
+    def test_pair_survives_stop_and_reregister(self, registry: AppRegistry) -> None:
+        seed_running(registry, APP_KEY, make_app_instance(APP_KEY, "alpha"))
         registry.set_debug_capture(APP_KEY, ["alpha"], enabled=True)
 
-        registry.unregister_app(APP_KEY, "alpha")
-        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "alpha"))
+        registry.set_status(APP_KEY, "alpha", ResourceStatus.STOPPED)
+        seed_running(registry, APP_KEY, make_app_instance(APP_KEY, "alpha"))
 
         assert registry.is_debug_captured(APP_KEY, "alpha")
 
     def test_status_read_reports_capture_for_running_failed_and_stopped(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "alpha"))
-        registry.record_failure(APP_KEY, "beta", ValueError("boom"))
+        seed_running(registry, APP_KEY, make_app_instance(APP_KEY, "alpha"))
+        seed_failed(registry, APP_KEY, "beta", ValueError("boom"))
         registry.set_debug_capture(APP_KEY, ["alpha", "beta"], enabled=True)
 
         info = registry.build_manifest_info(APP_KEY, registry.manifests[APP_KEY])
@@ -67,12 +68,13 @@ class TestRegistryState:
             "beta": (ResourceStatus.FAILED, True),
         }
 
-        registry.unregister_app(APP_KEY)
+        registry.set_status(APP_KEY, "alpha", ResourceStatus.STOPPED)
+        registry.set_status(APP_KEY, "beta", ResourceStatus.STOPPED)
         info = registry.build_manifest_info(APP_KEY, registry.manifests[APP_KEY])
         assert all(i.status == ResourceStatus.STOPPED and i.debug_capture for i in info.instances)
 
     def test_status_read_reports_flagged_instance_capture(self, registry: AppRegistry) -> None:
-        registry.flag_needs_restart(APP_KEY, "alpha", class_name="MyApp", reason="work still running")
+        seed_failed(registry, APP_KEY, "alpha", needs_restart="work still running")
         registry.set_debug_capture(APP_KEY, ["alpha"], enabled=True)
 
         info = registry.resolve_instance_info(APP_KEY, "alpha")
@@ -80,7 +82,7 @@ class TestRegistryState:
         assert info.debug_capture is True
 
     def test_prune_drops_unconfigured_pairs_no_live_instance_holds(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "running_orphan"))
+        seed_running(registry, APP_KEY, make_app_instance(APP_KEY, "running_orphan"))
         registry.set_debug_capture(APP_KEY, ["alpha", "gone", "running_orphan"], enabled=True)
 
         registry.prune_stale_debug_capture(APP_KEY, ["alpha", "beta"])
@@ -123,7 +125,7 @@ class TestToggle:
 
     def test_instance_on_reapplies_a_running_instance_at_once(self, handler: AppHandler) -> None:
         app = make_app(instance_name="alpha", app_key=APP_KEY)
-        handler.registry.register_app(APP_KEY, app)
+        seed_running(handler.registry, APP_KEY, app)
 
         handler.set_debug_capture(APP_KEY, "alpha", enabled=True)
 
@@ -139,7 +141,7 @@ class TestToggle:
     def test_repeating_a_state_repairs_a_live_instance_whose_flag_drifted(self, handler: AppHandler) -> None:
         """The App's flag is a mirror: a repeat request re-applies it even though the registry says nothing changed."""
         app = make_app(instance_name="alpha", app_key=APP_KEY)
-        handler.registry.register_app(APP_KEY, app)
+        seed_running(handler.registry, APP_KEY, app)
         handler.set_debug_capture(APP_KEY, "alpha", enabled=True)
         app.set_debug_capture(False)
         assert app.bus.logger.level > logging.DEBUG

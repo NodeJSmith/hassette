@@ -106,6 +106,14 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="log records",
         failsafe_exempt=True,
     ),
+    RetentionTarget(
+        table="lifecycle_events",
+        timestamp_col="ts",
+        priority=7,
+        retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="lifecycle events",
+        failsafe_exempt=True,
+    ),
 ]
 
 _FAILSAFE_TABLES: list[RetentionTarget] = [t for t in _RETENTION_TABLES if not t.failsafe_exempt]

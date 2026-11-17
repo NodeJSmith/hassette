@@ -264,26 +264,17 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
             TypeError: If ``model`` is not a ``BaseEntity`` subclass.
             EntityNotFoundError: If ``entity_id`` is not seeded.
         """
-        if not issubclass(model, BaseEntity):
-            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
-        raw = self._parent._get_raw_state(entity_id)
-        return model.model_validate({"state": raw})
+        return self._parent._build_entity(entity_id, model)
 
     def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None:
         """Return a pydantic-validated entity wrapper for entity_id, or None if not seeded.
 
-        Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
-        ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``RecordingSyncFacade`` generator. Matches the real
-        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
+        Matches the real ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
         """
-        if not issubclass(model, BaseEntity):
-            raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
         try:
-            raw = self._parent._get_raw_state(entity_id)
+            return self._parent._build_entity(entity_id, model)
         except EntityNotFoundError:
             return None
-        return model.model_validate({"state": raw})
 
     def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""

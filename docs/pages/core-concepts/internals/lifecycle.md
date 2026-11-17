@@ -12,6 +12,8 @@ Every concrete `Service` subclass declares `required` in its own class body. A c
 --8<-- "pages/core-concepts/snippets/internals_service_required.py"
 ```
 
+`shutdown_event` is the service's own `asyncio.Event`, set when Hassette asks the service to shut down. A long-running `serve()` waits on it, or loops until it is set, and then returns. That return ends the service as `STOPPED`, not as a failure.
+
 **Required** means Hassette cannot usefully run without the service. A required service fails when its `serve()` raises after startup, or returns or is cancelled without anyone asking it to stop. The service is `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) until the shutdown moves it to `STOPPED`. Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
 
 **Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs the failure at ERROR. One of those lines says how to recover: a Hassette restart for a framework service, or reloading the app for one an app owns. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.

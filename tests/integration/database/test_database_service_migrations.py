@@ -190,6 +190,17 @@ EXPECTED_TABLES = {
         "created_at",
         "updated_at",
     },
+    "lifecycle_events": {
+        "id",
+        "session_id",
+        "kind",
+        "app_key",
+        "instance_name",
+        "from_status",
+        "to_status",
+        "details",
+        "ts",
+    },
 }
 
 

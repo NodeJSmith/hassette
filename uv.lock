@@ -981,7 +981,7 @@ wheels = [
 
 [[package]]
 name = "hassette"
-version = "0.63.0"
+version = "0.64.0"
 source = { editable = "." }
 default-groups = ["dev", "docs", "test"]
 dependencies = [
@@ -1106,7 +1106,7 @@ provides-extras = ["test"]
 dev = [
     { name = "bcrypt", specifier = ">=4.0" },
     { name = "hassette-codegen", editable = "codegen" },
-    { name = "house-lint", specifier = ">=0.6.0" },
+    { name = "house-lint", specifier = ">=0.7.0" },
     { name = "libcst", specifier = ">=1.5.0" },
     { name = "pyright", specifier = ">=1.1.408" },
     { name = "shot-scraper", specifier = ">=1.5" },
@@ -1144,7 +1144,7 @@ test = [
 
 [[package]]
 name = "hassette-client"
-version = "0.63.0"
+version = "0.64.0"
 source = { editable = "client" }
 dependencies = [
     { name = "aiohttp" },
@@ -1188,7 +1188,7 @@ requires-dist = [
 
 [[package]]
 name = "hassette-wire"
-version = "0.63.0"
+version = "0.64.0"
 source = { editable = "wire" }
 dependencies = [
     { name = "pydantic" },
@@ -1207,16 +1207,16 @@ dev = [{ name = "pytest", specifier = ">=8.4.0" }]
 
 [[package]]
 name = "house-lint"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cyclopts" },
     { name = "msgspec" },
     { name = "pathspec" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/2b/7efa090b7bcecfdeac31fa7490e4b0b0f4ad991abfeafb750b2f3043c7c6/house_lint-0.6.0.tar.gz", hash = "sha256:bd55fcc246b75614db6a8794203385da87f9cccff7dbd98d3876f57d8853a7b5", size = 82304, upload-time = "2026-11-12T18:29:33.117Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/12/c2/d31cf931aaa21ad9ef5cfb186f47249933ddc81b9e5777e9ae13c602c1f1/house_lint-0.7.0.tar.gz", hash = "sha256:86a2e6e5e955e4d483526b6589149f0d75e6bf3c14a9b6bb3423d97d430516b2", size = 82881, upload-time = "2026-11-15T16:04:33.114Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/f3/79ca6a0d091fcadc8ed7bc97b13980be50fd8237a83703f8a510573d2f3c/house_lint-0.6.0-py3-none-any.whl", hash = "sha256:8500fc022274336ab554152652474aab949eac93a6b5c320500fea1c2f73fff3", size = 97028, upload-time = "2026-11-12T18:29:31.759Z" },
+    { url = "https://files.pythonhosted.org/packages/39/4e/94156e22149366a7aaf7bed6fa8e7f67da437d098f7704592b4fdb4363b9/house_lint-0.7.0-py3-none-any.whl", hash = "sha256:061ece4aa5f79c3cddabbb28ccd619716ae7001dd3441a3c7c48b497251e3e56", size = 97958, upload-time = "2026-11-15T16:04:31.803Z" },
 ]
 
 [[package]]

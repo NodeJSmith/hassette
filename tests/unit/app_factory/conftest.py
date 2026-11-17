@@ -1,5 +1,6 @@
 """Shared fixtures and helpers for the AppFactory tests in this directory."""
 
+from collections.abc import Mapping
 from typing import cast
 from unittest.mock import Mock
 
@@ -7,6 +8,7 @@ import pytest
 
 from hassette import App, AppConfig
 from hassette.core.app_factory import AppFactory
+from hassette.core.app_registry import AppRegistry
 
 
 def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
@@ -21,9 +23,14 @@ def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
     return Mock(app_config_cls=config_cls, side_effect=build, **kwargs)
 
 
-def registered(mock_registry: Mock) -> list[tuple[str, str]]:
-    """The ``(app_key, instance_name)`` pairs the factory registered, in registration order."""
-    return [(call.args[0], call.args[1].instance_name) for call in mock_registry.register_app.call_args_list]
+def created_names(results: Mapping[str, object]) -> list[str]:
+    """The names the factory built an ``App`` for, in creation order."""
+    return [name for name, result in results.items() if not isinstance(result, Exception)]
+
+
+def failures(results: Mapping[str, object]) -> dict[str, Exception]:
+    """The names the factory returned an exception for, with the exception."""
+    return {name: result for name, result in results.items() if isinstance(result, Exception)}
 
 
 def as_app_class(mock_app_class: Mock) -> type[App[AppConfig]]:
@@ -39,12 +46,11 @@ def mock_hassette():
 
 @pytest.fixture
 def mock_registry() -> Mock:
-    """Create a mock AppRegistry instance."""
-    registry = Mock()
-    registry.register_app = Mock()
-    registry.record_failure = Mock()
+    """Create a mock AppRegistry instance. The factory only reads it: a status write fails the test."""
+    registry = Mock(spec=AppRegistry)
+    registry.set_status = Mock(side_effect=AssertionError("AppFactory must not write app status"))
     registry.get = Mock(return_value=None)
-    registry.get_running_apps = Mock(return_value={})
+    registry.get_live_apps = Mock(return_value={})
     registry.refusal_reason = Mock(return_value=None)
     registry.is_debug_captured = Mock(return_value=False)
     return registry

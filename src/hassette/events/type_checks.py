@@ -7,12 +7,8 @@ from hassette.events.base import Event
 def is_event_type(annotation: Any) -> bool:
     """Check if annotation is an Event class or subclass.
 
-    Does NOT handle Union or Optional types. Use explicit Event types instead:
-    - ✅ event: Event
-    - ✅ event: RawStateChangeEvent
-    - ❌ event: Optional[Event]
-    - ❌ event: Event | None
-    - ❌ event: Union[Event, RawStateChangeEvent]
+    Union annotations (including ``Event | None``) are not unwrapped and return False; annotate with a
+    concrete Event type.
     """
     if annotation is inspect.Parameter.empty:
         return False

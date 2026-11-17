@@ -12,14 +12,13 @@ Covers:
 - on_state_change(changed=<ComparisonCondition>) builds a StateComparison predicate
 """
 
-import typing
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import TYPE_CHECKING
 
 import pytest
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
 from hassette import C
+from hassette.core.app_registry import StatusChange
 from hassette.events.hassette import HassetteAppStateEvent
 from hassette.exceptions import ListenerNameRequiredError
 from hassette.testing import (
@@ -32,9 +31,19 @@ from tests.support.helpers import create_component_loaded_event, create_service_
 
 from .conftest import mock_add_listener
 
-if typing.TYPE_CHECKING:
-    from hassette.app.app import App
+if TYPE_CHECKING:
     from hassette.bus.bus import Bus
+
+
+def running_change(*, app_key: str) -> StatusChange:
+    """A STARTING -> RUNNING transition of one instance of ``app_key``."""
+    return StatusChange(
+        app_key=app_key,
+        instance_name=app_key,
+        class_name="MyApp",
+        previous=ResourceStatus.STARTING,
+        status=ResourceStatus.RUNNING,
+    )
 
 
 async def handler_a(event) -> None:
@@ -196,10 +205,8 @@ class TestComponentServiceAppKeyFilters:
         with mock_add_listener(bus):
             sub = await bus.on_app_state_changed(handler=handler_a, app_key="my_app", name="my_app_state")
 
-        matching_app = make_app_stub(app_key="my_app")
-        other_app = make_app_stub(app_key="other_app")
-        matching_event = HassetteAppStateEvent.from_app(matching_app, status=ResourceStatus.RUNNING)
-        other_event = HassetteAppStateEvent.from_app(other_app, status=ResourceStatus.RUNNING)
+        matching_event = HassetteAppStateEvent.from_change(running_change(app_key="my_app"))
+        other_event = HassetteAppStateEvent.from_change(running_change(app_key="other_app"))
 
         assert sub.listener.matches(matching_event) is True
         assert sub.listener.matches(other_event) is False
@@ -215,8 +222,3 @@ class TestStateChangeComparisonCondition:
         decreased = create_state_change_event(entity_id="sensor.temp", old_value=25, new_value=20)
         assert sub.listener.matches(increased) is True
         assert sub.listener.matches(decreased) is False
-
-
-def make_app_stub(*, app_key: str, instance_name: str | None = None) -> "App[Any]":
-    """Minimal stand-in for an App instance, exposing only what HassetteAppStateEvent.from_app reads."""
-    return cast("App[Any]", SimpleNamespace(app_key=app_key, instance_name=instance_name))

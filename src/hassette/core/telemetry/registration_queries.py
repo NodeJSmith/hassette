@@ -14,6 +14,7 @@ from hassette.core.telemetry.helpers import (
     SQL_NO_FILTER,
     SQL_STATUS_CANCELLED,
     SQL_STATUS_ERROR,
+    SQL_STATUS_SKIPPED,
     SQL_STATUS_SUCCESS,
     SQL_STATUS_TIMED_OUT,
     row_to_dict,
@@ -29,6 +30,9 @@ if TYPE_CHECKING:
     from contextlib import AbstractAsyncContextManager
 
     import aiosqlite
+
+TOMBSTONE_COLUMNS = ("removed_at", "retired_at")
+"""Timestamp columns that must all be NULL for a listener or scheduled job row to count as live."""
 
 _LISTENER_MISS_SELECT_COLUMNS = (
     "m.hour_ts, m.reason, m.filter, m.count, m.first_ts, m.last_ts, "
@@ -54,9 +58,6 @@ class RegistrationSummarySource:
     kind: str
     """SQL literal for the ``executions.kind`` value belonging to this registration type."""
 
-    tombstone_columns: tuple[str, ...]
-    """Timestamp columns that must all be NULL for a registration to count as live."""
-
     select_columns: str
     """Registration columns and execution aggregates; ``e`` is the executions row, ``last_err`` the latest failure."""
 
@@ -66,7 +67,6 @@ LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
     alias="l",
     fk_column="listener_id",
     kind=SQL_KIND_HANDLER,
-    tombstone_columns=("removed_at", "retired_at"),
     select_columns=f"""
                 l.id AS listener_id,
                 l.app_key,
@@ -111,7 +111,6 @@ JOB_SUMMARY_SOURCE = RegistrationSummarySource(
     alias="sj",
     fk_column="job_id",
     kind=SQL_KIND_JOB,
-    tombstone_columns=("removed_at", "retired_at"),
     select_columns=f"""
                 sj.id AS job_id,
                 sj.app_key,
@@ -137,13 +136,14 @@ JOB_SUMMARY_SOURCE = RegistrationSummarySource(
                 SUM(CASE WHEN e.status = {SQL_STATUS_ERROR} THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN e.status = {SQL_STATUS_CANCELLED} THEN 1 ELSE 0 END) AS cancelled,
                 SUM(CASE WHEN e.status = {SQL_STATUS_TIMED_OUT} THEN 1 ELSE 0 END) AS timed_out,
-                SUM(CASE WHEN e.status = 'skipped' THEN 1 ELSE 0 END) AS skipped,
+                SUM(CASE WHEN e.status = {SQL_STATUS_SKIPPED} THEN 1 ELSE 0 END) AS skipped,
                 SUM(CASE WHEN e.thread_leaked = 1 THEN 1 ELSE 0 END) AS thread_leaked,
                 MAX(e.execution_start_ts) AS last_executed_at,
                 COALESCE(SUM(e.duration_ms), 0.0) AS total_duration_ms,
-                COALESCE(AVG(CASE WHEN e.status != 'skipped' THEN e.duration_ms END), 0.0) AS avg_duration_ms,
-                MIN(CASE WHEN e.status != 'skipped' THEN e.duration_ms END) AS min_duration_ms,
-                MAX(CASE WHEN e.status != 'skipped' THEN e.duration_ms END) AS max_duration_ms,
+                COALESCE(AVG(CASE WHEN e.status != {SQL_STATUS_SKIPPED} THEN e.duration_ms END), 0.0)
+                    AS avg_duration_ms,
+                MIN(CASE WHEN e.status != {SQL_STATUS_SKIPPED} THEN e.duration_ms END) AS min_duration_ms,
+                MAX(CASE WHEN e.status != {SQL_STATUS_SKIPPED} THEN e.duration_ms END) AS max_duration_ms,
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
                 last_err.execution_start_ts AS last_error_ts,
@@ -312,7 +312,7 @@ def build_registration_summary_query(
         where_clause = SQL_NO_FILTER
         params = {**tier_params, **since_params}
 
-    live_filter = "".join(f"\n            AND {alias}.{column} IS NULL" for column in source.tombstone_columns)
+    live_filter = "".join(f"\n            AND {alias}.{column} IS NULL" for column in TOMBSTONE_COLUMNS)
     query = f"""
             WITH ranked_errors AS (
                 SELECT e_err.{source.fk_column}, e_err.execution_id, e_err.error_type, e_err.error_message,

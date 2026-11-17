@@ -1,13 +1,17 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
+import contextlib
 import time
+from collections.abc import AsyncIterator
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+import aiosqlite
 import orjson
 from hassette_wire import ScheduleStatus, ScheduleStatusReason
 
 from hassette.config.classes import AppManifest
+from hassette.core.database_sql import SQL_BEGIN, LoggerOwner, safe_rollback
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.execution_queries import TRIGGER_COLUMNS
@@ -28,6 +32,14 @@ from hassette.core.telemetry.reconcile_sql import (
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.types import is_framework_key
 from hassette.utils.stack_frames import encode_frames
+
+if TYPE_CHECKING:
+    from hassette_wire import ApiWriteOutcome
+
+    from hassette.core.api_write_recorder import ApiWriteRow
+    from hassette.core.database_service import DatabaseService
+    from hassette.core.listener_miss_recorder import ListenerMissRow
+    from hassette.core.telemetry.lifecycle_rows import LifecycleChange
 
 LOGGER = getLogger(__name__)
 
@@ -64,14 +76,6 @@ _LISTENER_MISS_UPSERT_SQL = f"""
 """
 
 
-if TYPE_CHECKING:
-    from hassette_wire import ApiWriteOutcome
-
-    from hassette.core.api_write_recorder import ApiWriteRow
-    from hassette.core.database_service import DatabaseService
-    from hassette.core.listener_miss_recorder import ListenerMissRow
-
-
 class TelemetryRepository:
     """Encapsulates all write-side SQL for handler and job telemetry.
 
@@ -104,9 +108,6 @@ class TelemetryRepository:
 
         Returns:
             The row ID of the inserted (or matched) row.
-
-        Raises:
-            RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
         db = self._db_service.db
 
@@ -146,10 +147,7 @@ class TelemetryRepository:
             """,
             listener_insert_params(registration),
         )
-
-        row = await cursor.fetchone()
-        await db.commit()
-        return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
+        return await commit_returning_id(db, cursor)
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
         """Upsert a scheduled job registration into the scheduled_jobs table.
@@ -169,9 +167,6 @@ class TelemetryRepository:
 
         Returns:
             The row ID of the inserted (or matched) row.
-
-        Raises:
-            RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
         db = self._db_service.db
         cursor = await db.execute(
@@ -226,9 +221,7 @@ class TelemetryRepository:
             """,
             job_insert_params(registration),
         )
-        row = await cursor.fetchone()
-        await db.commit()
-        return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
+        return await commit_returning_id(db, cursor)
 
     async def upsert_app_manifest(self, manifest: AppManifest) -> int:
         """Upsert an app manifest into the app_manifests table.
@@ -243,9 +236,6 @@ class TelemetryRepository:
 
         Returns:
             The row ID of the inserted (or matched) row.
-
-        Raises:
-            RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
         db = self._db_service.db
         cursor = await db.execute(
@@ -268,9 +258,7 @@ class TelemetryRepository:
             """,
             manifest_insert_params(manifest),
         )
-        row = await cursor.fetchone()
-        await db.commit()
-        return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
+        return await commit_returning_id(db, cursor)
 
     async def mark_job_removed(self, db_id: int) -> None:
         """Set ``removed_at`` to the current epoch time for the given job row.
@@ -400,12 +388,7 @@ class TelemetryRepository:
         db = self._db_service.db
         now = time.time()
 
-        try:
-            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
-            # so without this BEGIN, each execute() below auto-commits individually and the
-            # rollback() in the except clause is a no-op.
-            await db.execute("BEGIN")
-
+        async with write_transaction(db, self._db_service, f"reconciling registrations for {app_key}"):
             # Listeners are only ever retired here, never deleted: see the docstring.
             sql, params = build_retire_query(
                 "listeners", app_key, live_listener_ids, now, only_with_history=False, instance_name=instance_name
@@ -419,11 +402,6 @@ class TelemetryRepository:
                 "scheduled_jobs", app_key, live_job_ids, now, only_with_history=True, instance_name=instance_name
             )
             await db.execute(sql, params)
-
-            await db.commit()
-        except Exception:  # any failure rolls back, then re-raises to the caller
-            await db.rollback()
-            raise
 
     async def insert_blocking_event(self, event: BlockingEvent) -> None:
         """Insert a single blocking event row into the ``blocking_events`` table.
@@ -569,13 +547,8 @@ class TelemetryRepository:
         if not rows:
             return
         db = self._db_service.db
-        try:
-            await db.execute("BEGIN")
+        async with write_transaction(db, self._db_service, "listener miss upsert"):
             await db.executemany(_LISTENER_MISS_UPSERT_SQL, [listener_miss_params(row) for row in rows])
-            await db.commit()
-        except Exception:  # any failure rolls back, then re-raises to the caller
-            await db.rollback()
-            raise
 
     async def persist_execution_batch(self, records: list[ExecutionRecord]) -> None:
         """Write a batch of unified execution records to the executions table.
@@ -588,14 +561,9 @@ class TelemetryRepository:
 
         db = self._db_service.db
 
-        try:
-            await db.execute("BEGIN")
+        async with write_transaction(db, self._db_service, "execution batch insert"):
             params_list = [execution_insert_params(r) for r in records]
             await db.executemany(EXECUTION_INSERT_SQL, params_list)
-            await db.commit()
-        except Exception:  # any failure rolls back, then re-raises to the caller
-            await db.rollback()
-            raise
 
     async def persist_execution_batch_with_fk_fallback(self, records: list[ExecutionRecord]) -> list[ExecutionRecord]:
         """Insert execution records row-by-row with FK violation fallback (best-effort per record).
@@ -605,8 +573,9 @@ class TelemetryRepository:
         the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
         queue, avoiding N round-trips.
 
-        Atomicity is best-effort per record: if an individual record fails even after FK
-        nulling, it is silently dropped and remaining records are still committed.
+        Atomicity is best-effort per record: a record that hits a non-FK IntegrityError, or
+        still fails after its FK is nulled, is dropped (logged at ERROR) and the remaining
+        records are still committed.
 
         Returns the records that were dropped (failed even with null FK); every other record
         was committed.
@@ -617,23 +586,79 @@ class TelemetryRepository:
         if not records:
             return dropped
 
-        try:
-            await db.execute("BEGIN")
-
+        async with write_transaction(db, self._db_service, "execution batch insert with FK fallback"):
             for record in records:
                 params = execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
                 if await insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
                     dropped.append(record)
 
-            await db.commit()
-        except Exception:  # any failure rolls back, then re-raises to the caller
-            await db.rollback()
-            raise
-
         return dropped
+
+    async def insert_lifecycle_event(
+        self, change: "LifecycleChange", *, session_id: int, details_json: str, ts: float
+    ) -> None:
+        """Insert a ``lifecycle_events`` row; a failed write is logged with the row's identity and dropped.
+
+        Called by the write-queue worker for rows ``SessionManager.write_lifecycle_row`` queued. ``details_json`` is
+        ``change.details`` already serialized, so a model that can't serialize is dropped before it is queued.
+        """
+        db = self._db_service.db
+        try:
+            await db.execute(
+                """
+                INSERT INTO lifecycle_events (
+                    session_id, kind, app_key, instance_name, from_status, to_status, details, ts
+                ) VALUES (
+                    :session_id, :kind, :app_key, :instance_name, :from_status, :to_status, :details, :ts
+                )
+                """,
+                {
+                    "session_id": session_id,
+                    "kind": change.kind,
+                    "app_key": change.app_key,
+                    "instance_name": change.instance_name,
+                    "from_status": change.from_status,
+                    "to_status": change.to_status,
+                    "details": details_json,
+                    "ts": ts,
+                },
+            )
+            await db.commit()
+        except STORAGE_ERRORS:
+            LOGGER.exception(
+                "Dropped lifecycle_events row (DB write failed) — kind=%s app=%s %s -> %s",
+                change.kind,
+                change.app_key,
+                change.from_status,
+                change.to_status,
+            )
 
 
 def listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
     """The named SQL parameters of one ``listener_misses`` upsert row."""
     return {column: getattr(row, column) for column in _LISTENER_MISS_COLUMNS}
+
+
+@contextlib.asynccontextmanager
+async def write_transaction(db: aiosqlite.Connection, owner: LoggerOwner, context: str) -> AsyncIterator[None]:
+    """Run the body in one explicit transaction: commit on success, roll back and re-raise on any failure.
+
+    The explicit ``BEGIN`` is required because aiosqlite opens connections with ``isolation_level=None``
+    (autocommit): without it each ``execute()`` in the body commits on its own and the rollback is a no-op.
+    A failed rollback is logged through ``safe_rollback`` rather than replacing the original exception.
+    """
+    try:
+        await db.execute(SQL_BEGIN)
+        yield
+        await db.commit()
+    except Exception:  # any failure rolls back, then re-raises to the caller
+        await safe_rollback(db, owner, context)
+        raise
+
+
+async def commit_returning_id(db: aiosqlite.Connection, cursor: aiosqlite.Cursor) -> int:
+    """Fetch the ``RETURNING id`` row of an upsert, commit, and return the id."""
+    row = await cursor.fetchone()
+    await db.commit()
+    return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row

@@ -315,7 +315,7 @@ class HassetteAccessorsMixin:
 
     @property
     def api(self) -> "Api":
-        """API service for handling HTTP requests."""
+        """The Home Assistant ``Api`` facade (REST and WebSocket calls)."""
         if self._api is None:
             raise service_not_wired_error("Api")
         return self._api

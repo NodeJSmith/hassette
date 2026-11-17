@@ -19,13 +19,13 @@ the saturation probe loop, and on_shutdown() tears the pool down via shutdown_po
 
 import asyncio
 import threading
-import time
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
+from hassette.utils.warn_pacer import WarnPacer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -35,7 +35,7 @@ R = TypeVar("R")
 
 # Pool saturation defaults — mirror command_executor's capacity-warning defaults but scoped
 # to global pool saturation. Pool saturation is a global condition (not per-entity), so a
-# single global timestamp is the right rate-limit model (cf. enqueue_record in command_executor).
+# single global timestamp is the right rate-limit model (cf. execution_pipeline.enqueue_record).
 # Both are user-configurable via lifecycle.sync_executor_saturation_warn_threshold /
 # lifecycle.sync_executor_saturation_warn_rate_limit_seconds (see config/models.py); these
 # module-level defaults exist only so SyncExecutor works standalone (e.g. in tests) without
@@ -106,8 +106,8 @@ class SyncExecutor:
     _outstanding_submissions: int
     """Count of futures submitted but not yet completed (loop-thread-only, no lock needed)."""
 
-    _last_saturation_warn_ts: float | None
-    """Monotonic timestamp of the last pool-saturation WARNING, or None if no warning has fired yet."""
+    saturation_warn_pacer: WarnPacer
+    """Paces the pool-saturation WARNING; reset by ``rebuild_pool()``."""
 
     saturation_warn_threshold: float
     """Occupancy fraction (0-1) above which log_saturation_rate_limited() warns.
@@ -120,7 +120,7 @@ class SyncExecutor:
     def __init__(self) -> None:
         self.executor = None
         self._outstanding_submissions = 0
-        self._last_saturation_warn_ts = None
+        self.saturation_warn_pacer = WarnPacer()
         self.saturation_warn_threshold = _DEFAULT_SATURATION_WARN_THRESHOLD
         self.saturation_warn_rate_limit_seconds = _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS
         self.logger = getLogger(f"{__name__}.SyncExecutor")
@@ -153,7 +153,7 @@ class SyncExecutor:
             thread_name_prefix=thread_name_prefix,
         )
         self._outstanding_submissions = 0
-        self._last_saturation_warn_ts = None
+        self.saturation_warn_pacer = WarnPacer()
         self.saturation_warn_threshold = saturation_warn_threshold
         self.saturation_warn_rate_limit_seconds = saturation_warn_rate_limit_seconds
 
@@ -235,8 +235,8 @@ class SyncExecutor:
         """Emit a rate-limited pool-saturation WARNING when outstanding submissions cross the threshold.
 
         Uses a single global timestamp for rate-limiting — pool saturation is a global
-        condition, not per-entity, so the global-timestamp model from enqueue_record
-        (command_executor.py) is the right fit here (not the per-entity dict in
+        condition, not per-entity, so the global-timestamp model from
+        execution_pipeline.enqueue_record is the right fit here (not the per-entity dict in
         log_timeout_rate_limited).
 
         Outstanding-submission count is tracked via a dedicated counter incremented on
@@ -257,13 +257,8 @@ class SyncExecutor:
         if occupancy < self.saturation_warn_threshold:
             return  # below threshold — nothing to warn about
 
-        now = time.monotonic()
-        if (
-            self._last_saturation_warn_ts is not None
-            and now - self._last_saturation_warn_ts < self.saturation_warn_rate_limit_seconds
-        ):
+        if not self.saturation_warn_pacer.allow(self.saturation_warn_rate_limit_seconds):
             return  # rate-limited — suppress until window expires
-        self._last_saturation_warn_ts = now
 
         # Read queue depth for context only — not a gating condition.
         # _work_queue is a SimpleQueue; qsize() is accurate under the GIL.

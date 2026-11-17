@@ -26,6 +26,14 @@ async def insert_session(db: aiosqlite.Connection, *, started_at: float, stopped
     return cursor.lastrowid
 
 
+async def insert_lifecycle_event(db: aiosqlite.Connection, *, session_id: int, ts: float) -> None:
+    await db.execute(
+        "INSERT INTO lifecycle_events (session_id, kind, from_status, to_status, details, ts)"
+        " VALUES (?, 'connection', 'disconnected', 'connecting', '{}', ?)",
+        (session_id, ts),
+    )
+
+
 async def session_ids(db: aiosqlite.Connection) -> set[int]:
     cursor = await db.execute("SELECT id FROM sessions")
     return {row[0] for row in await cursor.fetchall()}
@@ -36,7 +44,7 @@ async def test_retention_deletes_only_old_unreferenced_sessions(
     initialized_service: DatabaseService, entry_point: str
 ) -> None:
     """Old stopped sessions with nothing referencing them are deleted; sessions still referenced by
-    executions or blocking events, recent sessions, unstopped sessions, and the live session stay.
+    executions, blocking events or lifecycle events, recent sessions, unstopped sessions, and the live session stay.
     """
     db = initialized_service.db
     retention_days = initialized_service.hassette.config.database.retention_days
@@ -48,6 +56,7 @@ async def test_retention_deletes_only_old_unreferenced_sessions(
     unreferenced = await insert_session(db, started_at=old_ts, stopped_at=old_ts + 10)
     with_execution = await insert_session(db, started_at=old_ts, stopped_at=old_ts + 10)
     with_blocking_event = await insert_session(db, started_at=old_ts, stopped_at=old_ts + 10)
+    with_lifecycle_event = await insert_session(db, started_at=old_ts, stopped_at=old_ts + 10)
     unstopped_orphan = await insert_session(db, started_at=old_ts, stopped_at=None)
     recent = await insert_session(db, started_at=recent_ts, stopped_at=recent_ts + 10)
     # The live session id is protected even if its row somehow carries an old stopped_at.
@@ -61,18 +70,27 @@ async def test_retention_deletes_only_old_unreferenced_sessions(
         " VALUES (?, 'watchdog', ?, 'framework')",
         (with_blocking_event, recent_ts),
     )
+    await insert_lifecycle_event(db, session_id=with_lifecycle_event, ts=recent_ts)
     await db.commit()
     fixture_session = initialized_service.hassette.session_id
     assert unreferenced in await session_ids(db)
 
     await getattr(initialized_service, entry_point)()
 
-    survivors = {fixture_session, with_execution, with_blocking_event, unstopped_orphan, recent, current}
+    survivors = {
+        fixture_session,
+        with_execution,
+        with_blocking_event,
+        with_lifecycle_event,
+        unstopped_orphan,
+        recent,
+        current,
+    }
     assert await session_ids(db) == survivors
 
 
 async def test_session_is_deleted_once_its_children_age_out(initialized_service: DatabaseService) -> None:
-    """A session whose executions and blocking events are all past the cutoff is deleted in the
+    """A session whose executions, blocking events and lifecycle events are all past the cutoff is deleted in the
     same cycle that removes those children.
     """
     db = initialized_service.db
@@ -87,11 +105,13 @@ async def test_session_is_deleted_once_its_children_age_out(initialized_service:
         " VALUES (?, 'watchdog', ?, 'framework')",
         (old_session, old_ts),
     )
+    await insert_lifecycle_event(db, session_id=old_session, ts=old_ts)
     await db.commit()
 
     await initialized_service._do_run_retention_cleanup()
 
     assert old_session not in await session_ids(db)
+    assert await count_rows(db, "lifecycle_events") == 0
 
 
 async def test_sessions_delete_failure_does_not_break_other_targets(

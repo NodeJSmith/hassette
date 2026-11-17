@@ -11,6 +11,7 @@ from hassette.core.duration_hold_adapters import compute_elapsed, make_synthetic
 from hassette.core.event_filter import EventFilter
 from hassette.core.scheduler_service import SchedulerService
 from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
+from hassette.utils.warn_pacer import WarnPacer
 from tests.support.task_buckets import make_closing_task_bucket
 
 
@@ -56,7 +57,7 @@ def make_bus_service(
     svc._dispatch_idle_event = asyncio.Event()
     svc._dispatch_idle_event.set()
     svc._dispatch_semaphore = asyncio.Semaphore(max_concurrent_dispatches)
-    svc._last_saturation_warn_ts = 0.0
+    svc.saturation_warn_pacer = WarnPacer()
     return svc
 
 

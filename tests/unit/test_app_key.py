@@ -10,10 +10,7 @@ start/stop actions.
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-from hassette_wire import ResourceStatus
-
 from hassette.app.app import App
-from hassette.events.hassette import HassetteAppStateEvent
 from tests.support.factories import make_app
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -45,10 +42,5 @@ class TestAppKey:
         try:
             assert app_a.app_key == "blocking_io_lab"
             assert app_b.app_key == "blocking_io_lab_ignore"
-
-            event_a = HassetteAppStateEvent.from_app(app_a, status=ResourceStatus.STOPPED)
-            event_b = HassetteAppStateEvent.from_app(app_b, status=ResourceStatus.STOPPED)
-            assert event_a.payload.data.app_key == "blocking_io_lab"
-            assert event_b.payload.data.app_key == "blocking_io_lab_ignore"
         finally:
             del App.app_manifest

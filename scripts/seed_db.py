@@ -50,6 +50,7 @@ _SUMMARY_TABLES = (
     "blocking_events",
     "api_writes",
     "listener_misses",
+    "lifecycle_events",
 )
 
 _DANGLING_EXECUTION_ID_QUERY = """
@@ -153,14 +154,15 @@ def generate_scenario(
 
 def _print_summary(scenario: str, output_path: Path, summary: dict[str, int]) -> None:
     print(f"Seeded scenario '{scenario}' -> {output_path}")
-    print(f"  apps:            {summary['apps']}")
-    print(f"  listeners:       {summary['listeners']}")
-    print(f"  scheduled_jobs:  {summary['scheduled_jobs']}")
-    print(f"  executions:      {summary['executions']}")
-    print(f"  log_records:     {summary['log_records']}")
-    print(f"  blocking_events: {summary['blocking_events']}")
-    print(f"  api_writes:      {summary['api_writes']}")
-    print(f"  listener_misses: {summary['listener_misses']}")
+    print(f"  apps:             {summary['apps']}")
+    print(f"  listeners:        {summary['listeners']}")
+    print(f"  scheduled_jobs:   {summary['scheduled_jobs']}")
+    print(f"  executions:       {summary['executions']}")
+    print(f"  log_records:      {summary['log_records']}")
+    print(f"  blocking_events:  {summary['blocking_events']}")
+    print(f"  api_writes:       {summary['api_writes']}")
+    print(f"  listener_misses:  {summary['listener_misses']}")
+    print(f"  lifecycle_events: {summary['lifecycle_events']}")
 
 
 def parse_anchor(value: str) -> Instant:

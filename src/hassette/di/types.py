@@ -28,7 +28,7 @@ class AnnotationDetails(Generic[T]):
     """Function to extract the dependency from the source object."""
 
     converter: Callable[[Any, Any], Any] | None = None
-    """Optional converter function to convert the extracted value to the desired type."""
+    """Optional converter, called as `converter(extracted_value, target_type)`; returns the converted value."""
 
     source_type: type[T] | None = None
     """The source type this extractor operates on, e.g. `Event` or `Job`.
@@ -52,7 +52,11 @@ class InjectionParam:
     """The parameter name on the target callable."""
 
     source_type: type
-    """Key to look up in the `available` dict passed to `CallableInvoker.invoke`."""
+    """Key to look up in the `available` dict passed to `CallableInvoker.invoke`.
+
+    This is the key the matcher was configured with, not the parameter's annotation; a parameter
+    annotated with a subclass still reads from the base type's entry.
+    """
 
     target_type: Any
     """The annotation's type, e.g. `LightState` - used by consumers that convert the
@@ -62,7 +66,10 @@ class InjectionParam:
     """Function that pulls the value out of the source object."""
 
     converter: Callable[[Any, Any], Any] | None = None
-    """Optional converter carried through from `AnnotationDetails.converter`."""
+    """Optional converter carried through from `AnnotationDetails.converter`.
+
+    Called as `converter(extracted_value, target_type)`; returns the converted value.
+    """
 
 
 class ParameterMatcher(Protocol):

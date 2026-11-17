@@ -337,7 +337,7 @@ async def test_emit_completion_events_no_warning_for_owned_records() -> None:
     owned = make_execution_record(app_key="my_app", source_tier="app")
     await execution_pipeline.emit_completion_events(executor, [owned])
 
-    assert executor._last_unowned_warn_ts is None
+    assert executor.unowned_warn_pacer.last_ts is None
     cast("MagicMock", executor.hassette).send_event.assert_awaited_once()
 
 
@@ -350,7 +350,7 @@ async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_ke
     framework_record = make_execution_record(app_key="", source_tier="framework")
     await execution_pipeline.emit_completion_events(executor, [framework_record])
 
-    assert executor._last_unowned_warn_ts is None
+    assert executor.unowned_warn_pacer.last_ts is None
 
 
 async def test_emit_completion_events_warns_on_empty_app_key() -> None:
@@ -363,7 +363,7 @@ async def test_emit_completion_events_warns_on_empty_app_key() -> None:
     unowned = make_execution_record(app_key="", source_tier="app")
     await execution_pipeline.emit_completion_events(executor, [unowned])
 
-    assert executor._last_unowned_warn_ts == 1.0
+    assert executor.unowned_warn_pacer.last_ts == 1.0
 
 
 async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
@@ -379,7 +379,7 @@ async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
     clock.advance_to(102.0)
     await execution_pipeline.emit_completion_events(executor, [unowned])  # still suppressed
 
-    assert executor._last_unowned_warn_ts == 100.0
+    assert executor.unowned_warn_pacer.last_ts == 100.0
 
 
 async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_window() -> None:
@@ -390,13 +390,13 @@ async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_win
     unowned = make_execution_record(app_key="", source_tier="app")
 
     await execution_pipeline.emit_completion_events(executor, [unowned])
-    assert executor._last_unowned_warn_ts == 100.0
+    assert executor.unowned_warn_pacer.last_ts == 100.0
 
     clock.advance_to(100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS - 0.001)
     await execution_pipeline.emit_completion_events(executor, [unowned])
-    assert executor._last_unowned_warn_ts == 100.0
+    assert executor.unowned_warn_pacer.last_ts == 100.0
 
     clock.advance_to(100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS)
     await execution_pipeline.emit_completion_events(executor, [unowned])
 
-    assert executor._last_unowned_warn_ts == 130.0
+    assert executor.unowned_warn_pacer.last_ts == 130.0

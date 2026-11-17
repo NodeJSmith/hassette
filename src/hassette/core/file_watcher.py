@@ -67,9 +67,6 @@ class FileWatcherService(Service):
                 event = HassetteFileWatcherEvent.from_paths(changed_file_paths=all_changed_paths)
                 await self.hassette.send_event(event)
 
-            # update paths in case new apps were added
-            paths = self.hassette.config.get_watchable_files()
-
 
 def collapse_changed_paths(changes: Iterable[tuple[object, str]]) -> set[Path]:
     """Resolve each changed path, skipping one already seen or whose parent directory was already seen."""

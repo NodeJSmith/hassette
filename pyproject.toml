@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.63.0"
+version = "0.64.0"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -65,8 +65,8 @@ dependencies = [
     "tomli-w>=1.2.0",
     # Lockstep with the release train: release-please rewrites these pins on the marked lines
     # (the `version` above is bumped by its python release-type, so it needs no marker).
-    "hassette-wire==0.63.0",  # x-release-please-version
-    "hassette-client==0.63.0",  # x-release-please-version
+    "hassette-wire==0.64.0",  # x-release-please-version
+    "hassette-client==0.64.0",  # x-release-please-version
 ]
 
 [project.optional-dependencies]
@@ -84,7 +84,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
-    "house-lint>=0.6.0",
+    "house-lint>=0.7.0",
     "libcst>=1.5.0",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
@@ -236,10 +236,11 @@ output = "coverage.xml"
 # HSL101 leaked spec-artifact tokens (AC#/FR#/NFR#/WP#/T##) in comments, docstrings, filenames
 # HSL102 files over max_lines (tracked separately in CI, see above)
 # HSL103 except-handler bindings that aren't named 'exc' or '*_exc'
+# HSL105 bracketed "# type: ignore[code]" comments (bare ones are Ruff's PGH003, in ruff.toml)
 # HSL901 stale suppression pragmas (unused, for a disabled rule, or overlapping another)
 [tool.house-lint]
 include = ["src", "tests", "scripts", "tools", "codegen", "wire", "client", "docs", "examples"]
-select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103", "HSL901"]
+select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103", "HSL105", "HSL901"]
 
 [tool.house-lint.rules.HSL102]
 max_lines = 800

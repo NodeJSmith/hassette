@@ -34,12 +34,16 @@ SQL_STATUS_SUCCESS = "'success'"
 SQL_STATUS_ERROR = "'error'"
 SQL_STATUS_CANCELLED = "'cancelled'"
 SQL_STATUS_TIMED_OUT = "'timed_out'"
+SQL_STATUS_SKIPPED = "'skipped'"
 
 SQL_FAILED_STATUSES = f"({SQL_STATUS_ERROR}, {SQL_STATUS_TIMED_OUT})"
 """``IN`` list of ``executions.status`` values counted as failures."""
 
 SQL_KIND_HANDLER = "'handler'"
 SQL_KIND_JOB = "'job'"
+
+SQL_SOURCE_TIER_APP = f"'{APP_SOURCE_TIER}'"
+SQL_SOURCE_TIER_FRAMEWORK = "'framework'"
 
 SQL_HANDLER_ROW_ID_PREFIX = "'h-'"
 """Synthetic activity-feed ``row_id`` prefix for handler rows with no ``execution_id``."""
@@ -64,36 +68,6 @@ query's ``WHERE`` provably implies the index's, and a bound parameter never does
 ``idx_lr_default_view`` (migration 016) repeats this predicate, so the two must change together;
 ``test_default_log_view_uses_partial_index`` fails if they drift.
 """
-
-# Exports the package's public constants plus the clause-builders and row converters shared
-# by the query mixins. These are package-internal (not for callers outside
-# hassette.core.telemetry); listing them here marks them as exported so the cross-module
-# imports don't read as unused.
-__all__ = [
-    "DEFAULT_EXECUTION_LOG_LIMIT",
-    "DEFAULT_LOG_RECORDS_LIMIT",
-    "LISTENER_MISS_NO_FILTER",
-    "SQL_DEFAULT_LOG_VIEW",
-    "SQL_FAILED_STATUSES",
-    "SQL_HANDLER_ROW_ID_PREFIX",
-    "SQL_JOB_ROW_ID_PREFIX",
-    "SQL_KIND_HANDLER",
-    "SQL_KIND_JOB",
-    "SQL_NO_FILTER",
-    "SQL_STATUS_CANCELLED",
-    "SQL_STATUS_ERROR",
-    "SQL_STATUS_SUCCESS",
-    "SQL_STATUS_TIMED_OUT",
-    "STORAGE_ERRORS",
-    "build_app_summaries",
-    "fetch_all_as_dicts",
-    "handler_job_union_arms",
-    "log_author_clause",
-    "log_record_filter_clauses",
-    "row_to_dict",
-    "since_clause",
-    "source_tier_clause",
-]
 
 
 def row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
@@ -254,8 +228,7 @@ def handler_job_union_arms(
     ``since_clause`` and ``source_tier_clause`` are called once per alias so each arm's
     fragment references the correct column, but both arms bind the same parameter names
     (``:since``, ``:source_tier``) - the second call's params dict is a duplicate and is
-    intentionally discarded, matching the convention documented on the UNION methods in
-    ``execution_queries.py``.
+    intentionally discarded.
 
     Args:
         handler_select: Full ``SELECT ...`` column list for the handler arm.

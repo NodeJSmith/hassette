@@ -53,7 +53,6 @@ def test_yield_domain_states_raises_eagerly_when_not_ready() -> None:
     "read",
     [
         pytest.param(lambda proxy: proxy.get_state("light.kitchen"), id="get_state"),
-        pytest.param(lambda proxy: proxy.get_state_once("light.kitchen"), id="get_state_once"),
         pytest.param(lambda proxy: proxy.yield_domain_states("light"), id="yield_domain_states"),
         pytest.param(lambda proxy: proxy.get_domain_states("light"), id="get_domain_states"),
     ],
