@@ -1,11 +1,18 @@
 import inspect
+import typing
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from functools import lru_cache
+from logging import getLogger
 from types import UnionType
-from typing import Annotated, Any, ForwardRef, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Any, ForwardRef, TypeVar, TypeVarTuple, Union, Unpack, get_args, get_origin
 
 from pydantic._internal._typing_extra import try_eval_type
+
+LOGGER = getLogger(__name__)
+
+MAX_ALIAS_DEPTH = 64
+"""Alias expansions `unwrap_type_alias` performs before treating the alias as cyclic."""
 
 NoneType = type(None)
 
@@ -28,13 +35,82 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
     return tuple(uniq)
 
 
+def is_type_alias(tp: Any) -> bool:
+    """True if `tp` is a bare type alias.
+
+    Duck-typed on purpose: `typing_extensions.TypeAliasType` (the only alias type on 3.11) is a
+    different class from `typing.TypeAliasType` on 3.12+, and both must be recognized.
+    """
+    return hasattr(tp, "__value__") and hasattr(tp, "__type_params__")
+
+
+def substitute_alias_args(alias: Any, args: tuple[Any, ...]) -> Any:
+    """Return `alias.__value__` with the alias's type parameters replaced by `args`.
+
+    `Foo[int].__value__` forwards to the bare alias and drops the arguments, and CPython exposes no
+    public way to substitute them. So build a throwaway `typing.Callable[[*params], value]` whose
+    parameters are exactly the alias's, in order, and subscript it: CPython's own substitution then
+    handles reordered parameters, `TypeVarTuple` packs, `ParamSpec` lists, and a value that is a bare
+    parameter. Trailing parameters left out of `args` take their declared defaults (PEP 696), with any
+    earlier parameter a default refers to (`type Dep[T, U = T]`) replaced by its bound argument.
+
+    If CPython rejects the arguments (too few with no defaults), the value is returned unsubstituted.
+    """
+    type_params = alias.__type_params__
+    missing = type_params[len(args) :]
+    try:
+        if missing and all(getattr(p, "has_default", lambda: False)() for p in missing):
+            for i in range(len(args), len(type_params)):
+                args = (*args, substitute_params(type_params[:i], type_params[i].__default__, args))
+        return substitute_params(type_params, alias.__value__, args)
+    except TypeError:
+        LOGGER.debug("Could not substitute %r into type alias %r; using its unsubstituted value", args, alias)
+        return alias.__value__
+
+
+def substitute_params(type_params: tuple[Any, ...], value: Any, args: tuple[Any, ...]) -> Any:
+    """Replace `type_params` in `value` with `args` through CPython's substitution.
+
+    Raises:
+        TypeError: CPython rejects `args` for `type_params`.
+    """
+    if not type_params:
+        return value
+    params = [Unpack[p] if isinstance(p, TypeVarTuple) else p for p in type_params]
+    # `typing.Callable`, not `collections.abc.Callable`: only the former accepts a parameter list it re-subscripts.
+    carrier = typing.Callable[[*params], value]
+    substituted = carrier[args]  # pyright: ignore[reportIndexIssue]  # carrier is a runtime generic alias
+    return get_args(substituted)[-1]
+
+
+def unwrap_type_alias(tp: Any) -> Any:
+    """Resolve a PEP 695 type alias (`type Foo = ...`), including alias chains, to the type it names.
+
+    A subscripted generic alias (`Foo[int]` for `type Foo[T] = ...`) resolves to the alias's value
+    with the alias's type parameters replaced by the subscript's arguments. Anything that is not an
+    alias is returned unchanged.
+    """
+    # A cyclic (`type X = Y; type Y = X`) or ever-growing (`type G[T] = G[list[T]]`) alias never resolves;
+    # stop after a depth no real alias chain reaches.
+    for _ in range(MAX_ALIAS_DEPTH):
+        origin = get_origin(tp)
+        if is_type_alias(origin):
+            alias, args = origin, get_args(tp)
+        elif is_type_alias(tp):
+            alias, args = tp, None
+        else:
+            return tp
+
+        tp = alias.__value__ if args is None else substitute_alias_args(alias, args)
+
+    LOGGER.debug("Type alias did not resolve within %d expansions; stopping at %r", MAX_ALIAS_DEPTH, tp)
+    return tp
+
+
 @lru_cache(maxsize=256)
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     """Normalize a type annotation to something usable in isinstance()."""
-    # Unwrap type aliases (`type Foo = ...`)
-    value = getattr(tp, "__value__", None)
-    if value is not None:
-        return normalize_for_isinstance(value)
+    tp = unwrap_type_alias(tp)
 
     # Unwrap Annotated[T, ...]
     if get_origin(tp) is Annotated:
@@ -184,8 +260,8 @@ def normalize_annotation(tp: Any, *, constructible: bool = True) -> Any:
     tp = unwrap_annotated(tp)
 
     while True:
-        alias_value = getattr(tp, "__value__", None)
-        if alias_value is not None:
+        alias_value = unwrap_type_alias(tp)
+        if alias_value is not tp:
             tp = unwrap_annotated(alias_value)
             continue
 
@@ -210,11 +286,7 @@ def get_type_and_details(annotation: Any) -> tuple[Any, Any] | None:
     Returns:
         A ``(type, metadata)`` tuple, or None if the annotation is not ``Annotated`` with metadata.
     """
-    # Unwrap type alias: `type Foo = ...`
-    alias_value = getattr(annotation, "__value__", None)
-    if alias_value is not None:
-        return get_type_and_details(alias_value)
-
+    annotation = unwrap_type_alias(annotation)
     if not is_annotated_type(annotation):
         return None
 
@@ -227,11 +299,7 @@ def get_type_and_details(annotation: Any) -> tuple[Any, Any] | None:
 
 def is_annotated_type(annotation: Any) -> bool:
     """True if this annotation is Annotated[...] or an alias whose value is Annotated[...]."""
-    value = getattr(annotation, "__value__", None)
-    if value is not None:
-        return is_annotated_type(value)
-
-    return get_origin(annotation) is Annotated
+    return get_origin(unwrap_type_alias(annotation)) is Annotated
 
 
 def make_union(types: set[Any]) -> Any:

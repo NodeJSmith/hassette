@@ -10,7 +10,12 @@ from types import UnionType
 from typing import Union, get_args, get_origin
 from warnings import warn
 
-from hassette.utils.type_utils import get_type_and_details, is_annotated_type, normalize_annotation
+from hassette.utils.type_utils import (
+    get_type_and_details,
+    is_annotated_type,
+    normalize_annotation,
+    unwrap_type_alias,
+)
 
 from .types import AnnotationDetails, InjectionParam, identity
 
@@ -40,12 +45,7 @@ class TypeMatcher:
         if annotation is inspect.Parameter.empty:
             return None
 
-        # Unwrap PEP 695 `type X = ...` aliases, including chains (`type B = A`), matching
-        # `get_type_and_details`. `seen` stops a cyclic alias pair from looping forever.
-        seen: set[int] = set()
-        while id(annotation) not in seen and (alias_value := getattr(annotation, "__value__", None)) is not None:
-            seen.add(id(annotation))
-            annotation = alias_value
+        annotation = unwrap_type_alias(annotation)
         origin = get_origin(annotation)
 
         matched = is_subclass_of(annotation, self.match_type)
