@@ -418,8 +418,10 @@ Listener names must be unique per app instance and topic. Registering a second l
 
 **Key shape: bus vs. scheduler.** The bus resolves `if_exists` per `(name, topic)` — the same name on a different topic is a different listener and does not collide. The scheduler resolves `if_exists` per `name` alone, because job names are unique across the scheduler regardless of trigger type. `if_exists="skip"` on the bus is safe to use when registering the same handler on multiple topics under different names; `if_exists="replace"` on the bus targets exactly the `(name, topic)` pair, not all listeners sharing that name.
 
-!!! note "Lambda filters report drift under `skip`"
+!!! note "Filter comparison limits under `skip`"
     Lambdas and closures compare by identity, not by value. Re-registering "the same" filter built from a fresh lambda reports drift and raises under `if_exists="skip"`. Use a named function or a built-in predicate (from `P.*`) for stable comparison. `if_exists="replace"` is not affected by this constraint.
+
+    Conversely, literal filter values compare with `==`, so values Python treats as equal across bool, int and float (`True` and `1`, `False` and `0`) are not drift. Changing a condition from `True` to `1` (in `where=` or a `P.*` predicate) keeps the old listener under `skip`, even though `1` matches different events. Use `if_exists="replace"` when you make that kind of change.
 
 !!! note "Once-listeners and `if_exists`"
     `once=True` listeners participate in name+topic collision tracking like durable listeners. Two `once=True` registrations with the same name and topic raise `DuplicateListenerError` by default. Pass `if_exists="skip"` or `if_exists="replace"` to control the behavior explicitly.

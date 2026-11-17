@@ -61,6 +61,8 @@ class Options(TypedDict, total=False):
 
     Lambda/closure predicates compare by identity, so re-registering under ``"skip"`` with a
     freshly built lambda reports drift and raises; use a named predicate function or ``"replace"``.
+    Literal filter values compare with ``==``, so changing one to a value Python treats as equal
+    (``True`` to ``1``) is not drift and ``"skip"`` keeps the old filter; use ``"replace"``.
 
     The bus resolves ``if_exists`` per ``(name, topic)`` — the same name on a different
     topic is a different listener and does not collide.

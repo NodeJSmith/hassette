@@ -14,6 +14,7 @@ from hassette.const import NOT_PROVIDED
 from hassette.event_handling.conditions import CrossedAbove
 from hassette.event_handling.predicates import (
     EventEntityFresh,
+    ServiceDataWhere,
     StateComparison,
 )
 from hassette.testing import (
@@ -261,3 +262,9 @@ def test_event_entity_fresh_rejects_non_positive_max_age(max_age: float) -> None
 def test_predicate_summarize_golden_event_entity_fresh() -> None:
     assert EventEntityFresh(max_age=10).summarize() == "event within 10s"
     assert EventEntityFresh(max_age=2.5).summarize() == "event within 2.5s"
+
+
+def test_service_data_where_equal_for_same_spec() -> None:
+    """Two ServiceDataWhere built from the same spec compare equal; a different spec does not."""
+    assert ServiceDataWhere({"entity_id": "light.kitchen"}) == ServiceDataWhere({"entity_id": "light.kitchen"})
+    assert ServiceDataWhere({"entity_id": "light.kitchen"}) != ServiceDataWhere({"entity_id": "light.office"})
