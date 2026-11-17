@@ -153,6 +153,9 @@ class Topic(StrEnum):
     HASS_EVENT_SCRIPT_STARTED = "hass.event.script_started"
     """Script started events"""
 
+    HASS_EVENT_HASSETTE_MESSAGE = "hass.event.hassette_message"
+    """Messages sent to hassette apps with the hass-hassette integration's ``hassette.send`` action"""
+
 
 class BlockReason(StrEnum):
     """Reasons an app may be intentionally blocked from starting."""

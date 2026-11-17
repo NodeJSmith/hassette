@@ -103,6 +103,51 @@ class BusSyncEventShortcuts(Resource):
             )
         )
 
+    def on_hassette_message(
+        self,
+        message: str | None = None,
+        *,
+        handler: "HandlerType",
+        where: WhereClause = None,
+        kwargs: Mapping[str, Any] | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
+        **opts: Unpack[Options],
+    ) -> Subscription:
+        """Subscribe to messages sent with the hass-hassette integration's ``hassette.send`` action.
+
+        A dashboard button, script or automation runs ``hassette.send`` with a ``name`` and an optional
+        ``data`` mapping. Annotate the handler's parameter as ``D.MessageData[T]`` to receive ``data``
+        validated into ``T``.
+
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
+
+        Args:
+            message: Only messages sent with this ``name`` (e.g. ``"tracker_done"``). ``None`` matches every message.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+
+        Example:
+        ```python
+        await self.bus.on_hassette_message("tracker_done", handler=self.on_tracker_done, name="tracker.done")
+
+        async def on_tracker_done(self, data: D.MessageData[TrackerDone]) -> None: ...
+        ```
+        """
+        return self.task_bucket.run_sync(
+            self._bus.on_hassette_message(
+                message, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
+        )
+
     def on_homeassistant_restart(
         self,
         *,

@@ -224,13 +224,36 @@ EventData: TypeAlias = Annotated[
     EventDataT,
     AnnotationDetails(ensure_present(A.get_path("payload.data"))),
 ]
-"""Extract the typed data from a broadcast event's payload.
+"""Extract the typed data from an event's payload.
 
-Use with ``Bus.emit`` to receive the emitted data pre-extracted and typed.
+Use with ``Bus.emit`` to receive the emitted data pre-extracted and typed, or with a custom Home Assistant
+event (one fired from a script or automation) to receive its JSON data validated into a pydantic model or
+dataclass. Invalid data skips the handler with an error naming the field.
 
 Example:
 ```python
 async def handler(data: D.EventData[MyData]):
     print(data.some_field)
+```
+"""
+
+MessageData: TypeAlias = Annotated[
+    EventDataT,
+    AnnotationDetails(ensure_present(A.get_path("payload.data.data"))),
+]
+"""Extract a hass-hassette message's ``data``, validated into the annotated pydantic model or dataclass.
+
+Use with ``Bus.on_hassette_message``. A message sent without ``data`` validates ``{}``, so fields with
+defaults pass and a required field fails. Invalid data skips the handler with an error naming the field.
+
+Example:
+```python
+@dataclass
+class TrackerDone:
+    room: str | None = None
+
+
+async def on_tracker_done(self, data: D.MessageData[TrackerDone]):
+    print(data.room)
 ```
 """

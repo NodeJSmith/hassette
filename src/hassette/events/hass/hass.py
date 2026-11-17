@@ -118,6 +118,17 @@ class ScriptStartedPayload:
 
 
 @dataclass(slots=True, frozen=True)
+class HassetteMessagePayload:
+    """Payload for a message sent with the hass-hassette integration's ``hassette.send`` action."""
+
+    name: str
+    """What the message is; apps match on it to decide whether to act."""
+
+    data: dict[str, Any] = field(default_factory=dict)
+    """Extra values sent with the message. Defaults to ``{}`` when the message carries none."""
+
+
+@dataclass(slots=True, frozen=True)
 class RawStateChangePayload:
     """Payload for a state_changed event in Home Assistant."""
 
@@ -235,6 +246,10 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
+class HassetteMessageEvent(Event[HassPayload[HassetteMessagePayload]]):
+    """A message sent to hassette apps with the hass-hassette integration's ``hassette.send`` action."""
+
+
 HassEvent: TypeAlias = Event[HassPayload[Any]]
 """Alias for Home Assistant events."""
 
@@ -254,6 +269,7 @@ HASS_EVENT_TYPES: "dict[str, tuple[Topic, type[HassEvent], type[DataclassInstanc
         AutomationTriggeredPayload,
     ),
     "script_started": (Topic.HASS_EVENT_SCRIPT_STARTED, ScriptStartedEvent, ScriptStartedPayload),
+    "hassette_message": (Topic.HASS_EVENT_HASSETTE_MESSAGE, HassetteMessageEvent, HassetteMessagePayload),
 }
 """Home Assistant event types with a typed event: event type -> (topic, event class, payload class).
 

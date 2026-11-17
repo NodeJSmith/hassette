@@ -29,6 +29,7 @@ MINIMAL_EVENT_DATA: dict[str, dict[str, Any]] = {
     "user_removed": {"user_id": "abc"},
     "automation_triggered": {"name": "Morning", "entity_id": "automation.morning"},
     "script_started": {"name": "Bedtime", "entity_id": "script.bedtime"},
+    "hassette_message": {"name": "tracker_done", "data": {"room": "kitchen"}},
 }
 
 

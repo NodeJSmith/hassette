@@ -1163,6 +1163,73 @@ class Bus(Resource):
             method_name="on_service_registered",
         )
 
+    def on_hassette_message(
+        self,
+        message: str | None = None,
+        *,
+        handler: "HandlerType",
+        where: WhereClause = None,
+        kwargs: Mapping[str, Any] | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
+        **opts: Unpack[Options],
+    ) -> "Coroutine[Any, Any, Subscription]":
+        """Subscribe to messages sent with the hass-hassette integration's ``hassette.send`` action.
+
+        A dashboard button, script or automation runs ``hassette.send`` with a ``name`` and an optional
+        ``data`` mapping. Annotate the handler's parameter as ``D.MessageData[T]`` to receive ``data``
+        validated into ``T``.
+
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
+
+        Args:
+            message: Only messages sent with this ``name`` (e.g. ``"tracker_done"``). ``None`` matches every message.
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+
+        Example:
+        ```python
+        await self.bus.on_hassette_message("tracker_done", handler=self.on_tracker_done, name="tracker.done")
+
+        async def on_tracker_done(self, data: D.MessageData[TrackerDone]) -> None: ...
+        ```
+        """
+        _require_name(name, handler, str(Topic.HASS_EVENT_HASSETTE_MESSAGE))
+        preds: list[Predicate] = []
+
+        if message is not None:
+            preds.append(P.ValueIs(source=get_path("payload.data.name"), condition=message))
+
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
+        return guard_await(
+            self._subscribe(
+                log_label="hassette_message",
+                topic=Topic.HASS_EVENT_HASSETTE_MESSAGE,
+                handler=handler,
+                scope=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"message": message, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
+            method_name="on_hassette_message",
+        )
+
     def on_homeassistant_restart(
         self,
         *,

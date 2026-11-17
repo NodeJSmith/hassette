@@ -24,6 +24,7 @@ SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [
     ),
     ("simulate_call_service", ("light", "turn_on"), {}),
     ("simulate_component_loaded", ("mqtt",), {}),
+    ("simulate_hassette_message", ("tracker_done",), {}),
     ("simulate_service_registered", ("light", "turn_on"), {}),
     ("simulate_hassette_service_status", ("WebSocketService", ResourceStatus.RUNNING), {}),
     ("simulate_websocket_connected", (), {}),

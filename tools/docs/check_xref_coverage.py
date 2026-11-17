@@ -83,6 +83,7 @@ XREF_MAP = {
     "EntityWatch": "hassette.bus.listeners.EntityWatch",
     # Testing
     "ComponentLoadedEvent": "hassette.events.hass.hass.ComponentLoadedEvent",
+    "HassetteMessageEvent": "hassette.events.hass.hass.HassetteMessageEvent",
     "ServiceRegisteredEvent": "hassette.events.hass.hass.ServiceRegisteredEvent",
 }
 
