@@ -32,7 +32,7 @@
     "analyzeUnannotatedFunctions": true,
     "disableBytesTypePromotions": true,
     "strictParameterNoneValue": true,
-    "enableTypeIgnoreComments": true,
+    "enableTypeIgnoreComments": false,
     "enableReachabilityAnalysis": false,
     "strictListInference": false,
     "strictDictionaryInference": false,
