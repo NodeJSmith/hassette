@@ -81,8 +81,7 @@ class CronTrigger:
         # anchor and the loop skips the ambiguous slot entirely.
         current_dt_utc = current_time.to_stdlib().astimezone(UTC)
         ambiguous_ticks_skipped = 0
-        # Bounded iteration — avoids O(N) spin for sub-second crons after long downtime.
-        # 10,000 iterations covers ~2.7 hours of per-second crons, which is generous.
+        # Bounded by MAX_CRON_ITERATIONS to avoid an O(N) spin for sub-second crons after long downtime.
         for _ in range(MAX_CRON_ITERATIONS):
             next_time = cron.get_next()
             if next_time.astimezone(UTC) > current_dt_utc:
@@ -192,13 +191,9 @@ class Job:
     """The trigger that determines the job's schedule. ``None`` for a manual-only job."""
 
     schedule_status: ScheduleStatus = field(default=ScheduleStatus.SCHEDULED, compare=False)
-    """Current schedule status. Defaults to ``SCHEDULED`` so existing direct ``Job(...)``
-    constructions (mostly in tests) remain valid without passing it explicitly, as long as
-    ``next_run`` is also given — ``__post_init__`` raises ``ValueError`` for the
-    ``SCHEDULED``-with-no-``next_run`` combination, mirroring ``transition_to()``'s guard.
-    A ``WAITING``/``COMPLETED``/``MANUAL`` construction must pass ``schedule_status``
-    explicitly. Real jobs built through ``Scheduler.schedule()``/``Scheduler.register()`` set
-    it explicitly, and every transition after construction routes through ``transition_to()``."""
+    """Current schedule status. Defaults to ``SCHEDULED``, which requires ``next_run``
+    (``__post_init__`` raises otherwise); pass ``WAITING``/``COMPLETED``/``MANUAL`` explicitly.
+    Later changes go through ``transition_to()``."""
 
     schedule_status_reason: ScheduleStatusReason | None = field(default=None, compare=False)
     """Optional diagnostic reason qualifying ``schedule_status``. ``None`` for a clean status
@@ -256,9 +251,8 @@ class Job:
 
     mode: ExecutionMode = field(default=ExecutionMode.SINGLE, compare=False)
     """Resolved overlap mode for this job. Determines behavior when a prior invocation is still
-    running as the next occurrence becomes due. Defaults to ``ExecutionMode.SINGLE`` so existing
-    direct ``Job(...)`` constructions in tests remain valid; the real resolution happens
-    in ``Scheduler.schedule()``."""
+    running as the next occurrence becomes due. Defaults to ``SINGLE``; ``Scheduler.schedule()``
+    resolves the tier-aware default."""
 
     predicate: "SchedulerPredicate | None" = field(default=None, compare=False)
     """Normalized predicate callable, or ``None`` when no ``where=`` was given.
