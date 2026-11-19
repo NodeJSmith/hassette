@@ -89,21 +89,6 @@ def is_framework_key(app_key: str | None) -> bool:
     return app_key == FRAMEWORK_APP_KEY or app_key.startswith(FRAMEWORK_APP_KEY_PREFIX)
 
 
-def framework_display_name(app_key: str) -> str:
-    """Return a human-readable display name for a framework app key.
-
-    For prefixed keys (e.g. ``'__hassette__.scheduler_service'``) returns the
-    component slug (``'scheduler_service'``).  For the bare key
-    ``'__hassette__'`` returns ``'framework'``.
-
-    Args:
-        app_key: A framework app key.  Behaviour is undefined for non-framework keys.
-    """
-    if app_key.startswith(FRAMEWORK_APP_KEY_PREFIX):
-        return app_key.removeprefix(FRAMEWORK_APP_KEY_PREFIX)
-    return "framework"
-
-
 CoroT = TypeVar("CoroT")
 CoroLikeT: TypeAlias = Coroutine[Any, Any, CoroT]
 """A coroutine returning a value of type CoroT."""
