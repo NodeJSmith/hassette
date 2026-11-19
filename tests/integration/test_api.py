@@ -49,6 +49,12 @@ def test_clean_kwargs_basic():
     assert cleaned_kwargs == {"b": "false", "d": "x", "e": 5}, f"Unexpected cleaned kwargs: {cleaned_kwargs}"
 
 
+def test_clean_kwargs_drops_nested_blank_strings():
+    """clean_kwargs drops blank strings inside mappings and lists, the same as at the top level."""
+    cleaned_kwargs = clean_kwargs(a={"k": " ", "keep": "x", "n": None}, ids=["light.a", " ", None])
+    assert cleaned_kwargs == {"a": {"keep": "x"}, "ids": ["light.a"]}, f"Unexpected cleaned kwargs: {cleaned_kwargs}"
+
+
 async def test_get_state_return_type(
     hassette_with_mock_api: tuple[Api, SimpleTestServer], hass_state_dicts: list[dict[str, Any]]
 ):
