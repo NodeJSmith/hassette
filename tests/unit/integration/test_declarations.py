@@ -1,5 +1,7 @@
 """Declaration and value rules for app-declared entities (spec 157 D5, D6, D12)."""
 
+from types import MappingProxyType
+
 import pytest
 from whenever import Date, Instant, OffsetDateTime, ZonedDateTime, hours
 
@@ -62,12 +64,14 @@ def test_default_entity_id_on_matching_platform_passes() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        ({"device_class": "not_a_class", "state_class": None, "options": None}, "unknown device_class"),
-        ({"device_class": None, "state_class": "sometimes", "options": None}, "unknown state_class"),
-        ({"device_class": "enum", "state_class": None, "options": None}, "needs options"),
-        ({"device_class": "enum", "state_class": None, "options": []}, "needs options"),
-        ({"device_class": "enum", "state_class": None, "options": ["a", "a"]}, "duplicate"),
-        ({"device_class": "temperature", "state_class": None, "options": ["a"]}, "only an enum sensor"),
+        ({"device_class": "not_a_class", "state_class": None, "unit": None, "options": None}, "unknown device_class"),
+        ({"device_class": None, "state_class": "sometimes", "unit": None, "options": None}, "unknown state_class"),
+        ({"device_class": "enum", "state_class": None, "unit": None, "options": None}, "needs options"),
+        ({"device_class": "enum", "state_class": None, "unit": None, "options": []}, "needs options"),
+        ({"device_class": "enum", "state_class": None, "unit": None, "options": ["a", "a"]}, "duplicate"),
+        ({"device_class": "temperature", "state_class": None, "unit": None, "options": ["a"]}, "only an enum sensor"),
+        ({"device_class": "enum", "state_class": "measurement", "unit": None, "options": ["a"]}, "state_class or unit"),
+        ({"device_class": "enum", "state_class": None, "unit": "g", "options": ["a"]}, "state_class or unit"),
     ],
 )
 def test_invalid_sensor_fields_raise(kwargs: dict, match: str) -> None:
@@ -76,7 +80,10 @@ def test_invalid_sensor_fields_raise(kwargs: dict, match: str) -> None:
 
 
 def test_enum_options_become_a_tuple() -> None:
-    assert validate_sensor_fields("s", device_class="enum", state_class=None, options=["a", "b"]) == ("a", "b")
+    assert validate_sensor_fields("s", device_class="enum", state_class=None, unit=None, options=["a", "b"]) == (
+        "a",
+        "b",
+    )
 
 
 @pytest.mark.parametrize(
@@ -156,6 +163,7 @@ def test_decode_value_raises_on_unparseable_text() -> None:
 def test_check_attributes() -> None:
     assert check_attributes("k", None) == {}
     assert check_attributes("k", {"x": 1}) == {"x": 1}
+    assert check_attributes("k", MappingProxyType({"x": 1})) == {"x": 1}
     with pytest.raises(ValueError, match="JSON"):
         check_attributes("k", {"x": object()})
     with pytest.raises(ValueError, match="string keys"):

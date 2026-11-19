@@ -127,13 +127,14 @@ def validate_sensor_fields(
     *,
     device_class: str | None,
     state_class: str | None,
+    unit: str | None,
     options: list[str] | tuple[str, ...] | None,
 ) -> tuple[str, ...] | None:
     """Check a sensor declaration's fields the way Home Assistant does; return ``options`` as a tuple.
 
     Raises:
-        ValueError: An unknown device or state class, an enum sensor without options, or options on a sensor
-            that isn't an enum sensor.
+        ValueError: An unknown device or state class, an enum sensor without options or with a state class or
+            unit (Home Assistant rejects both), or options on a sensor that isn't an enum sensor.
     """
     if device_class is not None and device_class not in KNOWN_DEVICE_CLASSES:
         raise ValueError(f"sensor {key!r} has unknown device_class {device_class!r}")
@@ -141,6 +142,8 @@ def validate_sensor_fields(
         valid = ", ".join(sorted(KNOWN_STATE_CLASSES))
         raise ValueError(f"sensor {key!r} has unknown state_class {state_class!r}; use one of {valid}")
     if device_class == "enum":
+        if state_class is not None or unit is not None:
+            raise ValueError(f"enum sensor {key!r} can't have a state_class or unit; Home Assistant rejects both")
         if not options or not all(isinstance(option, str) for option in options):
             raise ValueError(f"enum sensor {key!r} needs options, a non-empty list of strings")
         if len(set(options)) != len(options):
@@ -213,7 +216,7 @@ def check_attributes(key: str, attributes: Mapping[str, Any] | None) -> dict[str
     if not isinstance(attributes, Mapping) or not all(isinstance(name, str) for name in attributes):
         raise ValueError(f"{key!r} attributes must be a mapping with string keys")
     try:
-        encoded = json.dumps(attributes, allow_nan=False)
+        encoded = json.dumps(dict(attributes), allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{key!r} attributes must be JSON-serializable: {exc}") from exc
     return json.loads(encoded)
