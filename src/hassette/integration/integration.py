@@ -116,12 +116,12 @@ class Integration(Resource):
         return (self.app_key, self.instance_name)
 
     @property
-    def closed(self) -> bool:
+    def _closed(self) -> bool:
         """Whether this resource has shut down or its commit failed, so it must not own the instance's set."""
         return self._phase is Phase.CLOSED
 
     @property
-    def service(self) -> "IntegrationService":
+    def _service(self) -> "IntegrationService":
         """The core service holding every instance's committed declarations and state."""
         return self.hassette.integration_service
 
@@ -158,14 +158,14 @@ class Integration(Resource):
         """
         platform = IntegrationPlatform.BUTTON
         declaration = Declaration(
-            key=self.check_declarable(key, platform),
+            key=self._check_declarable(key, platform),
             platform=platform,
             name=name,
             default_entity_id=validate_default_entity_id(default_entity_id, platform),
         )
         source_location, registration_source = capture_registration_source()
         return guard_await(
-            self.declare_with_handler(
+            self._declare_with_handler(
                 declaration, on_press, mode, IntegrationButton, source_location, registration_source
             ),
             owner=self.parent,
@@ -212,7 +212,7 @@ class Integration(Resource):
         if not isinstance(initial, bool):
             raise ValueError(f"switch {key!r} initial must be a bool, got {initial!r}")
         declaration = Declaration(
-            key=self.check_declarable(key, platform),
+            key=self._check_declarable(key, platform),
             platform=platform,
             name=name,
             default_entity_id=validate_default_entity_id(default_entity_id, platform),
@@ -220,7 +220,7 @@ class Integration(Resource):
         )
         source_location, registration_source = capture_registration_source()
         return guard_await(
-            self.declare_with_handler(
+            self._declare_with_handler(
                 declaration, on_toggle, mode, IntegrationSwitch, source_location, registration_source
             ),
             owner=self.parent,
@@ -262,11 +262,12 @@ class Integration(Resource):
 
         Raises:
             ValueError: An invalid or duplicate key, an unknown device or state class, an enum sensor without
-                options, options on another sensor, or an invalid ``default_entity_id``.
+                options or with a unit or state class, options on another sensor, or an invalid
+                ``default_entity_id``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.SENSOR
-        key = self.check_declarable(key, platform)
+        key = self._check_declarable(key, platform)
         declaration = Declaration(
             key=key,
             platform=platform,
@@ -275,17 +276,19 @@ class Integration(Resource):
             unit=unit,
             device_class=device_class,
             state_class=state_class,
-            options=validate_sensor_fields(key, device_class=device_class, state_class=state_class, options=options),
+            options=validate_sensor_fields(
+                key, device_class=device_class, state_class=state_class, unit=unit, options=options
+            ),
         )
         source_location, _ = capture_registration_source()
         return guard_await(
-            self.declare_sensor(declaration),
+            self._declare_sensor(declaration),
             owner=self.parent,
             source_location=source_location,
             method_name="add_sensor",
         )
 
-    def check_declarable(self, key: object, platform: IntegrationPlatform) -> str:
+    def _check_declarable(self, key: object, platform: IntegrationPlatform) -> str:
         """Return ``key`` if it is valid and not yet declared, and the declaration window is open.
 
         Raises:
@@ -301,17 +304,17 @@ class Integration(Resource):
             raise ValueError(f"key {valid!r} is already being declared on this instance")
         return valid
 
-    async def declare_sensor(self, declaration: Declaration) -> IntegrationSensor:
+    async def _declare_sensor(self, declaration: Declaration) -> IntegrationSensor:
         """Record a sensor declaration.
 
         Re-checks the key, which ``add_sensor`` already checked: the window may have closed, or the key been
         declared, between that call and this coroutine running.
         """
-        self.check_declarable(declaration.key, declaration.platform)
+        self._check_declarable(declaration.key, declaration.platform)
         self._declarations[declaration.key] = declaration
         return IntegrationSensor(self, declaration)
 
-    async def declare_with_handler(
+    async def _declare_with_handler(
         self,
         declaration: Declaration,
         handler: "HandlerType",
@@ -328,10 +331,10 @@ class Integration(Resource):
         call and this coroutine running, and again after registering, since a commit may have closed it while
         the listener registered; that listener is then cancelled.
         """
-        key = self.check_declarable(declaration.key, declaration.platform)
+        key = self._check_declarable(declaration.key, declaration.platform)
         self._reserved.add(key)
         try:
-            subscription = await self.register_listener(
+            subscription = await self._register_listener(
                 declaration, handler, mode, source_location, registration_source
             )
             if self._phase is not Phase.DECLARING:
@@ -342,7 +345,7 @@ class Integration(Resource):
             self._reserved.discard(key)
         return handle_cls(self, declaration, subscription)
 
-    async def register_listener(
+    async def _register_listener(
         self,
         declaration: Declaration,
         handler: "HandlerType",
@@ -368,7 +371,7 @@ class Integration(Resource):
             registration_source=registration_source,
         )
 
-    def read_state(self, declaration: Declaration) -> EntityState:
+    def _read_state(self, declaration: Declaration) -> EntityState:
         """A switch's or sensor's current state, as its handle exposes it, as a copy the caller may change.
 
         During initialization and while the commit is being written: the state the commit starts it with
@@ -379,7 +382,7 @@ class Integration(Resource):
         """
         if self._phase is Phase.CLOSED:
             raise IntegrationHandleClosedError(self.instance_name, declaration.key)
-        committed = self.service.committed(self.instance_key, declaration)
+        committed = self._service.committed(self.instance_key, declaration)
         if self._phase is Phase.COMMITTED:
             state = committed.state if committed is not None else default_state(declaration)
         else:
@@ -387,7 +390,7 @@ class Integration(Resource):
             state, _ = resolve_state(declaration, pending, None if committed is None else committed.state)
         return replace(state, attributes=copy.deepcopy(dict(state.attributes)))
 
-    async def set_state(self, declaration: Declaration, value: object, attributes: Mapping[str, Any] | None) -> None:
+    async def _set_state(self, declaration: Declaration, value: object, attributes: Mapping[str, Any] | None) -> None:
         """Validate and set a switch's or sensor's state: held until the commit during init, written after it.
 
         While the commit is in flight the write waits for it to settle, so it never reaches the service ahead of
@@ -408,14 +411,14 @@ class Integration(Resource):
             self._pending[declaration.key] = state
             return
         if self._phase is Phase.COMMITTING and self._commit_task is not None:
-            # Waiting, not awaiting the task: its failure belongs to the caller of ``commit_declarations``, and
+            # Waiting, not awaiting the task: its failure belongs to the caller of ``_commit_declarations``, and
             # cancelling this caller must not cancel the commit.
             await asyncio.wait({self._commit_task})
-            if self.closed:
+            if self._closed:
                 raise IntegrationHandleClosedError(self.instance_name, declaration.key)
-        await self.service.set_state(self, declaration, state)
+        await self._service.set_state(self, declaration, state)
 
-    async def commit_declarations(self) -> "CommitCounts | None":
+    async def _commit_declarations(self) -> "CommitCounts | None":
         """Close the declaration window and commit the declared set with its pending values. Framework-internal.
 
         The window closes and the declared set and pending values are taken in one synchronous step before the
@@ -427,31 +430,45 @@ class Integration(Resource):
         An instance that declared nothing and has nothing committed has nothing to replace, so it writes nothing.
 
         Returns:
-            How the commit changed the instance's set, or ``None`` when there was nothing to commit.
+            How the commit changed the instance's set, or ``None`` when there was nothing to commit or this
+            resource is already closed.
 
         Raises:
             Exception: The commit failed; the instance's last committed set is unchanged.
         """
         declarations = list(self._declarations.values())
-        if not declarations and not self.service.entities(*self.instance_key):
+        if self._closed:
+            return None
+        if not declarations and not self._service.entities(*self.instance_key):
             self._phase = Phase.COMMITTED
             self._pending.clear()
-            self.service.claim(self)
+            self._service.claim(self)
             return None
         self._phase = Phase.COMMITTING
-        self._commit_task = asyncio.create_task(self.commit_and_settle(declarations, dict(self._pending)))
+        self._commit_task = asyncio.create_task(self._commit_and_settle(declarations, dict(self._pending)))
+        self._commit_task.add_done_callback(self._log_unawaited_commit_failure)
         return await asyncio.shield(self._commit_task)
 
-    async def commit_and_settle(
+    def _log_unawaited_commit_failure(self, task: "asyncio.Task[CommitCounts]") -> None:
+        """Consume the commit's failure so it is logged even when the caller stopped waiting (it was cancelled).
+
+        The caller that is still waiting gets the exception from the shield and reports it; this only logs at
+        DEBUG so a commit failing after its caller was cancelled isn't left as "never retrieved".
+        """
+        if task.cancelled() or (exc := task.exception()) is None:
+            return
+        self.logger.debug("Integration commit of app instance '%s/%s' failed", *self.instance_key, exc_info=exc)
+
+    async def _commit_and_settle(
         self, declarations: list[Declaration], pending: Mapping[str, EntityState]
     ) -> "CommitCounts":
-        """Run the commit and move to its resulting phase; run as a task by ``commit_declarations``.
+        """Run the commit and move to its resulting phase; run as a task by ``_commit_declarations``.
 
         A shutdown that lands while the commit is in flight has already closed this resource, so the service
         doesn't make a closed resource the owner of what the commit writes.
         """
         try:
-            counts = await self.service.commit_instance(self, declarations, pending)
+            counts = await self._service.commit_instance(self, declarations, pending)
         except BaseException:
             self._phase = Phase.CLOSED
             raise
@@ -463,6 +480,14 @@ class Integration(Resource):
 
     async def on_shutdown(self) -> None:
         """Close this resource's handles: later reads and writes raise ``IntegrationHandleClosedError``."""
+        self._close()
+
+    def _close(self) -> None:
+        """Close this resource and end its ownership of the instance. Idempotent.
+
+        Runs from its own shutdown, and from the lifecycle when the instance's stop finishes, which covers a
+        walk-away whose teardown never reached this resource. A commit still in flight then lands unowned.
+        """
         self._phase = Phase.CLOSED
         self._pending.clear()
-        self.service.release(self)
+        self._service.release(self)

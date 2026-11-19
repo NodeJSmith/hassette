@@ -350,7 +350,7 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
         # The lifecycle commits an instance's declared entities once initialize() has finished (so after the app
         # resource reaches RUNNING, as here) and before the registry's RUNNING write, which the harness doesn't have.
         # The harness starts the app directly, so it commits here.
-        await app.integration.commit_declarations()
+        await app.integration._commit_declarations()
 
     @staticmethod
     async def _safe_app_shutdown(app: App) -> None:

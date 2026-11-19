@@ -218,10 +218,9 @@ class IntegrationService(Resource):
             (declaration.key, declaration.platform): CommittedEntity(declaration, state)
             for declaration, state in entities
         }
-        if owner.closed:
-            # Shut down while the write was in flight: the set stays, but no closed resource owns it.
-            self._owners.pop(instance, None)
-        else:
+        # A resource shut down while the write was in flight doesn't become the owner: the set stays, owned by
+        # nobody, and a newer resource's claim made meanwhile is left alone.
+        if not owner._closed:
             self._owners[instance] = owner
         self.revision += 1
         new_keys = set(self._entities[instance])
@@ -291,8 +290,9 @@ class IntegrationService(Resource):
     def release(self, owner: "Integration") -> None:
         """End ``owner``'s ownership of its instance, if it still holds it. Its committed state stays.
 
-        Called when the owning ``Integration`` shuts down, so a handle used after that is rejected by ``set_job``
-        and a command for the instance is rejected by ``admit_command``.
+        Called when the owning ``Integration`` shuts down, and again when the lifecycle finishes stopping the
+        instance (covering a walk-away, whose ``Integration`` never shuts down), so a handle used after that is
+        rejected by ``set_job`` and a command for the instance is rejected by ``admit_command``.
         """
         if self.is_owner(owner):
             del self._owners[owner.instance_key]
@@ -362,7 +362,8 @@ class IntegrationService(Resource):
         toggle simulation. A command is admitted when the instance has a live owner (its commit landed and its
         ``Integration`` hasn't shut down) and ``key`` is committed on ``platform``. The owner map, not the app
         registry's status, decides "running": ownership ends in the same step as the instance's shutdown and
-        can't be set by a commit that lands after it.
+        can't be set by a commit that lands after it. A command arriving while the app's own ``on_shutdown`` runs
+        is still admitted, as any bus event is until the app's listeners are removed.
 
         Returns:
             The command event, or ``NOT_RUNNING`` when the instance has no live owner, or ``NOT_DECLARED`` when it

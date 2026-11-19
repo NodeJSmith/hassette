@@ -81,7 +81,7 @@ write (`fail_needs_restart()`)? Does a new path that creates an instance go thro
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
 whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged name? Does `initialize_instance` keep
 all three `admits_init` checks, one before the STARTING write, one before `initialize()`, and one before
-`inst.integration.commit_declarations()` (between `initialize()` and the RUNNING write), with no `await` between a
+`inst.integration._commit_declarations()` (between `initialize()` and the RUNNING write), with no `await` between a
 check and the step it gates? That gate covers `(app_key, name)` only: a renamed instance
 or a name moved to another app passes it by design (see the `refusal_reason` docstring).
 

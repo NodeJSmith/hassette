@@ -148,7 +148,7 @@ class AppInstanceLifecycleMixin:
             return
         try:
             # Outside the startup timeout and shielded inside, so the commit's outcome is always known (spec 157 D10).
-            await inst.integration.commit_declarations()
+            await inst.integration._commit_declarations()
         except Exception as exc:
             self.logger.exception(
                 "Failed to commit the declared entities of app '%s' (%s)", inst.instance_name, class_name
@@ -334,6 +334,10 @@ class AppInstanceLifecycleMixin:
             )
             return outcome
         finally:
+            # Every stop closes the instance's ``Integration``, including a walk-away or a raised teardown that never
+            # reached its own shutdown, so no command or write is admitted after it, even from a commit still in
+            # flight.
+            inst.integration._close()
             structlog.contextvars.unbind_contextvars("app_key", "instance_name")
             # An instance no longer registered (its entry FAILED or removed) is out of reach of ``off``, yet its
             # loggers are process-global and keyed by name, so return them to config here, even when its teardown

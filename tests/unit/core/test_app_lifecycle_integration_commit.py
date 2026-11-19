@@ -12,7 +12,7 @@ from hassette.schemas.app_outcomes import OutcomeResult
 from tests.support.app_registry_helpers import seed_failed, seed_running
 from tests.support.outcomes import AnyNameOutcomes
 
-from .conftest import failure_writes
+from .conftest import failure_writes, status_writes
 
 
 async def test_commit_runs_after_initialize_and_before_running(
@@ -26,7 +26,7 @@ async def test_commit_runs_after_initialize_and_before_running(
     async def commit() -> None:
         seen.append(("commit", registry.get_status("test_app", "test_instance")))
 
-    mock_app_instance.integration.commit_declarations = AsyncMock(side_effect=commit)
+    mock_app_instance.integration._commit_declarations = AsyncMock(side_effect=commit)
     outcomes = AnyNameOutcomes()
 
     with patch.object(app_lifecycle_instances, "mark_ready"):
@@ -38,23 +38,21 @@ async def test_commit_runs_after_initialize_and_before_running(
     assert outcome.result is OutcomeResult.SUCCEEDED
 
 
-async def test_failed_commit_fails_the_instance_and_runs_its_shutdown_hooks(
-    lifecycle_service: AppLifecycleService,
-    mock_app_instance: AsyncMock,
-    mock_registry: MagicMock,
-    caplog: pytest.LogCaptureFixture,
+async def test_failed_commit_fails_the_instance_and_never_marks_it_running(
+    lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_registry: MagicMock
 ) -> None:
     error = OSError("disk full")
-    mock_app_instance.integration.commit_declarations = AsyncMock(side_effect=error)
+    mock_app_instance.integration._commit_declarations = AsyncMock(side_effect=error)
+    outcomes = AnyNameOutcomes()
 
     with patch.object(app_lifecycle_instances, "mark_ready"):
-        await lifecycle_service.initialize_instance(mock_app_instance, "TestApp", outcomes=AnyNameOutcomes())
+        await lifecycle_service.initialize_instance(mock_app_instance, "TestApp", outcomes=outcomes)
 
-    mock_app_instance.shutdown.assert_awaited_once()
-    assert getattr(mock_app_instance, "_skip_own_shutdown_hooks", False) is not True
     [write] = failure_writes(mock_registry)
     assert write.kwargs["error"] is error
-    assert "Failed to commit the declared entities" in caplog.text
+    assert ResourceStatus.RUNNING not in [status for _, status in status_writes(mock_registry)]
+    [outcome] = outcomes.snapshot()
+    assert outcome.result is OutcomeResult.FAILED
 
 
 @pytest.mark.parametrize(
@@ -77,9 +75,9 @@ async def test_an_instance_stopped_during_init_gets_no_commit(
     registry = real_registry_service.registry
     seed_running(registry, "test_app", mock_app_instance, status=ResourceStatus.NOT_STARTED)
     mock_app_instance.initialize.side_effect = lambda: stop(registry)
-    mock_app_instance.integration.commit_declarations = AsyncMock()
+    mock_app_instance.integration._commit_declarations = AsyncMock()
 
     with patch.object(app_lifecycle_instances, "mark_ready"):
         await real_registry_service.initialize_instance(mock_app_instance, "TestApp", outcomes=AnyNameOutcomes())
 
-    mock_app_instance.integration.commit_declarations.assert_not_awaited()
+    mock_app_instance.integration._commit_declarations.assert_not_awaited()

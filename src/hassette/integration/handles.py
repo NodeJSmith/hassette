@@ -62,7 +62,7 @@ class IntegrationStatefulHandle(IntegrationEntityHandle):
         Raises:
             IntegrationHandleClosedError: The instance has stopped, or its declarations failed to commit.
         """
-        return self._integration.read_state(self.declaration)
+        return self._integration._read_state(self.declaration)
 
     @property
     def attributes(self) -> Mapping[str, Any]:
@@ -104,7 +104,7 @@ class IntegrationSwitch(IntegrationStatefulHandle):
             ValueError: ``on`` isn't a bool, or ``attributes`` isn't JSON-serializable.
             IntegrationHandleClosedError: The instance has stopped, or its declarations failed to commit.
         """
-        await self._integration.set_state(self.declaration, on, attributes)
+        await self._integration._set_state(self.declaration, on, attributes)
 
 
 class IntegrationSensor(IntegrationStatefulHandle):
@@ -133,4 +133,4 @@ class IntegrationSensor(IntegrationStatefulHandle):
             ValueError: The declaration rejects ``value``, or ``attributes`` isn't JSON-serializable.
             IntegrationHandleClosedError: The instance has stopped, or its declarations failed to commit.
         """
-        await self._integration.set_state(self.declaration, value, attributes)
+        await self._integration._set_state(self.declaration, value, attributes)
