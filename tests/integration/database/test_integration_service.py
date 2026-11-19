@@ -12,7 +12,7 @@ import pytest
 
 from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
-from hassette.core.integration_service import CommandDispatchResult, IntegrationService
+from hassette.core.integration_service import CommandDispatchResult, CommitCounts, IntegrationService
 from hassette.integration import Integration, IntegrationSensor
 from hassette.integration.declarations import Declaration, EntityState, IntegrationPlatform
 from hassette.integration.errors import IntegrationDeclarationClosedError, IntegrationHandleClosedError
@@ -237,10 +237,7 @@ async def test_command_after_a_commit_that_lands_after_shutdown_is_not_running(
     await integration.add_button("feed", name="Feed", on_press=async_noop)
     hassette = cast("MagicMock", db.hassette)
     hassette.send_event = AsyncMock()
-    entered, release = gate(service, "persist_instance_set", monkeypatch)
-
-    commit = asyncio.create_task(integration._commit_declarations())
-    await asyncio.wait_for(entered.wait(), timeout=1)
+    commit, release = await hold_commit(service, integration, monkeypatch)
     await integration.on_shutdown()
     release.set()
     await commit
@@ -316,6 +313,16 @@ def gate(target: Any, name: str, monkeypatch: pytest.MonkeyPatch) -> tuple[async
     return entered, release
 
 
+async def hold_commit(
+    service: IntegrationService, integration: Integration, monkeypatch: pytest.MonkeyPatch
+) -> tuple[asyncio.Task[CommitCounts | None], asyncio.Event]:
+    """Start ``integration``'s commit and hold its write at the start; returns ``(commit task, release)``."""
+    entered, release = gate(service, "persist_instance_set", monkeypatch)
+    commit = asyncio.create_task(integration._commit_declarations())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    return commit, release
+
+
 async def flush_writer(db: DatabaseService) -> None:
     """Wait until every write queued before this call has run."""
     await db.submit(async_noop())
@@ -325,10 +332,7 @@ async def test_commit_lands_when_its_caller_is_cancelled(db: DatabaseService, mo
     service = await start_service(db)
     integration = make_integration(service)
     temp = await declare_temp(integration, 21.5)
-    entered, release = gate(service, "persist_instance_set", monkeypatch)
-
-    task = asyncio.create_task(integration._commit_declarations())
-    await asyncio.wait_for(entered.wait(), timeout=1)
+    task, release = await hold_commit(service, integration, monkeypatch)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
@@ -409,10 +413,7 @@ async def test_stop_during_the_commit_keeps_the_set_and_closes_the_handles(
     service = await start_service(db)
     integration = make_integration(service)
     temp = await declare_temp(integration, 5)
-    entered, release = gate(service, "persist_instance_set", monkeypatch)
-
-    task = asyncio.create_task(integration._commit_declarations())
-    await asyncio.wait_for(entered.wait(), timeout=1)
+    task, release = await hold_commit(service, integration, monkeypatch)
     await integration.on_shutdown()
     with pytest.raises(IntegrationHandleClosedError):
         await temp.set(7)
@@ -516,10 +517,7 @@ async def test_set_waiting_on_a_commit_when_the_instance_stops_raises_closed(
     service = await start_service(db)
     integration = make_integration(service)
     temp = await declare_temp(integration, 1)
-    entered, release = gate(service, "persist_instance_set", monkeypatch)
-
-    commit = asyncio.create_task(integration._commit_declarations())
-    await asyncio.wait_for(entered.wait(), timeout=1)
+    commit, release = await hold_commit(service, integration, monkeypatch)
     write = asyncio.create_task(temp.set(2))
     await asyncio.sleep(0)
     await integration.on_shutdown()
@@ -537,10 +535,7 @@ async def test_read_during_the_commit_returns_the_value_set_during_init(
     service = await start_service(db)
     integration = make_integration(service)
     temp = await declare_temp(integration, 21.5)
-    entered, release = gate(service, "persist_instance_set", monkeypatch)
-
-    commit = asyncio.create_task(integration._commit_declarations())
-    await asyncio.wait_for(entered.wait(), timeout=1)
+    commit, release = await hold_commit(service, integration, monkeypatch)
     assert temp.value == 21.5
     release.set()
     await commit
