@@ -32,13 +32,13 @@ if TYPE_CHECKING:
     from hassette.task_bucket import TaskBucket
 
 
-FRAMEWORK_APP_KEY = "__hassette__"
+FRAMEWORK_APP_KEY: Final = "__hassette__"
 """Reserved app_key for framework-internal listeners and jobs.
 
 Referenced in SQL constraints and in Python guards throughout the codebase.
 All non-SQL usages should reference this constant or use ``is_framework_key()``."""
 
-FRAMEWORK_APP_KEY_PREFIX = "__hassette__."
+FRAMEWORK_APP_KEY_PREFIX: Final = f"{FRAMEWORK_APP_KEY}."
 """Prefix for component-specific framework keys (e.g. ``'__hassette__.scheduler_service'``).
 
 The trailing dot distinguishes the prefix from the bare sentinel so that
@@ -63,10 +63,10 @@ ERROR_AND_ABOVE_LEVEL_NAMES: tuple[LogLevel, ...] = tuple(name for name, value i
 """The level names whose numeric value is at or above ``ERROR``, in ``LOG_LEVELS`` order."""
 
 
-IfExistsPolicy = Literal["error", "skip", "replace"]
+IfExistsPolicy: TypeAlias = Literal["error", "skip", "replace"]
 """Collision policy for listener/job registration when a matching name already exists."""
 
-BlockingAttributionReason = Literal["attributed", "framework", "displaced"]
+BlockingAttributionReason: TypeAlias = Literal["attributed", "framework", "displaced"]
 """Why a blocking event's ``app_key`` is what it is. All non-``"attributed"`` reasons have a NULL
 ``app_key``. ``"attributed"`` — the named app's task was the one frozen on / calling from the loop.
 ``"framework"`` — no app execution was responsible: Tier 2 had no marker bound (a genuine
@@ -78,7 +78,7 @@ frozen/calling, so the app_key was withheld rather than blaming the most-recentl
 def is_framework_key(app_key: str | None) -> bool:
     """Return True if *app_key* is a framework-reserved key.
 
-    Matches both the legacy bare key ``'__hassette__'`` and any key with the
+    Matches both the bare key ``'__hassette__'`` and any key with the
     component prefix ``'__hassette__.'``.
 
     Args:
@@ -93,7 +93,7 @@ def framework_display_name(app_key: str) -> str:
     """Return a human-readable display name for a framework app key.
 
     For prefixed keys (e.g. ``'__hassette__.scheduler_service'``) returns the
-    component slug (``'scheduler_service'``).  For the bare legacy key
+    component slug (``'scheduler_service'``).  For the bare key
     ``'__hassette__'`` returns ``'framework'``.
 
     Args:
@@ -105,7 +105,7 @@ def framework_display_name(app_key: str) -> str:
 
 
 CoroT = TypeVar("CoroT")
-CoroLikeT = Coroutine[Any, Any, CoroT]
+CoroLikeT: TypeAlias = Coroutine[Any, Any, CoroT]
 """A coroutine returning a value of type CoroT."""
 
 
@@ -141,7 +141,7 @@ WhereClause: TypeAlias = Predicate | Sequence[Predicate] | None
 """Type alias for the ``where=`` parameter on bus subscription methods."""
 
 
-SchedulerPredicate = Callable[..., bool]
+SchedulerPredicate: TypeAlias = Callable[..., bool]
 """Synchronous callable used as a scheduler ``where=`` gate.
 
 Dispatch arity is determined by the shared DI layer (``hassette.di``): a parameter
@@ -151,7 +151,7 @@ predicates (including lambdas) are called with zero arguments. Async callables r
 
 
 class Condition(Protocol[V_contra]):
-    """Alias for a condition callable that takes a value or FalseySentinel and returns a bool."""
+    """Protocol for a condition callable that takes a value or FalseySentinel and returns a bool."""
 
     def __call__(self, value: V_contra, /) -> bool:
         """Return True when the value (or FalseySentinel for a missing value) satisfies this condition."""
@@ -170,19 +170,9 @@ class ComparisonCondition(Protocol[V_contra]):
 class TriggerProtocol(Protocol):
     """Protocol for defining triggers.
 
-    Six methods make up the contract:
-    - first_run_time: returns the first scheduled run time given the current time
-    - next_run_time: returns the next run time after a previous run, or None for one-shot triggers
-    - trigger_label: short stable label for telemetry / UI display
-    - trigger_detail: optional human-readable detail string
-    - trigger_db_type: canonical type string for database storage
-    - trigger_id: stable string identifier used for deduplication
-
-    ``first_run_time()``/``next_run_time()`` additionally accommodate the ``_WaitingSentinel``
-    (``hassette.scheduler.triggers.WAITING``) that ``EntityTime`` returns when its source
-    entity currently reports no usable time. Every built-in non-``EntityTime`` trigger keeps
-    returning its narrower original type — a narrower return type is compatible with this
-    wider protocol declaration.
+    ``first_run_time()``/``next_run_time()`` may return ``WAITING``
+    (``hassette.scheduler.triggers.WAITING``) when a trigger has no usable time yet;
+    implementations may declare a narrower return type.
     """
 
     def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
@@ -321,8 +311,7 @@ class AsyncHandlerType(Protocol):
         ...
 
 
-# Type aliases for any valid handler
-HandlerType = SyncHandler | AsyncHandlerType
+HandlerType: TypeAlias = SyncHandler | AsyncHandlerType
 """Type representing all valid handler types (sync or async)."""
 
 ChangeType = TypeAliasType(
@@ -332,7 +321,7 @@ ChangeType = TypeAliasType(
 )
 """Type representing a value that can be used to specify changes in predicates."""
 
-JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
+JobCallable: TypeAlias = Callable[..., Any]
 """Type representing a callable that can be scheduled as a job."""
 
 ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | TimeDelta | int | float | None
