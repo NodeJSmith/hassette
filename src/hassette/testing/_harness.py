@@ -322,7 +322,13 @@ class HassetteHarness:
                     changed = True
 
     async def __aenter__(self) -> "HassetteHarness":
-        await self.start()
+        # Python skips __aexit__ when __aenter__ raises, so undo a partial start here —
+        # otherwise HASSETTE_INSTANCE, the timezone and the task factory leak to later tests.
+        try:
+            await self.start()
+        except BaseException:
+            await self.stop()
+            raise
 
         assert self.hassette._loop is not None, "Event loop is not running"
         assert self.hassette._loop.is_running(), "Event loop is not running"
@@ -470,6 +476,13 @@ class HassetteHarness:
             with collect_shutdown_errors(shutdown_errors):
                 self.hassette._loop_watchdog.stop()
             self.hassette._loop_watchdog = None
+
+        # A bus that never entered its drain loop (startup failed first) never closes its receive
+        # clone itself. Close it before teardown, as Hassette._fail_startup() does; a draining bus
+        # keeps its streams open, so this is a no-op after a normal start.
+        if self.hassette._bus_service is not None:
+            with collect_shutdown_errors(shutdown_errors):
+                await self.hassette._bus_service.close_streams_unless_draining()
 
         # Shut down in reverse order so dependents stop before their dependencies.
         for resource in reversed(self.hassette.children):

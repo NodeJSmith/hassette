@@ -260,7 +260,7 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
 
         try:
             await self._setup(exit_stack)
-        except Exception:
+        except BaseException:
             await exit_stack.aclose()
             self._exit_stack = None
             raise
@@ -296,9 +296,11 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
         )
         self._harness = harness
 
-        # Step 6: Start harness — registers stop() as teardown (early registration = late unwind)
-        await harness.start()
+        # Step 6: Start harness. stop() is registered before start() so a start that fails
+        # partway (e.g. a readiness timeout) still restores the task factory, timezone and
+        # watchdog it already changed — stop() tolerates a partially started harness.
         exit_stack.push_async_callback(harness.stop)
+        await harness.start()
 
         # Step 7: Set global hassette ContextVar — use context.use() so cleanup is always
         # registered unconditionally. set_global_hassette() returns None when the same
