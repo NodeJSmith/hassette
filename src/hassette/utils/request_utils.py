@@ -39,7 +39,12 @@ def format_time_param(value: PlainDateTime | ZonedDateTime | Date | str) -> str:
 
 
 def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
-    """Converts values to strings where needed and removes keys with None values."""
+    """Normalize request parameters and drop empty ones.
+
+    Booleans become ``"true"``/``"false"``, dates and times become ISO strings, ints, floats and strings pass
+    through unchanged, and other objects are stringified. ``None`` and blank strings are dropped at every depth,
+    inside mappings and lists as well as at the top level.
+    """
 
     def clean_value(val: Any) -> Any:
         if val is None:
@@ -63,10 +68,10 @@ def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
             return val.isoformat()
 
         if isinstance(val, Mapping):
-            return {k: clean_value(v) for k, v in val.items() if v is not None}
+            return {k: cleaned for k, v in val.items() if (cleaned := clean_value(v)) is not None}
 
         if isinstance(val, Iterable) and not isinstance(val, str | bytes):
-            return [clean_value(v) for v in val if v is not None]
+            return [cleaned for v in val if (cleaned := clean_value(v)) is not None]
 
         return str(val)
 
