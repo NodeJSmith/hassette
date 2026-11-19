@@ -1,6 +1,6 @@
 """A failed commit of an instance's declared entities, through a real app and the real lifecycle (spec 157 D10)."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import pytest
@@ -17,7 +17,7 @@ from tests.support.outcomes import AnyNameOutcomes
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    from hassette import HassetteConfig
+    from hassette import App, AppConfig, HassetteConfig
     from hassette.testing import HassetteHarness
     from tests.data.apps.integration_commit_app import IntegrationCommitApp
 
@@ -35,7 +35,7 @@ async def harness(
 
 async def run_instance(
     harness: "HassetteHarness", registry: AppRegistry, lifecycle: AppLifecycleService
-) -> "tuple[IntegrationCommitApp, AnyNameOutcomes]":
+) -> "tuple[App[AppConfig], AnyNameOutcomes]":
     """Create and initialize the app's one instance, returning it."""
     manifest = make_test_app_manifest(APP_KEY, "integration_commit_app.py", "IntegrationCommitApp")
     registry.set_manifests({APP_KEY: manifest})
@@ -68,8 +68,9 @@ async def test_failed_commit_runs_shutdown_hook_fails_instance_and_keeps_the_com
     revision = service.revision
 
     with patch.object(service, "persist_instance_set", side_effect=OSError("disk full")):
-        second, outcomes = await run_instance(harness, registry, lifecycle)
+        second_app, outcomes = await run_instance(harness, registry, lifecycle)
 
+    second = cast("IntegrationCommitApp", second_app)
     assert second.shutdown_hook_ran
     assert isinstance(second.shutdown_set_error, IntegrationHandleClosedError)
     assert second.shutdown_set_error.key == "temp"
