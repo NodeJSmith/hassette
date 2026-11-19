@@ -1,3 +1,4 @@
+import functools
 import inspect
 import typing
 from collections.abc import Callable, Iterable
@@ -167,13 +168,15 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     """Return the callable's signature with string and forward-reference parameter annotations resolved.
 
-    Annotations are evaluated against the callable's module globals. The returned signature has no return annotation.
+    Annotations are evaluated against the globals of the function the signature comes from: ``functools.partial``
+    and ``__wrapped__`` chains are followed, and a callable instance resolves against its ``__call__``'s module.
+    The returned signature has no return annotation.
 
     Raises:
         TypeError: If an annotation cannot be resolved.
     """
     signature = inspect.signature(call)
-    globalns = getattr(call, "__globals__", {})
+    globalns = getattr(signature_source(call), "__globals__", {})
     typed_params = [
         inspect.Parameter(
             name=param.name,
@@ -185,6 +188,20 @@ def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     ]
     typed_signature = inspect.Signature(typed_params)
     return typed_signature
+
+
+def signature_source(call: Callable[..., Any]) -> Any:
+    """Return the function ``inspect.signature`` reads ``call``'s parameters from.
+
+    Follows ``functools.partial`` and ``__wrapped__`` chains; a callable instance resolves to its type's ``__call__``.
+    """
+    target: Any = call
+    while isinstance(target, functools.partial):
+        target = target.func
+    target = inspect.unwrap(target)
+    if not (inspect.isfunction(target) or inspect.ismethod(target)) and callable(target):
+        target = inspect.unwrap(type(target).__call__)
+    return target
 
 
 def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
