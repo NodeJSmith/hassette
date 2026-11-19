@@ -25,7 +25,7 @@ from hassette.integration.declarations import (
     IntegrationPlatform,
     decode_value,
     default_state,
-    fits,
+    resolve_state,
 )
 from hassette.integration.errors import IntegrationHandleClosedError
 from hassette.resources.base import Resource
@@ -252,14 +252,11 @@ class IntegrationService(Resource):
         A restored value the new declaration rejects is reset to the default (a sensor's unknown), with a WARNING
         (spec 157 D12).
         """
-        if declaration.platform is IntegrationPlatform.BUTTON:
-            return EntityState()
-        if (state := pending.get(declaration.key)) is not None:
+        state, reset = resolve_state(
+            declaration, pending.get(declaration.key), None if existing is None else existing.state
+        )
+        if not reset or existing is None:
             return state
-        if existing is None:
-            return default_state(declaration)
-        if fits(declaration, existing.state.value):
-            return existing.state
         self.logger.warning(
             "Restored value %r of %s '%s' (app instance '%s/%s') doesn't fit its changed declaration; reset",
             existing.state.value,
@@ -268,14 +265,26 @@ class IntegrationService(Resource):
             *instance,
             extra={"app_key": instance[0], "instance_name": instance[1], "key": declaration.key},
         )
-        return default_state(declaration)
+        return state
+
+    def is_owner(self, owner: "Integration") -> bool:
+        """Whether ``owner`` holds its instance's committed set: it committed last and hasn't released it."""
+        return self._owners.get((owner.app_key, owner.instance_name)) is owner
+
+    def release(self, owner: "Integration") -> None:
+        """End ``owner``'s ownership of its instance, if it still holds it. Its committed state stays.
+
+        Called when the owning ``Integration`` shuts down, so a handle used after that is rejected by ``set_job``.
+        """
+        if self.is_owner(owner):
+            del self._owners[(owner.app_key, owner.instance_name)]
 
     async def set_state(self, owner: "Integration", declaration: Declaration, state: EntityState) -> None:
         """Write one committed entity's state, as one write job.
 
         Raises:
-            IntegrationHandleClosedError: ``owner`` isn't the instance whose declarations are committed (its commit
-                failed, or a newer instance replaced it).
+            IntegrationHandleClosedError: ``owner`` doesn't hold its instance's committed set: its commit failed,
+                or it has shut down.
             Exception: The write failed; memory is unchanged.
         """
         await self.run_write(self.set_job(owner, declaration, state))
@@ -284,9 +293,7 @@ class IntegrationService(Resource):
         """``set()``'s write job: a no-op if nothing changed, else write the row, then update memory."""
         instance = (owner.app_key, owner.instance_name)
         current = self.committed(instance, declaration)
-        # The second closed-handle check, after ``Integration.set_state``'s lifecycle-status one: that catches a
-        # shut-down owner, this catches an owner whose commit failed or that a newer instance replaced.
-        if self._owners.get(instance) is not owner or current is None:
+        if not self.is_owner(owner) or current is None:
             raise IntegrationHandleClosedError(owner.instance_name, declaration.key)
         if current.state == state:
             return
@@ -325,14 +332,24 @@ class IntegrationService(Resource):
 
         if self.hassette.app_handler.registry.get_status(app_key, instance_name) is not ResourceStatus.RUNNING:
             return self.reject_command(CommandDispatchResult.NOT_RUNNING, app_key, instance_name, key, resolved)
-        if (key, resolved) not in self._entities.get((app_key, instance_name), {}):
+        event = self.command_event(app_key, instance_name, key, resolved, value)
+        if event is None:
             return self.reject_command(CommandDispatchResult.NOT_DECLARED, app_key, instance_name, key, resolved)
-        await self.hassette.send_event(
-            IntegrationCommandEvent.create(
-                app_key=app_key, instance_name=instance_name, key=key, platform=str(resolved), value=value
-            )
-        )
+        await self.hassette.send_event(event)
         return CommandDispatchResult.DISPATCHED
+
+    def command_event(
+        self, app_key: str, instance_name: str, key: str, platform: IntegrationPlatform, value: bool | None
+    ) -> IntegrationCommandEvent | None:
+        """The command event for a committed button or switch, or ``None`` if the instance has no such entity.
+
+        Shared by ``dispatch_command`` and the test harness's press and toggle simulation.
+        """
+        if (key, platform) not in self._entities.get((app_key, instance_name), {}):
+            return None
+        return IntegrationCommandEvent.create(
+            app_key=app_key, instance_name=instance_name, key=key, platform=str(platform), value=value
+        )
 
     def reject_command(
         self,

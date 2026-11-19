@@ -81,9 +81,8 @@ class IntegrationSimulationMixin:
     def command_event(self, key: str, platform: IntegrationPlatform, value: bool | None) -> IntegrationCommandEvent:
         """Build the command event for one of the app's committed buttons or switches."""
         app = self.require_app()
-        declared = {(entity.declaration.key, entity.declaration.platform) for entity in self.integration_entities}
-        if (key, platform) not in declared:
+        service = self.require_harness().integration_service
+        event = service.command_event(app.app_key, app.instance_name, key, platform, value)
+        if event is None:
             raise ValueError(f"app instance {app.instance_name!r} declared no {platform} with key {key!r}")
-        return IntegrationCommandEvent.create(
-            app_key=app.app_key, instance_name=app.instance_name, key=key, platform=str(platform), value=value
-        )
+        return event

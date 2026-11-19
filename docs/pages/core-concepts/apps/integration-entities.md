@@ -67,7 +67,9 @@ Hassette stores each switch's and sensor's state in its database and restores it
 
 A restored sensor value that no longer fits a changed declaration, such as a number on a sensor that became an enum, resets to `unknown` with a warning in the log.
 
-After the instance stops, `set()` on its handles raises `IntegrationHandleClosedError`. A task that outlives a reload can't overwrite the state of the instance that replaced it.
+A handle's `state` and `attributes` are copies. Changing them changes nothing until they're passed to `set()`.
+
+After the instance stops, reading or setting its handles' state raises `IntegrationHandleClosedError`, as it does when the instance's declarations fail to commit. A task that outlives a reload can't read or overwrite the state of the instance that replaced it.
 
 ## Keys and Entity IDs
 

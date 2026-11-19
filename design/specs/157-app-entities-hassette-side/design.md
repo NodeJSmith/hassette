@@ -1,7 +1,7 @@
 # Design: App instances declare Home Assistant buttons, switches and sensors (hassette side)
 
 **Date:** 2026-11-19
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4218
 **Parent:** design/specs/155-hacs-app-entities/design.md
@@ -519,7 +519,7 @@ Facts about the code:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
@@ -527,11 +527,14 @@ Facts about the code:
 - Keys are unique per instance across all three platforms (parent D11), which keeps listener names `integration.<platform>.<key>` unambiguous.
 - A failed running-time commit runs the app's own shutdown hooks: `on_initialize` finished, so its cleanup applies, unlike a failed init.
 - The admission re-check before the commit records its outcome the way `admits_init` already does (failed "stopped before init", or refused).
-- The service records which `Integration` committed each instance; a `set()` whose owner isn't that one raises `IntegrationHandleClosedError` inside its write job. This covers D10.6 (a `set()` queued behind a commit that failed) even when the previous run's row still exists, and a task leaked past a reload.
+- Handle ownership is one rule (ship-time challenge): the service records which `Integration` committed each instance, and that `Integration` releases it when it shuts down. A `set()` whose owner doesn't hold the set raises `IntegrationHandleClosedError` inside its write job, which covers D10.6 (a `set()` queued behind a commit that failed) even when the previous run's row still exists, and a task leaked past a reload. `Integration` tracks its own phase (declaring, committing, committed, closed); a closed one's reads raise too. This replaces the Summary's "checked against that resource's lifecycle status": shutdown releases ownership, so the effect is the same.
+- An instance that declares nothing and has nothing committed skips the commit: no write, revision bump or log line (ship-time challenge). An instance that had a set and now declares none still commits, so its rows go.
+- Attributes are stored as a JSON round-trip copy, and a handle hands out copies, so mutating either side can't change committed state without a write (ship-time challenge). The identical-`set()` check stays Python `==`, as Home Assistant's own state machine does.
+- D12's precedence (pending, else restored if it fits, else default) lives in one `resolve_state` in `declarations.py`, used by the handle's read during init and by the commit.
 - A D12 reset sets the default state (a sensor's unknown, a switch's `initial`) and clears the attributes, which described the dropped value.
 - During init a handle applies the D12 check to its restored value too, so it never reads a value its own declaration rejects.
 - A stored value that doesn't parse loads as the default state with a WARNING.
-- The table keeps a switch's `initial` in its own column, per D4's "typed columns for every field", though nothing reads it back.
+- The table keeps a switch's `initial` in its own column, per D4's "typed columns for every field". It is read back only when a stored value doesn't parse: such a switch restores to its previously declared `initial`, which the next commit keeps.
 - The harness press/toggle helpers live on a new `IntegrationSimulationMixin`: `_simulation.py` is already past the file-size limit.
 - The two errors live in `hassette.integration.errors` (exported from `hassette`), since `exceptions.py` is at the 800-line limit.
 - A sensor with no numeric, enum, timestamp or date shape accepts only `str` (D5's "else string"); a numeric sensor rejects non-finite numbers, which a JSON scalar can't carry.

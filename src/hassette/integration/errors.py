@@ -26,13 +26,13 @@ class IntegrationDeclarationClosedError(HassetteError):
 
 
 class IntegrationHandleClosedError(HassetteError):
-    """Raised by a handle's ``set()`` once the instance that declared it has stopped.
+    """Raised by a handle's ``set()`` or state read once the instance that declared it has stopped.
 
-    Stops a task that outlived its instance (for example, across a reload) from overwriting the state of the
-    instance that replaced it.
+    Also raised when the instance's declarations failed to commit. Stops a task that outlived its instance (for
+    example, across a reload) from reading or overwriting the state of the instance that replaced it.
 
     Attributes:
-        instance_name: The stopped instance.
+        instance_name: The instance that declared the handle.
         key: The handle's key.
     """
 

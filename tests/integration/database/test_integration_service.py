@@ -1,6 +1,8 @@
 """IntegrationService against a real SQLite database (spec 157 D4, D10, D12, D13, parent D13)."""
 
+import asyncio
 import logging
+from collections.abc import Coroutine
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -9,10 +11,14 @@ import aiosqlite
 import pytest
 from hassette_wire import ResourceStatus
 
+from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
 from hassette.core.integration_service import CommandDispatchResult, IntegrationService
+from hassette.integration import Integration, IntegrationSensor
 from hassette.integration.declarations import Declaration, EntityState, IntegrationPlatform
 from hassette.integration.errors import IntegrationHandleClosedError
+from hassette.testing import wait_for
+from tests.support.factories import make_app
 
 FEED = Declaration(key="feed", platform=IntegrationPlatform.BUTTON, name="Feed")
 SHOW = Declaration(key="show", platform=IntegrationPlatform.SWITCH, name="Show", initial=True)
@@ -206,3 +212,220 @@ async def test_dispatch_checks_running_and_declared(db: DatabaseService) -> None
         await service.dispatch_command("my_app", "kitchen", "show", "switch")
     with pytest.raises(ValueError, match="no commands"):
         await service.dispatch_command("my_app", "kitchen", "temp", "sensor")
+
+
+def make_integration(service: IntegrationService) -> Integration:
+    """A real ``Integration`` for instance ``my_app/kitchen``, on a bare app whose hassette points at ``service``."""
+    app = make_app(app_key="my_app", instance_name="kitchen")
+    cast("Any", app.hassette).integration_service = service
+    return app.integration
+
+
+async def declare_temp(integration: Integration, value: float | None = None) -> IntegrationSensor:
+    sensor = await integration.add_sensor("temp", name="Temp", unit="°C", device_class="temperature")
+    if value is not None:
+        await sensor.set(value)
+    return sensor
+
+
+def gate(target: Any, name: str, monkeypatch: pytest.MonkeyPatch) -> tuple[asyncio.Event, asyncio.Event]:
+    """Hold ``target.name`` (an async method) at its start; returns ``(entered, release)``."""
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = getattr(target, name)
+
+    async def held(*args: Any) -> Any:
+        entered.set()
+        await release.wait()
+        return await original(*args)
+
+    monkeypatch.setattr(target, name, held)
+    return entered, release
+
+
+async def flush_writer(db: DatabaseService) -> None:
+    """Wait until every write queued before this call has run."""
+
+    async def noop() -> None:
+        pass
+
+    await db.submit(noop())
+
+
+async def test_commit_lands_when_its_caller_is_cancelled(db: DatabaseService, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 21.5)
+    entered, release = gate(service, "persist_instance_set", monkeypatch)
+
+    task = asyncio.create_task(integration.commit_declarations())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    release.set()
+
+    await wait_for(lambda: service.is_owner(integration), desc="commit landed")
+    assert temp.value == 21.5
+    assert await stored_rows(db) == [("kitchen", "temp", "sensor", "21.5", "{}")]
+
+
+async def test_started_set_takes_effect_when_its_caller_is_cancelled(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration)
+    await integration.commit_declarations()
+    entered, release = gate(service, "persist_state", monkeypatch)
+
+    task = asyncio.create_task(temp.set(30))
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    release.set()
+    await flush_writer(db)
+
+    assert temp.value == 30
+    assert await stored_rows(db) == [("kitchen", "temp", "sensor", "30", "{}")]
+
+
+async def test_queued_set_is_withdrawn_when_its_caller_is_cancelled(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 1)
+    await integration.commit_declarations()
+
+    busy, free = asyncio.Event(), asyncio.Event()
+
+    async def occupy_writer() -> None:
+        busy.set()
+        await free.wait()
+
+    blocker = asyncio.create_task(db.submit(occupy_writer()))
+    await asyncio.wait_for(busy.wait(), timeout=1)
+    submitted = asyncio.Event()
+    run_write = service.run_write
+
+    async def signalled_run_write(coro: Coroutine[Any, Any, Any]) -> Any:
+        submitted.set()
+        return await run_write(coro)
+
+    monkeypatch.setattr(service, "run_write", signalled_run_write)
+    task = asyncio.create_task(temp.set(99))
+    await asyncio.wait_for(submitted.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    free.set()
+    await blocker
+    await flush_writer(db)
+
+    assert temp.value == 1
+    assert await stored_rows(db) == [("kitchen", "temp", "sensor", "1", "{}")]
+
+
+async def test_concurrent_sets_leave_memory_equal_to_the_stored_row(db: DatabaseService) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration)
+    await integration.commit_declarations()
+
+    await asyncio.gather(*(temp.set(value) for value in range(10)))
+
+    [row] = await stored_rows(db)
+    assert row[3] == str(temp.value)
+
+
+async def test_stop_during_the_commit_keeps_the_set_and_closes_the_handles(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 5)
+    entered, release = gate(service, "persist_instance_set", monkeypatch)
+
+    task = asyncio.create_task(integration.commit_declarations())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    await integration.on_shutdown()
+    with pytest.raises(IntegrationHandleClosedError):
+        await temp.set(7)
+    release.set()
+    await task
+
+    assert [entity.state.value for entity in service.entities("my_app", "kitchen")] == [5]
+    assert not service.is_owner(integration)
+    with pytest.raises(IntegrationHandleClosedError):
+        _ = temp.value
+    with pytest.raises(IntegrationHandleClosedError):
+        await temp.set(6)
+
+
+async def test_failed_commit_closes_the_handles_and_discards_pending_values(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 5)
+
+    async def fail(*_: Any) -> None:
+        raise aiosqlite.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(service, "persist_instance_set", fail)
+    with pytest.raises(aiosqlite.OperationalError):
+        await integration.commit_declarations()
+    monkeypatch.undo()
+
+    with pytest.raises(IntegrationHandleClosedError):
+        _ = temp.value
+    with pytest.raises(IntegrationHandleClosedError):
+        await temp.set(6)
+
+    retried = make_integration(service)
+    retried_temp = await declare_temp(retried)
+    await retried.commit_declarations()
+    assert retried_temp.value is None
+
+
+async def test_instance_that_declares_nothing_writes_nothing(db: DatabaseService) -> None:
+    service = await start_service(db)
+    assert await make_integration(service).commit_declarations() is None
+    assert service.revision == 0
+    assert await stored_rows(db) == []
+
+    integration = make_integration(service)
+    await declare_temp(integration)
+    await integration.commit_declarations()
+    await integration.on_shutdown()
+
+    counts = await make_integration(service).commit_declarations()
+    assert counts is not None
+    assert counts.removed == 1
+    assert await stored_rows(db) == []
+
+
+async def test_attributes_are_copied_in_and_out(db: DatabaseService) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration)
+    await integration.commit_declarations()
+
+    attributes: dict[str, Any] = {"history": [1]}
+    await temp.set(1, attributes=attributes)
+    attributes["history"].append(2)
+    temp.attributes["history"].append(3)  # pyright: ignore[reportIndexIssue]
+
+    assert temp.attributes == {"history": [1]}
+    await temp.set(1, attributes={"history": [1, 2]})
+    assert await stored_rows(db) == [("kitchen", "temp", "sensor", "1", '{"history": [1, 2]}')]
+
+
+async def test_prune_failure_fails_startup(db: DatabaseService, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fail(*_: Any) -> Any:
+        raise aiosqlite.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(integration_store, "prune_and_load", fail)
+    with pytest.raises(aiosqlite.OperationalError):
+        await start_service(db)

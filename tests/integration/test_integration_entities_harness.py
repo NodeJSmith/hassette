@@ -1,6 +1,7 @@
 """App-declared buttons, switches and sensors through AppTestHarness (spec 157)."""
 
 import pytest
+from hassette_wire import ExecutionMode
 
 from hassette import (
     App,
@@ -122,6 +123,8 @@ async def test_set_after_the_instance_stopped_raises() -> None:
         await harness.app.shutdown()
         with pytest.raises(IntegrationHandleClosedError):
             await temp.set(30)
+        with pytest.raises(IntegrationHandleClosedError):
+            _ = temp.value
 
 
 class BadDeclarationsApp(App[EntitiesConfig]):
@@ -167,3 +170,18 @@ class SyncEntitiesApp(AppSync[EntitiesConfig]):
 async def test_sync_facade_declares_and_sets() -> None:
     async with AppTestHarness(SyncEntitiesApp, config={"instance_name": "sync_entities"}) as harness:
         assert state_of(harness, "mode").value == "b"
+
+
+class QueuedButtonApp(App[EntitiesConfig]):
+    """Declares a button with a non-default execution mode."""
+
+    async def on_initialize(self) -> None:
+        self.feed = await self.integration.add_button("feed", name="Feed", on_press=self.on_feed, mode="queued")
+
+    async def on_feed(self) -> None:
+        pass
+
+
+async def test_button_mode_reaches_its_listener() -> None:
+    async with AppTestHarness(QueuedButtonApp, config={"instance_name": "queued"}) as harness:
+        assert harness.app.feed.subscription.listener.options.mode is ExecutionMode.QUEUED

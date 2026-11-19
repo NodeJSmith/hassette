@@ -553,11 +553,15 @@ class AppInstanceLifecycleMixin:
         - a stale STOPPED can remove a same-name replacement's entry;
         - a teardown that settles after ``clear_all`` can leave a FAILED entry behind.
 
-        Nothing acts on that state, since ``clear_all`` discards it. The one race with consequences, initializing
-        an instance this already reached, is closed in ``initialize_instance``, which checks admission right
-        before the STARTING write, right before ``initialize()``, and right before the integration commit. A
-        stop that lands during that commit's write still sees the commit land, followed by a late RUNNING;
-        the commit is the instance's own completed declarations, so it is safe to keep.
+        ``clear_all`` discards that state. Until it does, ``IntegrationService.dispatch_command`` reads the late
+        RUNNING, so a press arriving in that window is reported dispatched to a bus that is being torn down; an
+        accepted limitation, since ``DISPATCHED`` never promised the handler ran.
+
+        The one race with consequences, initializing an instance this already reached, is closed in
+        ``initialize_instance``, which checks admission right before the STARTING write, right before
+        ``initialize()``, and right before the integration commit. A stop that lands during that commit's write
+        still sees the commit land, followed by a late RUNNING; the commit is the instance's own completed
+        declarations, so it is safe to keep.
         """
         self.logger.debug("Shutting down all apps")
         instances = [

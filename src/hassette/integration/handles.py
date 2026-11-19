@@ -57,12 +57,18 @@ class IntegrationStatefulHandle(IntegrationEntityHandle):
 
     @property
     def state(self) -> EntityState:
-        """The current value and attributes: as last set, restored from the last run, or the default."""
+        """The current value and attributes: as last set, restored from the last run, or the default.
+
+        A copy: changing its attributes changes nothing until it is passed to ``set()``.
+
+        Raises:
+            IntegrationHandleClosedError: The instance has stopped, or its declarations failed to commit.
+        """
         return self._integration.read_state(self.declaration)
 
     @property
     def attributes(self) -> Mapping[str, Any]:
-        """The current attributes."""
+        """The current attributes, as a copy (see ``state``)."""
         return self.state.attributes
 
 
@@ -98,7 +104,7 @@ class IntegrationSwitch(IntegrationStatefulHandle):
 
         Raises:
             ValueError: ``on`` isn't a bool, or ``attributes`` isn't JSON-serializable.
-            IntegrationHandleClosedError: The instance has stopped.
+            IntegrationHandleClosedError: The instance has stopped, or its declarations failed to commit.
         """
         await self._integration.set_state(self.declaration, on, attributes)
 
@@ -127,6 +133,6 @@ class IntegrationSensor(IntegrationStatefulHandle):
 
         Raises:
             ValueError: The declaration rejects ``value``, or ``attributes`` isn't JSON-serializable.
-            IntegrationHandleClosedError: The instance has stopped.
+            IntegrationHandleClosedError: The instance has stopped, or its declarations failed to commit.
         """
         await self._integration.set_state(self.declaration, value, attributes)

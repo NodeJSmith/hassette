@@ -1,11 +1,14 @@
 """``self.integration``: the buttons, switches and sensors one app instance declares to Home Assistant."""
 
 import asyncio
+import copy
 import typing
 from collections.abc import Coroutine, Mapping
+from dataclasses import replace
+from enum import Enum, auto
 from typing import Any, TypeVar
 
-from hassette_wire import BackpressurePolicy, ExecutionMode, LogLevel, ResourceStatus
+from hassette_wire import BackpressurePolicy, ExecutionMode, LogLevel
 
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
@@ -22,7 +25,7 @@ from .declarations import (
     check_attributes,
     check_value,
     default_state,
-    fits,
+    resolve_state,
     validate_default_entity_id,
     validate_key,
     validate_sensor_fields,
@@ -40,10 +43,21 @@ if typing.TYPE_CHECKING:
 
 HandleT = TypeVar("HandleT", IntegrationButton, IntegrationSwitch)
 
-CLOSED_STATUSES = frozenset(
-    {ResourceStatus.STOPPING, ResourceStatus.STOPPED, ResourceStatus.FAILED, ResourceStatus.CRASHED}
-)
-"""Lifecycle statuses in which a handle's ``set()`` raises ``IntegrationHandleClosedError``."""
+
+class Phase(Enum):
+    """Where an ``Integration`` is in its instance's run; decides what its handles' reads and writes do."""
+
+    DECLARING = auto()
+    """``add_*`` is allowed; ``set()`` values are held until the commit."""
+
+    COMMITTING = auto()
+    """The declared set is being written. ``set()`` goes to the service, queued behind the commit."""
+
+    COMMITTED = auto()
+    """This resource holds the instance's committed set; reads and ``set()`` use it."""
+
+    CLOSED = auto()
+    """The commit failed or this resource shut down; reads and ``set()`` raise."""
 
 
 class Integration(Resource):
@@ -61,7 +75,7 @@ class Integration(Resource):
         super().__init__(hassette, parent=parent)
         self._declarations: dict[str, Declaration] = {}
         self._pending: dict[str, EntityState] = {}
-        self._window_closed = False
+        self._phase = Phase.DECLARING
         self.sync = self.add_child(IntegrationSyncFacade, integration=self)
 
     async def on_initialize(self) -> None:
@@ -261,7 +275,7 @@ class Integration(Resource):
             ValueError: The key is invalid or already declared on this instance.
         """
         valid = validate_key(key, platform)
-        if self._window_closed:
+        if self._phase is not Phase.DECLARING:
             raise IntegrationDeclarationClosedError(valid, platform)
         if (existing := self._declarations.get(valid)) is not None:
             raise ValueError(f"key {valid!r} is already declared on this instance, as a {existing.platform}")
@@ -330,46 +344,89 @@ class Integration(Resource):
         )
 
     def read_state(self, declaration: Declaration) -> EntityState:
-        """A switch's or sensor's current state, as its handle exposes it.
+        """A switch's or sensor's current state, as its handle exposes it, as a copy the caller may change.
 
-        During initialization: its pending ``set()`` value, else its restored state if the declaration accepts it,
-        else its default. After the commit: the committed state.
+        During initialization: the state the commit will start it with (``resolve_state``). While the commit is
+        being written: its restored state or default, since the values set during initialization are in the commit
+        and show once it lands. After: the committed state.
+
+        Raises:
+            IntegrationHandleClosedError: The instance's commit failed, or this resource has shut down.
         """
+        if self._phase is Phase.CLOSED:
+            raise IntegrationHandleClosedError(self.instance_name, declaration.key)
         committed = self.service.committed((self.app_key, self.instance_name), declaration)
-        if self._window_closed:
-            return committed.state if committed is not None else default_state(declaration)
-        if (pending := self._pending.get(declaration.key)) is not None:
-            return pending
-        # The same D12 check ``IntegrationService.initial_state`` applies at the commit, so the handle never
-        # shows a restored value the commit is about to reset.
-        if committed is not None and fits(declaration, committed.state.value):
-            return committed.state
-        return default_state(declaration)
+        if self._phase is Phase.COMMITTED:
+            state = committed.state if committed is not None else default_state(declaration)
+        else:
+            pending = self._pending.get(declaration.key)
+            state, _ = resolve_state(declaration, pending, None if committed is None else committed.state)
+        return replace(state, attributes=copy.deepcopy(dict(state.attributes)))
 
     async def set_state(self, declaration: Declaration, value: object, attributes: Mapping[str, Any] | None) -> None:
-        """Validate and set a switch's or sensor's state: held until the commit during init, written after it."""
-        if self.status in CLOSED_STATUSES:
+        """Validate and set a switch's or sensor's state: held until the commit during init, written after it.
+
+        Once the declarations are submitted, the service decides: it accepts the write only from the
+        ``Integration`` that holds the instance's committed set (``IntegrationService.is_owner``). A closed
+        resource refuses first, since a shutdown during the commit closes it before the commit makes it the owner.
+        """
+        if self._phase is Phase.CLOSED:
+            # A shutdown during the commit closes this resource before the commit makes it the owner.
             raise IntegrationHandleClosedError(self.instance_name, declaration.key)
         state = EntityState(
             value=check_value(declaration, value), attributes=check_attributes(declaration.key, attributes)
         )
-        if not self._window_closed:
+        if self._phase is Phase.DECLARING:
             self._pending[declaration.key] = state
             return
         await self.service.set_state(self, declaration, state)
 
-    async def commit_declarations(self) -> "CommitCounts":
+    async def commit_declarations(self) -> "CommitCounts | None":
         """Close the declaration window and commit the declared set with its pending values. Framework-internal.
 
         The window closes and the pending set is taken in one synchronous step before the write is submitted, so
         no declaration can miss the commit. The write is shielded from cancellation: once submitted, its outcome
-        lands in the service whether or not the caller is still waiting. Pending values are discarded either way.
+        lands in the service, and this resource's phase follows it, whether or not the caller is still waiting.
+        Pending values are discarded either way.
+
+        An instance that declared nothing and has nothing committed has nothing to replace, so it writes nothing.
+
+        Returns:
+            How the commit changed the instance's set, or ``None`` when there was nothing to commit.
 
         Raises:
             Exception: The commit failed; the instance's last committed set is unchanged.
         """
         declarations = list(self._declarations.values())
         pending = dict(self._pending)
-        self._window_closed = True
         self._pending.clear()
-        return await asyncio.shield(self.service.commit_instance(self, declarations, pending))
+        if not declarations and not self.service.entities(self.app_key, self.instance_name):
+            self._phase = Phase.COMMITTED
+            return None
+        self._phase = Phase.COMMITTING
+        return await asyncio.shield(self.commit_and_settle(declarations, pending))
+
+    async def commit_and_settle(
+        self, declarations: list[Declaration], pending: Mapping[str, EntityState]
+    ) -> "CommitCounts":
+        """Run the commit and move to its resulting phase; shielded by ``commit_declarations``.
+
+        A shutdown that lands while the commit is in flight has already closed this resource, so a commit that
+        then succeeds is released straight away rather than left owned by a closed resource.
+        """
+        try:
+            counts = await self.service.commit_instance(self, declarations, pending)
+        except BaseException:
+            self._phase = Phase.CLOSED
+            raise
+        if self._phase is Phase.CLOSED:
+            self.service.release(self)
+        else:
+            self._phase = Phase.COMMITTED
+        return counts
+
+    async def on_shutdown(self) -> None:
+        """Close this resource's handles: later reads and writes raise ``IntegrationHandleClosedError``."""
+        self._phase = Phase.CLOSED
+        self._pending.clear()
+        self.service.release(self)

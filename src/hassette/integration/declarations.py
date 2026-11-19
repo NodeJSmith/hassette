@@ -78,6 +78,25 @@ def default_state(declaration: Declaration) -> EntityState:
     return EntityState()
 
 
+def resolve_state(
+    declaration: Declaration, pending: EntityState | None, restored: EntityState | None
+) -> tuple[EntityState, bool]:
+    """The state an entity starts its run with, and whether a restored value was reset (spec 157 D12).
+
+    Its pending ``set()`` value, else its restored state if the declaration accepts it, else its default. The
+    one home of that precedence: the handle reads it during initialization, and the commit applies it.
+    """
+    if declaration.platform is IntegrationPlatform.BUTTON:
+        return EntityState(), False
+    if pending is not None:
+        return pending, False
+    if restored is None:
+        return default_state(declaration), False
+    if fits(declaration, restored.value):
+        return restored, False
+    return default_state(declaration), True
+
+
 def validate_key(key: object, platform: IntegrationPlatform) -> str:
     """Return ``key`` if it follows the ``instance_name`` rule, else raise ``ValueError``."""
     if not isinstance(key, str):
@@ -185,16 +204,19 @@ def fits(declaration: Declaration, value: EntityValue) -> bool:
 
 
 def check_attributes(key: str, attributes: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Return ``attributes`` as a new dict, or raise ``ValueError`` if it isn't a JSON object."""
+    """Return ``attributes`` as a deep copy in stored (JSON) form, or raise ``ValueError`` if it isn't a JSON object.
+
+    The copy shares nothing with the caller, so mutating the caller's dict later can't change committed state.
+    """
     if attributes is None:
         return {}
     if not isinstance(attributes, Mapping) or not all(isinstance(name, str) for name in attributes):
         raise ValueError(f"{key!r} attributes must be a mapping with string keys")
     try:
-        json.dumps(attributes, allow_nan=False)
+        encoded = json.dumps(attributes, allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{key!r} attributes must be JSON-serializable: {exc}") from exc
-    return dict(attributes)
+    return json.loads(encoded)
 
 
 def encode_value(value: EntityValue) -> str | None:
