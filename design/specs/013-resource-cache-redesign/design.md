@@ -395,3 +395,9 @@ else:
 ## Open Questions
 
 None — all design questions resolved during discovery and challenge.
+
+## Addendum
+
+### 2026-11-19: the app cache is owned durable state, not a disposable cache
+
+The Migration section's "acceptable for a cache — warm-up cost, not data loss" is superseded. The persistence-model brief (`design/research/2026-11-19-persistence-model/research.md`, #4277) found that apps rely on `self.cache` surviving restarts and the docs promise it. The app cache is owned durable state, renamed `self.store`: a corrupt or too-new file is left in place and its instances refuse to start rather than the file being deleted, and values become JSON-native instead of pickled.

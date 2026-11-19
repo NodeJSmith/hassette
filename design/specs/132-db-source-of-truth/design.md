@@ -11,6 +11,8 @@ The web UI and CLI read some state from the SQLite telemetry DB and some from in
 
 This reverses spec 087's Alternative B (`design/specs/087-db-manifest-union/design.md:329`), which rejected persisting status because of "60+ writes during normal boot" or staleness. Both objections are answered by D1: writes are debounced and diffed, and staleness is bounded by the resync and made visible (D8).
 
+**Amended 2026-11-19 by the persistence-model brief (#4277):** `hassette.db` holds observed data only, which is regenerable; owned data (entity declarations and values, config overrides) lives in `hassette-state.db` and the app stores (`cache.db`), and recovery code never deletes it. Recovery per file is in the brief's recovery table. See the Addendum.
+
 Research and prior art: `design/research/2026-10-16-db-source-of-truth/research.md` (inventory of every in-memory read, write-reliability analysis, prior art from Home Assistant, Airflow, Prefect, Dagster, Temporal, Kubernetes) and its challenge findings in `challenge-findings.md` alongside.
 
 In scope: the projector and its tables (D1, D2, D6, D7, D25); switching every automation-state GET route and WS message to the DB (D9, D13); the heartbeat and write-queue fixes (D3, D21), projector retry pacing (D22) and sizing (D18); persisted schedule timing (D17); diagnostics through #2806 (D12); the counter registry with its breaking wire change (D24) and the `entity_count` removal (D14); the live seam (D10); freshness and DB-unavailable signals (D8, D23); snapshot serve mode with the seed timestamp anchor (D4, D5, D15, D16); seed scenarios writing runtime state; frontend overlay removal; and the #2695 ordering (D20). The CLI reads only the HTTP API (research.md, "Current state"), so its only work is rendering the changed `/health` and `/telemetry/status` models, including `CliFormat` handling for D24's `counters` list.
@@ -83,6 +85,7 @@ Delivery and the disposition of every related issue (pulled in, closed, or linke
 **Pick a public `hassette serve-db` command instead if** a real need comes up on its own; this ledger doesn't anticipate one.
 **Reversibility:** easy
 **Ratified:** Chose a dev-only script over a public CLI command, to keep snapshot mode out of the public surface, accepting that users can't inspect a copied DB without the repo. (Ratified in conversation.)
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** seeds that declare entities or overrides also write `hassette-state.db`, and `seed:serve` opens it read-only alongside `hassette.db` so owned data is served without a running instance.
 
 ### D5: What does `/apps/{key}/source` do in snapshot mode?
 
@@ -218,6 +221,7 @@ Context: the #2767 tracker (#2768 persists user-set app config overrides in a st
 **Pick B instead if** config in seeded snapshots is needed before #2767 is scheduled.
 **Reversibility:** easy
 **Ratified:** Chose to keep config on the live seam here and amend #2768/#2769 to make their read model DB-sourced, over persisting today's config shape now, to build the config read model once in its final shape, accepting that snapshots show config as unavailable until #2769 lands.
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** override storage (desired state) moves to `hassette-state.db`, not `hassette.db`. The per-session effective config plus provenance stays an observed projection in `hassette.db`, rebuilt from the owned side at app creation. #2768/#2769's requirement that "override storage lives in the DB" reads as "in `hassette-state.db`".
 
 ### D12: How do diagnostic signals fit with #2806's issues registry?
 
@@ -269,6 +273,7 @@ Context: #2806 replaces `SystemStatusResponse`'s bespoke condition fields (`log_
 **Pick forcing `status: degraded` and `websocket_connected: false` in snapshot mode instead if** snapshot mode ever becomes reachable by released clients (a public command, against D4); it hides seeded status. **Pick 503 instead of 409 if** clients should treat it as retryable; they shouldn't, since a snapshot never becomes live.
 **Reversibility:** easy
 **Ratified:** Chose `mode`/`as_of` on `/health` with stored values served as-is, a persistent banner, disabled actions, no WS in snapshot mode with mode-driven connection UI, and non-retryable 409 `snapshot_mode` problems over a retryable 503, so a snapshot can't be mistaken for a live system and shows what the seed wrote, accepting that clients must handle a new problem type and that only `mode` marks a snapshot on `/health`. (Re-ratified after the ledger challenge, Findings 1, 18 and 19; the forced `degraded` status dropped at the ledger comb, since snapshot mode is dev-only per D4.)
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** in snapshot mode `hassette-state.db` is opened read-only too, and the owned-store statuses it reports are served as stored.
 
 ### D16: How do seeds line up with the UI's time windows?
 
@@ -278,6 +283,7 @@ Context: #2806 replaces `SystemStatusResponse`'s bespoke condition fields (`log_
 **Pick shifting time at serve time instead if** seeds had to be served unmodified; that would touch every query.
 **Reversibility:** easy
 **Ratified:** Chose a `--anchor now|<iso>` seed-time option with the fixed default kept over shifting time at serve time, to make seeds render under the default presets without touching queries or deterministic fixtures, accepting that a served seed must be regenerated to re-anchor.
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** a scenario that declares entities or overrides makes `seed_db.py` write `hassette-state.db` beside the telemetry DB, with the same anchor.
 
 ### D17: Where do `next_run`, `fire_at` and `jitter` get persisted?
 
@@ -362,6 +368,7 @@ Context: #2695 renames `TelemetryQueryService`, `TelemetryRepository`, `hassette
 **Pick B instead if** the milestone should hold only work its Done-when names directly. **Pick C instead if** never: it doubles the rename work.
 **Reversibility:** easy
 **Ratified:** Chose #2695 inside the milestone, landing first and gating issues 4-9, over an outside forced ordering or none, to rename once and build on a required-DB contract, accepting that most of the milestone waits on a large prerequisite.
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** the required-DB contract covers `hassette.db` only. Owned stores (`hassette-state.db`, each app `cache.db`) follow the brief's recovery table: a corrupt or too-new file is left in place and its consumers are refused (overrides fall back to file config), never moved aside or deleted. #2695 drops its `cache_entries` claim.
 
 ### D21: How do awaited writes avoid starvation by fire-and-forget producers?
 
@@ -414,6 +421,7 @@ Context: `DatabaseService` is TRANSIENT with a restart budget of 3 per 120s (`da
 **Pick B instead if** DB restarts are rare enough that per-route errors suffice. **Pick C instead if** never: budget exhaustion leaves a silent blank UI.
 **Reversibility:** easy
 **Ratified:** Chose one live-seam-driven "database unavailable" UI state with liveness unaffected and cached data kept, over per-route errors or leaving it unspecified, to give the operator one explained state during a DB outage, accepting one more UI state. (Added by the ledger challenge, Finding 16.)
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** the banner also shows owned-store statuses from the store-status registry (`ok`, `refused(corrupt)`, `refused(too_new)`, `unavailable`, `orphaned`), fed by `/health`, alongside the database-unavailable state.
 
 ### D24: How are process-wide counters modeled, stored and read?
 
@@ -488,3 +496,14 @@ Context: append-only tables (`executions`, `blocking_events`, `log_records`) age
 **Calls made during the build:**
 
 ## Addendum
+
+### 2026-11-19: persistence model splits observed from owned data
+
+The persistence-model brief (`design/research/2026-11-19-persistence-model/research.md`, #4277) amended this ledger inline (Summary, D4, D11, D15, D16, D20, D23):
+
+- `hassette.db` is observed data (telemetry, registrations, this ledger's projections) and can be regenerated. Owned data lives in `hassette-state.db` (entities, overrides) and the app stores, and recovery code never deletes it.
+- D11: override storage is in `hassette-state.db`; per-session effective config stays a projection in `hassette.db`.
+- D4/D15/D16: seeds write `hassette-state.db` when a scenario declares entities or overrides; `seed:serve` opens it read-only.
+- D20: the required-DB contract covers `hassette.db`; owned stores follow the brief's recovery table.
+- D23: the banner shows store statuses.
+- "No route reads process memory" (D10's live seam): live owned-state routes read the core service's committed memory, and snapshot mode reads `hassette-state.db`. D11 already carves out config, so this is the same kind of exception.

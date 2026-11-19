@@ -1001,3 +1001,5 @@ add-ons take hot backups with no hook.
   integrity check.
 - **Stop timeout:** D4's `timeout: 45` becomes 60 (NodeJSmith/hassette-addon#2). The shutdown snapshot runs at
   the end of hassette's 30 s shutdown budget and can't be cancelled once started.
+
+**2026-11-19 — D10 backups cover every SQLite file.** The persistence-model brief (`design/research/2026-11-19-persistence-model/research.md`, #4277) splits observed data (`hassette.db`) from owned data (`hassette-state.db` and each app `cache.db`). `backup_pre` calls a hassette snapshot command (`#4297`) that copies `hassette-state.db` and every `cache.db` using the SQLite backup API, never a raw file copy. `hassette.db` is excluded from add-on backups by default (decided 2026-11-19, mirroring HA's `exclude_database`). The live files are excluded and the restore step covers each file. Whether `backup_exclude` globs match nested `cache.db` paths is still unverified (Assumed, as for the patterns above).

@@ -188,7 +188,7 @@ delivery failures still surface in HA.
 
 **Situation:** #3993 requires switch state to survive both an HA and a hassette restart. Every maintained
 peer with a confirmed switch treats the runtime as the switch's truth and doesn't use HA's RestoreEntity for it. hassette has a
-database but no per-app key-value storage.
+database, and an app cache (`self.cache`, a per-app SQLite key-value file) that this decision did not consider. (Amended 2026-11-19, #4277: the cache exists and becomes the durable app store, `self.store`; see the D6 amendment.)
 
 **Deciding factor:** after any restart, HA and the app agree on the switch without the app writing restore code.
 
@@ -198,7 +198,7 @@ database but no per-app key-value storage.
 | Survives HA restart | Yes: integration re-reads from hassette | Yes, while hassette stays up | Yes |
 | App boilerplate | None; the handle exposes the restored state | Every app writes its own persistence | None, but state arrives after HA connects |
 | Truth while both run | hassette | hassette | Split: HA at startup, hassette after |
-| New machinery | Entity-state table in hassette's DB | None | A HA → hassette restore message |
+| New machinery | Entity-state document in `hassette-state.db` (amended 2026-11-19) | None | A HA → hassette restore message |
 | Peers | Node-RED (runtime storage) | MQTT apps without retained state | Only MQTT's optimistic mode |
 
 **Recommendation:** A, because it keeps one source of truth, meets the acceptance criterion with no app
@@ -209,6 +209,7 @@ Node-RED's most-reported bug class).
 **Pick C instead if** you want HA's restore to be the truth and accept a split source.
 **Reversibility:** medium (a persisted table is a migration to remove).
 **Ratified:** Chose hassette persisting each switch's last state in its database, exposed on the handle at startup, over app-owned state with no persistence or HA's RestoreEntity, to keep one source of truth that survives both restarts with no app code, accepting a new table. Reopened after the peer audit: sensors' last values are persisted in the same table too, so they survive a hassette restart like MQTT's retained state. Challenge (Findings 8, 10, 11): a never-set sensor is `unknown`, and a restored value carries no age, like MQTT retained state. An entity-state write is committed before the value appears in the listing or on `/ws`; a failed write leaves the in-memory and published value unchanged and raises from `set()` (the framework's post-handler write logs an error instead). State rows are keyed by `(app_key, instance_name, key, platform)` and a row is deleted in the same transaction that commits a running instance's declarations without that `(key, platform)` pair (D9), so a re-declared key never inherits old state; `platform` is in the row key so a key moved to another platform starts fresh too (HA sees it as a new entity on that platform). Attributes are persisted and restored with the value.
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** entity declarations, switch and sensor values and attributes live in `hassette-state.db`, one JSON document per `(app_key, instance_name)`, not a table in `hassette.db`, so a `hassette.db` reset or rollback never resets desired state. The committed-before-published promise is kept: the core service commits the document upsert before publishing. The "new table" cost above no longer applies; the file layer is shared with the hardened app store.
 
 ### D7: After a toggle, who changes the switch's state?
 
@@ -274,6 +275,7 @@ trusted-list gate hass-hassette already uses, so a failure never deletes entitie
 **Pick B instead if** you'd rather never delete anything automatically and accept manual cleanup.
 **Reversibility:** easy.
 **Ratified:** Chose diffing only running instances' declarations (behind the existing trusted-list gate) while down instances keep their last persisted declarations as unavailable entities, over never auto-removing or diffing every poll, so no orphans remain and no failure deletes entities, accepting per-instance declarations persisted in hassette's database. Challenge (Findings 4, 12, 13): declarations are collected in memory during `on_initialize` and replace the instance's persisted set in one transaction when it reaches `running`, so a failed or half-finished init never touches the persisted set. A `set()` during `on_initialize` is held with the pending declarations and written in that same commit. A declared entity is available only while its instance's status is `running` and the trusted-list gate holds; `starting`, `stopping`, `stopped` and `failed` show unavailable, and the integration never diffs a non-running instance. Accepted limitation: the integration infers a complete list from `running`, which is exact given the single commit. Accepted limitation (re-challenge): pushed `app_status_changed` carries no revision, so a stale poll can briefly show a stopping instance's entities available until the next poll or push; a press in that window gets D5's conflict.
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** "replace the instance's persisted set in one transaction" is one upsert of the instance's document in `hassette-state.db`.
 
 ### D10: What happens when an app declares entities without the integration?
 
@@ -365,6 +367,7 @@ only at startup, never on a mid-run config edit.
 instead if** removed instances are rare enough that leftover rows don't matter.
 **Reversibility:** easy.
 **Ratified:** Chose v0.1's user-initiated device removal for instances no longer in current config, with hassette deleting an absent instance's persisted declarations, and state at startup (absent: hassette's config has no entry for its `app_key`, or its `instance_name` is not among that app's configured instances; an app that is disabled, filtered out by `--app`, or not autostarted is not absent), over auto-removal or keeping everything, so no config edit deletes anything on a guess, accepting that a removed instance's device stays until the user deletes it. The listing reports a removed instance with `in_current_config` false until the startup prune, after which it is absent; the integration treats absent and not-current alike as removable, as v0.1 does for apps.
+**Amended 2026-11-19 by the persistence-model brief (#4277, `design/research/2026-11-19-persistence-model/research.md`):** the startup prune is a soft delete. The absent instance's document gets `pruned_at` and is kept for 30 days; if the same `(app_key, instance_name)` returns to config in that window its declarations and values are restored, and older tombstones are purged at startup and logged. This answers the config-typo risk this decision names, mirroring HA's 30-day deleted-entity retention.
 
 ### D14: Why integration entities rather than code-created helpers or MQTT discovery?
 
@@ -471,3 +474,12 @@ Related, outside the milestone: #4217 (close slow `/ws` clients instead of dropp
 poll and revision bound a dropped message without it.
 
 ## Addendum
+
+### 2026-11-19: entity persistence moves to `hassette-state.db`
+
+The persistence-model brief (`design/research/2026-11-19-persistence-model/research.md`, #4277) amended D6, D9 and D13 inline:
+
+- Persistence is a per-instance JSON document in `hassette-state.db`, not an entity-state table in `hassette.db`. D6's committed-before-published promise is kept.
+- D6's statement that hassette has no per-app key-value storage was wrong: the app cache exists and becomes the durable `self.store`.
+- D13's startup prune becomes a 30-day tombstone, restored if the instance returns.
+- #4284 ships spec 157 as ratified (entity table in `hassette.db`). The move to `hassette-state.db` and the tombstone land in a follow-up issue in the Owned State Durability milestone, which adds a spec 157 Addendum.
