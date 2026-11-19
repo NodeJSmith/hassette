@@ -11,6 +11,7 @@ Verifies:
 - start() idempotency (task already running → early return)
 - start()/cancel() from a worker thread redispatch onto the loop thread
 - cancel() cancels a running init task
+- wait_ready(timeout=...) raises TimeoutError when not ready and returns once ready
 
 Shutdown STOPPING path:
 - shutdown() sets STOPPING before hooks run (Resource)
@@ -423,3 +424,19 @@ async def test_cancel_stops_pending_start_joiner_same_turn():
     assert not initialized.is_set()
     assert resource.status != ResourceStatus.RUNNING
     assert resource.status != ResourceStatus.STARTING
+
+
+async def test_wait_ready_with_timeout_raises_when_not_ready():
+    """wait_ready() with a timeout raises TimeoutError when readiness never arrives."""
+    resource = make_running_resource()
+
+    with pytest.raises(TimeoutError):
+        await resource.wait_ready(timeout=0.01)
+
+
+async def test_wait_ready_with_timeout_returns_when_ready():
+    """wait_ready() with a timeout returns as soon as the resource is ready."""
+    resource = make_running_resource()
+    resource.ready_event.set()
+
+    await resource.wait_ready(timeout=1)

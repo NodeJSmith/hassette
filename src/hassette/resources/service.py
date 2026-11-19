@@ -160,7 +160,7 @@ class Service(Resource):
                 )
                 outcomes.append(ShutdownOutcome(still_running=(self._serve_task.get_name(),)))
             else:
-                with suppress(BaseException):
+                with suppress(asyncio.CancelledError):
                     self._serve_task.exception()
 
         hook_errors = await run_hooks(

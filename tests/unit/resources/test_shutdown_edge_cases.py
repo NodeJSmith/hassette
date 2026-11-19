@@ -115,6 +115,24 @@ class TestShutdownBodySwallowsHandleStopException:
         assert outcome.is_restart_safe is True, "a cleanup that raised has ended; it is diagnostic only"
         assert outcome.reason == f"{resource.unique_name}: cleanup() raised RuntimeError"
 
+    async def test_on_children_stopped_exception_still_reaches_stopped(self) -> None:
+        """An _on_children_stopped() override that raises is recorded as FAILED and handle_stop() still runs."""
+        hassette = make_mock_hassette(sealed=False)
+        resource = ConcreteResource(hassette=hassette)
+        await resource.initialize()
+        resource._status = ResourceStatus.RUNNING  # coordinator-internal: start RUNNING so the move to STOPPED shows
+
+        async def _raising_on_children_stopped() -> None:
+            raise RuntimeError("children-stopped boom")
+
+        resource._on_children_stopped = _raising_on_children_stopped  # pyright: ignore[reportAttributeAccessIssue]
+
+        outcome = await resource._shutdown_body()
+
+        assert resource.status == ResourceStatus.STOPPED
+        assert outcome.result is ShutdownResult.FAILED
+        assert outcome.reason == f"{resource.unique_name}: _on_children_stopped() raised RuntimeError"
+
     async def test_reaches_stopped_when_event_streams_already_closed(self) -> None:
         """With the event streams closed (a dead bus), the shutdown body still moves the resource to STOPPED."""
         hassette = make_mock_hassette(sealed=False)
