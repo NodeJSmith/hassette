@@ -30,7 +30,6 @@ from .types import (
     SyncHandler,
     TriggerProtocol,
     WhereClause,
-    framework_display_name,
     is_framework_key,
 )
 
@@ -64,6 +63,5 @@ __all__ = [
     "Topic",
     "TriggerProtocol",
     "WhereClause",
-    "framework_display_name",
     "is_framework_key",
 ]

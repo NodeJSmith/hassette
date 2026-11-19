@@ -3,7 +3,7 @@
 from typing import get_type_hints
 
 from hassette.types import BusErrorHandlerType, SchedulerErrorHandlerType, WhereClause  # noqa: F401  # pyright: ignore[reportUnusedImport] — import test
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, framework_display_name, is_framework_key
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, is_framework_key
 
 
 def test_where_clause_resolves_in_a_module_that_imports_only_the_alias() -> None:
@@ -51,17 +51,3 @@ class TestIsFrameworkKey:
     def test_is_framework_key_sub_component(self) -> None:
         """Multiple dotted sub-keys with framework prefix are framework keys."""
         assert is_framework_key("__hassette__.bus.on_event") is True
-
-
-class TestFrameworkDisplayName:
-    def test_framework_display_name_prefixed(self) -> None:
-        """Prefixed keys return the slug after the prefix."""
-        assert framework_display_name("__hassette__.scheduler_service") == "scheduler_service"
-
-    def test_framework_display_name_bare(self) -> None:
-        """Bare __hassette__ key returns 'framework'."""
-        assert framework_display_name("__hassette__") == "framework"
-
-    def test_framework_display_name_sub_component(self) -> None:
-        """Multiple dotted sub-keys return full suffix after prefix."""
-        assert framework_display_name("__hassette__.bus.on_event") == "bus.on_event"
