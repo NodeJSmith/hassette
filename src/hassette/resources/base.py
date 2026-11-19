@@ -529,7 +529,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         outcomes.append(children_outcome)
 
         if children_outcome.is_restart_safe:
-            await self._on_children_stopped()
+            try:
+                await self._on_children_stopped()
+            except Exception as exc:
+                self.lifecycle_logger.exception("Error during _on_children_stopped: %s %s", type(exc).__name__, exc)
+                reason = f"{self.unique_name}: _on_children_stopped() raised {type(exc).__name__}"
+                outcomes.append(ShutdownOutcome(ShutdownResult.FAILED, reason=reason))
 
         # Runs with closed streams too: the transition still happens and only its event is dropped (spec 134 D9).
         try:

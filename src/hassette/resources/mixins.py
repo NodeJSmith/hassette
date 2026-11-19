@@ -1,6 +1,5 @@
 import asyncio
 import typing
-from logging import Logger, getLogger
 from typing import Any, Protocol
 
 from hassette_wire import ResourceStatus
@@ -9,9 +8,9 @@ from hassette.resources.shutdown_outcome import ShutdownOutcome
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
-    from hassette.types.enums import ResourceRole
+    from logging import Logger
 
-LOGGER = getLogger(__name__)
+    from hassette.types.enums import ResourceRole
 
 
 class _TaskBucketP(Protocol):
@@ -42,6 +41,7 @@ class _HassetteP(Protocol):
 # shim for typing only - LifecycleMixin needs these attributes to be present
 # but we don't want to enforce inheritance from Resource or HassetteBase at runtime
 if typing.TYPE_CHECKING:
+    from logging import Logger
 
     class _LifecycleHostP(Protocol):
         lifecycle_logger: Logger
@@ -230,7 +230,7 @@ class LifecycleMixin(_LifecycleHostP):
         if old == value:
             return
 
-        LOGGER.debug("%s: %s → %s", self.unique_name, old, value)
+        self.lifecycle_logger.debug("%s: %s → %s", self.unique_name, old, value)
 
         self._previous_status = old
         self._status = value
@@ -255,4 +255,5 @@ class LifecycleMixin(_LifecycleHostP):
         if timeout is None:
             await self.ready_event.wait()
         else:
-            await asyncio.wait_for(self.ready_event.wait(), timeout)
+            async with asyncio.timeout(timeout):
+                await self.ready_event.wait()

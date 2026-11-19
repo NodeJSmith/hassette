@@ -6,14 +6,12 @@ of ``resource.start_children_and_wait()``.
 """
 
 import asyncio
-import logging
 import typing
 from contextlib import suppress
 
-from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, start
+from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, init_failure_log_level, start
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
 from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
-from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import WaveOutcome, describe_children, describe_wave_causes, wait_for_wave
 
 if typing.TYPE_CHECKING:
@@ -127,14 +125,9 @@ async def run_hooks(
             else:
                 # continue_on_error=False means this is an initialization hook (the only caller
                 # of that mode -- see Resource._initialize_body() and Service._initialize_body()).
-                # App-role resources have an outer, decision-owning catch for this same exception
-                # -- AppLifecycleService.initialize_instances()'s `await inst.initialize()` --
-                # that already logs it at ERROR, so demote here to avoid a second stacked ERROR
-                # traceback for the exact same failure (see #1826). Every other resource has no
-                # such outer logger and keeps ERROR.
-                log_level = logging.DEBUG if resource.role == ResourceRole.APP else logging.ERROR
+                # Level choice (demoted for apps): see init_failure_log_level().
                 with suppress(Exception):
-                    await handle_failed(resource, exc, log_level=log_level)
+                    await handle_failed(resource, exc, log_level=init_failure_log_level(resource))
                 raise
     return tuple(handled)
 

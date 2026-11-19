@@ -178,7 +178,7 @@ def start(resource: LifecycleMixin) -> asyncio.Task[None] | None:
         raise RestartRefusedError(resource.unique_name, outcome)
 
     resource.lifecycle_logger.debug("%s starting", resource.unique_name)
-    joiner = create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
+    joiner = create_lifecycle_task(resource.initialize(), name=f"resource:start:{resource.unique_name}")
     # The joiner usually re-raises the coordinator's own exception (via asyncio.shield), so its
     # observer logs that at DEBUG once _last_error_logged holds it. For an app-role resource the
     # inner layers log at DEBUG and record nothing, so with no initialize_instances() around this
@@ -282,7 +282,7 @@ async def handle_stop(resource: LifecycleMixin) -> None:
     Args:
         resource: The resource to stop.
     """
-    if resource.status == ResourceStatus.STOPPED:
+    if resource.status in TERMINAL_STATUSES:
         resource.lifecycle_logger.debug("%s already stopped", resource.unique_name, stacklevel=2)
         return
 
@@ -293,6 +293,18 @@ async def handle_stop(resource: LifecycleMixin) -> None:
         resource, ResourceStatus.STOPPED, ready=resource.is_ready(), ready_phase=resource._ready_reason
     )
     await resource.hassette.send_event(event)
+
+
+def init_failure_log_level(resource: LifecycleMixin) -> int:
+    """Return the level for logging an initialization failure of ``resource``.
+
+    App-role resources have an outer, decision-owning layer that logs this same exception at
+    ERROR -- ``AppLifecycleService.initialize_instances()``'s ``await inst.initialize()``, or
+    ``start()``'s joiner observer when the app is started directly. Demoting to DEBUG here avoids
+    a second stacked ERROR traceback for the exact same failure (see #1826). Every other resource
+    (services, framework internals) has no such outer logger, so it keeps ERROR.
+    """
+    return logging.DEBUG if resource.role == ResourceRole.APP else logging.ERROR
 
 
 async def handle_failed(resource: LifecycleMixin, exception: BaseException, *, log_level: int = logging.ERROR) -> None:
@@ -538,13 +550,10 @@ async def coordinate_initialize(resource: LifecycleMixin) -> None:
         )
         # A new attempt raises new exception objects, so the previous attempt's record can go.
         resource._last_error_logged = None
-        # App-role resources have an outer layer that logs this same exception at ERROR --
-        # AppLifecycleService.initialize_instances()'s `await inst.initialize()`, or start()'s
-        # joiner observer when the app is started directly. Demoting here avoids a second stacked
-        # ERROR traceback for the exact same failure (see #1826). Every other resource (services,
-        # framework internals) has no such outer logger, so it keeps ERROR.
-        init_log_level = logging.DEBUG if resource.role == ResourceRole.APP else logging.ERROR
-        _install_exception_observer(resource, init_task, "initialization coordinator", log_level=init_log_level)
+        # Level choice (demoted for apps): see init_failure_log_level().
+        _install_exception_observer(
+            resource, init_task, "initialization coordinator", log_level=init_failure_log_level(resource)
+        )
         resource._init_task = init_task
 
     await asyncio.shield(init_task)
