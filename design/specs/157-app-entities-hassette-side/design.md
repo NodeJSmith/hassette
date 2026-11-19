@@ -517,8 +517,8 @@ Facts about the code:
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
@@ -535,3 +535,6 @@ Facts about the code:
 - The harness press/toggle helpers live on a new `IntegrationSimulationMixin`: `_simulation.py` is already past the file-size limit.
 - The two errors live in `hassette.integration.errors` (exported from `hassette`), since `exceptions.py` is at the 800-line limit.
 - A sensor with no numeric, enum, timestamp or date shape accepts only `str` (D5's "else string"); a numeric sensor rejects non-finite numbers, which a JSON scalar can't carry.
+- `IntegrationSyncFacade` is hand-written, not generated like `BusSyncFacade`: it mirrors three methods, and its `set()` takes a handle, a shape the codegen doesn't produce. A signature-parity test (`tests/unit/integration/test_sync_facade_parity.py`) keeps the `add_*` mirrors in step.
+- `default_entity_id` is checked with HA's own `valid_entity_id`, which within D6's character set also rejects an object id starting or ending with `_`, ids HA itself would refuse.
+- A stored row whose declaration doesn't parse (corrupt `options`) is skipped at load with a WARNING, rather than failing startup; the instance's next commit rewrites it as a new entity. A row whose value or attributes don't parse loads as the default state.

@@ -1,8 +1,9 @@
 """SQL for the ``integration_entities`` table (migration ``027.sql``).
 
 Each function takes the write connection and runs on the database writer, so the caller submits it through
-``DatabaseService.submit()``. The write connection autocommits, so the replace-set commit and the startup prune
-open their own transaction and roll it back on any failure.
+``DatabaseService.submit()``. The write connection autocommits, so the replace-set commit and the startup prune,
+which each run several statements, open their own transaction and roll it back on any failure; a state update is a
+single statement and needs none.
 """
 
 import json
@@ -112,11 +113,27 @@ async def prune_and_load(
         await safe_rollback(db, owner, "pruning integration entities")
         raise
     cursor = await db.execute(SELECT_ALL_SQL)
-    return pruned, [parse_row(row) for row in await cursor.fetchall()]
+    rows: list[StoredRow] = []
+    for raw in await cursor.fetchall():
+        try:
+            rows.append(parse_row(raw))
+        except (ValueError, TypeError):
+            # Skipped, not fatal: the instance's next commit rewrites the row as a new entity with its default state.
+            owner.logger.warning(
+                "Skipped a stored integration entity that doesn't parse: %s",
+                raw[:4],
+                extra={"app_key": raw[0], "instance_name": raw[1], "key": raw[2]},
+            )
+    return pruned, rows
 
 
 def parse_row(row: "Iterable[typing.Any]") -> StoredRow:
-    """Build a ``StoredRow`` from a ``SELECT_ALL_SQL`` row."""
+    """Build a ``StoredRow`` from a ``SELECT_ALL_SQL`` row.
+
+    Raises:
+        ValueError: The platform or the stored options don't parse.
+        TypeError: A column holds a non-text value where text is stored.
+    """
     (
         app_key,
         instance_name,
@@ -141,9 +158,21 @@ def parse_row(row: "Iterable[typing.Any]") -> StoredRow:
         unit=unit,
         device_class=device_class,
         state_class=state_class,
-        options=None if options is None else tuple(json.loads(options)),
+        options=None if options is None else parse_options(options),
     )
     return StoredRow(app_key, instance_name, declaration, value, attributes)
+
+
+def parse_options(text: str) -> tuple[str, ...]:
+    """Decode a stored enum sensor's options.
+
+    Raises:
+        ValueError: The text isn't a JSON list of strings.
+    """
+    options = json.loads(text)
+    if not isinstance(options, list) or not all(isinstance(option, str) for option in options):
+        raise ValueError(f"stored options {text!r} aren't a list of strings")
+    return tuple(options)
 
 
 async def replace_instance_set(

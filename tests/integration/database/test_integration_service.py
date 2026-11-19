@@ -97,6 +97,31 @@ async def test_restored_value_that_no_longer_fits_is_reset(
     assert "doesn't fit its changed declaration" in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("bad_attributes", "bad_value", "bad_options"),
+    [("not json", "not json", "not json"), ("[1]", "{}", "5"), ("null", "[]", "[1, 2]")],
+    ids=["syntax", "wrong-shape", "wrong-element-type"],
+)
+async def test_corrupt_stored_rows_load_as_defaults_or_are_skipped(
+    db: DatabaseService, caplog: pytest.LogCaptureFixture, bad_attributes: str, bad_value: str, bad_options: str
+) -> None:
+    service = await start_service(db)
+    second = Declaration(
+        key="humid", platform=IntegrationPlatform.SENSOR, name="Humid", device_class="enum", options=("a",)
+    )
+    await service.commit_instance(owner(), [SHOW, TEMP, second], {"temp": EntityState(21.5, {})})
+    await db.db.execute("UPDATE integration_entities SET attributes = ? WHERE key = 'show'", (bad_attributes,))
+    await db.db.execute("UPDATE integration_entities SET value = ? WHERE key = 'temp'", (bad_value,))
+    await db.db.execute("UPDATE integration_entities SET options = ? WHERE key = 'humid'", (bad_options,))
+    await db.db.commit()
+
+    with caplog.at_level(logging.WARNING):
+        rebooted = await start_service(db)
+    restored = {entity.declaration.key: entity.state for entity in rebooted.entities("my_app", "kitchen")}
+    assert restored == {"show": EntityState(True, {}), "temp": EntityState()}
+    assert "doesn't parse" in caplog.text
+
+
 async def test_startup_prunes_unconfigured_instances(db: DatabaseService, caplog: pytest.LogCaptureFixture) -> None:
     service = await start_service(db, {("my_app", "kitchen"), ("my_app", "garage")})
     await service.commit_instance(owner("kitchen"), [TEMP], {})

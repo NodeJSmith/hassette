@@ -116,6 +116,7 @@ graph BT
         CMD[CommandExecutor]
         LOG[LoggingService]
         TQS[TelemetryQueryService]
+        INT[IntegrationService]
     end
 
     subgraph wave2["Wave 2"]
@@ -142,7 +143,8 @@ graph BT
     LOG --> DB
     TQS --> DB
     SP --> API & BUS & SCHED
-    ABC --> API & BUS & SCHED & SP & SYNC
+    INT --> DB
+    ABC --> API & BUS & SCHED & SP & SYNC & INT
     RQS --> BUS & SP & LOG
     AH --> ABC
     WEB --> RQS & TQS & SCHED
@@ -160,7 +162,7 @@ Shutdown proceeds in reverse wave order. [`WebApiService`][hassette.core.web_api
 
 ## Component Ownership
 
-Framework services are [Resource][hassette.resources.base.Resource] instances in a parent/child tree rooted at the `Hassette` instance. Two exceptions show as dashed edges below: `AppRegistry` is a plain in-memory registry, and app instances are tracked by `AppRegistry` rather than added as children. Apps receive four lightweight handles (`Bus`, `Scheduler`, `Api`, `StateManager`) that delegate to shared framework services.
+Framework services are [Resource][hassette.resources.base.Resource] instances in a parent/child tree rooted at the `Hassette` instance. Two exceptions show as dashed edges below: `AppRegistry` is a plain in-memory registry, and app instances are tracked by `AppRegistry` rather than added as children. Apps receive five lightweight handles (`Bus`, `Scheduler`, `Api`, `StateManager`, `Integration`) that delegate to shared framework services.
 
 ```mermaid
 graph TD
@@ -182,6 +184,7 @@ graph TD
         ApiResource
         StateProxy
         LoggingService
+        IntegrationService
     end
 
     subgraph web["Web Layer"]
@@ -210,6 +213,7 @@ graph TD
         App --> Scheduler
         App --> Api
         App --> StateManager
+        App --> Integration
     end
 
     AppLifecycleService -. manages .-> App

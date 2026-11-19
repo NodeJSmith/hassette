@@ -36,7 +36,19 @@ def test_valid_key_passes() -> None:
     assert validate_key("feed_cat2", IntegrationPlatform.BUTTON) == "feed_cat2"
 
 
-@pytest.mark.parametrize("eid", ["switch.show", "button", "button.Feed", "button.feed-cat", "button."])
+@pytest.mark.parametrize(
+    "eid",
+    [
+        "switch.show",
+        "button",
+        "button.Feed",
+        "button.feed-cat",
+        "button.",
+        "button._feed",
+        "button.feed_",
+        "button.feed\n",
+    ],
+)
 def test_invalid_default_entity_id_raises(eid: str) -> None:
     with pytest.raises(ValueError, match="default_entity_id"):
         validate_default_entity_id(eid, IntegrationPlatform.BUTTON)

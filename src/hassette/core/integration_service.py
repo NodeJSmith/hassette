@@ -76,7 +76,13 @@ class CommitCounts:
 
 
 class IntegrationService(Resource):
-    """Owns every instance's committed declarations and entity state, the revision, and command dispatch."""
+    """Owns every instance's committed declarations and entity state, the revision, and command dispatch.
+
+    Each write has three layers: the public entry point (``commit_instance``, ``set_state``) submits a ``*_job``
+    through ``run_write``; the job decides what to write and updates memory; ``persist_*`` holds just the SQL.
+    ``run_write``, ``prune_and_load`` and ``persist_*`` are the only database touch points, so the test harness's
+    in-memory subclass overrides exactly those.
+    """
 
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
 
@@ -123,21 +129,26 @@ class IntegrationService(Resource):
         }
 
     def restore_state(self, row: integration_store.StoredRow) -> EntityState:
-        """Decode a loaded row's state; a value that doesn't parse as its declaration's type becomes unknown."""
+        """Decode a loaded row's state; a value or attributes that don't parse give the default state instead.
+
+        The default state is a sensor's unknown or a switch's ``initial``.
+        """
         if row.declaration.platform is IntegrationPlatform.BUTTON:
             return EntityState()
         try:
             value = decode_value(row.declaration, row.value_text)
-        except ValueError:
+            attributes = json.loads(row.attributes_text) if row.attributes_text else {}
+            if not isinstance(attributes, dict):
+                raise ValueError(f"stored attributes {row.attributes_text!r} aren't a JSON object")
+        except (ValueError, TypeError):
             self.logger.warning(
-                "Stored value of '%s' (app instance '%s/%s') doesn't parse; it is restored as unknown",
+                "Stored state of '%s' (app instance '%s/%s') doesn't parse; it is restored as its default",
                 row.declaration.key,
                 row.app_key,
                 row.instance_name,
                 extra={"app_key": row.app_key, "instance_name": row.instance_name, "key": row.declaration.key},
             )
             return default_state(row.declaration)
-        attributes = json.loads(row.attributes_text) if row.attributes_text else {}
         return EntityState(value=value, attributes=attributes)
 
     async def run_write(self, coro: Coroutine[Any, Any, T]) -> T:
@@ -191,12 +202,15 @@ class IntegrationService(Resource):
         """The running-time commit's write job: build the new set, write it, then update memory."""
         instance = (owner.app_key, owner.instance_name)
         previous = self._entities.get(instance, {})
-        entities: list[tuple[Declaration, EntityState]] = []
-        kept = 0
-        for declaration in declarations:
-            existing = previous.get((declaration.key, declaration.platform))
-            kept += existing is not None
-            entities.append((declaration, self.initial_state(instance, declaration, existing, pending)))
+        entities = [
+            (
+                declaration,
+                self.initial_state(
+                    instance, declaration, previous.get((declaration.key, declaration.platform)), pending
+                ),
+            )
+            for declaration in declarations
+        ]
         await self.persist_instance_set(instance, entities)
 
         self._entities[instance] = {
@@ -205,8 +219,11 @@ class IntegrationService(Resource):
         }
         self._owners[instance] = owner
         self.revision += 1
-        new_keys = {(declaration.key, declaration.platform) for declaration in declarations}
-        counts = CommitCounts(added=len(declarations) - kept, kept=kept, removed=len(set(previous) - new_keys))
+        new_keys = set(self._entities[instance])
+        old_keys = set(previous)
+        counts = CommitCounts(
+            added=len(new_keys - old_keys), kept=len(new_keys & old_keys), removed=len(old_keys - new_keys)
+        )
         self.logger.info(
             "Committed the declared entities of app instance '%s/%s': %d added, %d kept, %d removed",
             *instance,
@@ -267,6 +284,8 @@ class IntegrationService(Resource):
         """``set()``'s write job: a no-op if nothing changed, else write the row, then update memory."""
         instance = (owner.app_key, owner.instance_name)
         current = self.committed(instance, declaration)
+        # The second closed-handle check, after ``Integration.set_state``'s lifecycle-status one: that catches a
+        # shut-down owner, this catches an owner whose commit failed or that a newer instance replaced.
         if self._owners.get(instance) is not owner or current is None:
             raise IntegrationHandleClosedError(owner.instance_name, declaration.key)
         if current.state == state:
@@ -280,8 +299,8 @@ class IntegrationService(Resource):
     ) -> CommandDispatchResult:
         """Run the handler an instance declared for a button press or switch toggle, by publishing its command event.
 
-        The instance must be running and have ``key`` committed on ``platform``. Both checks and the publish run
-        with no ``await`` between them.
+        The instance must be running and have ``key`` committed on ``platform``. Nothing awaits between those
+        checks and the publish's start.
 
         Args:
             app_key: The declaring app.
@@ -304,25 +323,33 @@ class IntegrationService(Resource):
         if resolved is IntegrationPlatform.BUTTON and value is not None:
             raise ValueError(f"a button command takes no value, got {value!r}")
 
-        result = CommandDispatchResult.DISPATCHED
         if self.hassette.app_handler.registry.get_status(app_key, instance_name) is not ResourceStatus.RUNNING:
-            result = CommandDispatchResult.NOT_RUNNING
-        elif (key, resolved) not in self._entities.get((app_key, instance_name), {}):
-            result = CommandDispatchResult.NOT_DECLARED
-        if result is not CommandDispatchResult.DISPATCHED:
-            self.logger.warning(
-                "Rejected a %s command for '%s' of app instance '%s/%s': %s",
-                resolved,
-                key,
-                app_key,
-                instance_name,
-                result,
-                extra={"app_key": app_key, "instance_name": instance_name, "key": key, "reason": str(result)},
-            )
-            return result
+            return self.reject_command(CommandDispatchResult.NOT_RUNNING, app_key, instance_name, key, resolved)
+        if (key, resolved) not in self._entities.get((app_key, instance_name), {}):
+            return self.reject_command(CommandDispatchResult.NOT_DECLARED, app_key, instance_name, key, resolved)
         await self.hassette.send_event(
             IntegrationCommandEvent.create(
                 app_key=app_key, instance_name=instance_name, key=key, platform=str(resolved), value=value
             )
+        )
+        return CommandDispatchResult.DISPATCHED
+
+    def reject_command(
+        self,
+        result: CommandDispatchResult,
+        app_key: str,
+        instance_name: str,
+        key: str,
+        platform: IntegrationPlatform,
+    ) -> CommandDispatchResult:
+        """Log why a command was not dispatched, and return ``result``."""
+        self.logger.warning(
+            "Rejected a %s command for '%s' of app instance '%s/%s': %s",
+            platform,
+            key,
+            app_key,
+            instance_name,
+            result,
+            extra={"app_key": app_key, "instance_name": instance_name, "key": key, "reason": str(result)},
         )
         return result

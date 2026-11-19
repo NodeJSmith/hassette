@@ -7,7 +7,6 @@ decides which Python types ``set()`` accepts.
 
 import json
 import math
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -18,12 +17,10 @@ from whenever import Date, Instant, OffsetDateTime, ZonedDateTime
 from hassette.config.classes import instance_name_reason
 from hassette.const.sensor import DEVICE_CLASS, STATE_CLASS
 from hassette.models.states.sensor_shapes import SensorShape, classify_sensor_shape
+from hassette.utils.hass_utils import VALID_ENTITY_ID
 
 KNOWN_DEVICE_CLASSES: frozenset[str] = frozenset(get_args(DEVICE_CLASS))
 KNOWN_STATE_CLASSES: frozenset[str] = frozenset(get_args(STATE_CLASS))
-
-OBJECT_ID_PATTERN = re.compile(r"[a-z0-9_]+")
-"""A ``default_entity_id``'s object id: lowercase letters, digits and ``_`` (spec 157 D6)."""
 
 AWARE_TYPES = (Instant, ZonedDateTime, OffsetDateTime)
 """The ``whenever`` types a timestamp sensor accepts; each is normalized to an ``Instant``."""
@@ -97,11 +94,11 @@ def validate_default_entity_id(default_entity_id: str | None, platform: Integrat
     """
     if default_entity_id is None:
         return None
-    domain, sep, object_id = default_entity_id.partition(".")
-    if not sep or domain != platform or not OBJECT_ID_PATTERN.fullmatch(object_id):
+    domain, _, _ = default_entity_id.partition(".")
+    if domain != platform or not VALID_ENTITY_ID.fullmatch(default_entity_id):
         raise ValueError(
             f"default_entity_id {default_entity_id!r} must be '{platform}.<object_id>', where the object id uses "
-            "only lowercase letters, digits and '_'"
+            "only lowercase letters, digits and '_', and doesn't start or end with '_'"
         )
     return default_entity_id
 

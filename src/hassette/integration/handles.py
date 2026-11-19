@@ -15,7 +15,10 @@ if typing.TYPE_CHECKING:
 
 
 class IntegrationEntityHandle:
-    """Shared parts of the three handle types: the declaration and the listener it registered, if any."""
+    """Shared parts of the three handle types: the declaration and the owning ``Integration``.
+
+    A button or switch handle also holds the listener it registered, as ``subscription``.
+    """
 
     declaration: Declaration
     """What was declared."""
@@ -67,7 +70,8 @@ class IntegrationSwitch(IntegrationStatefulHandle):
     """A switch an app instance declared.
 
     Toggling it in Home Assistant runs its ``on_toggle`` handler with the commanded value (``D.SwitchCommand``).
-    Its state changes only when the app calls `set`, so a handler that doesn't call it leaves the switch as it was.
+    Its state changes only when the app calls ``set()``, so a handler that doesn't call it leaves the switch as it
+    was.
     """
 
     subscription: "Subscription"

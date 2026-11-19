@@ -22,6 +22,7 @@ from .event_handling import accessors, conditions, dependencies, predicates
 from .events import RawStateChangeEvent, TypedStateChangeEvent, TypedStateChangePayload
 from .exceptions import HassetteBlockingIOWarning, HassetteForgottenAwaitWarning
 from .integration import (
+    Integration,
     IntegrationButton,
     IntegrationDeclarationClosedError,
     IntegrationHandleClosedError,
@@ -65,6 +66,7 @@ __all__ = [
     "HassetteBlockingIOWarning",
     "HassetteConfig",
     "HassetteForgottenAwaitWarning",
+    "Integration",
     "IntegrationButton",
     "IntegrationDeclarationClosedError",
     "IntegrationHandleClosedError",

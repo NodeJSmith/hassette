@@ -6,7 +6,7 @@
 --8<-- "pages/core-concepts/apps/snippets/integration_entities.py:declare"
 ```
 
-Each `add_*` call returns a handle: `IntegrationButton`, `IntegrationSwitch` or `IntegrationSensor`. The app keeps the handle to set the entity's state later.
+Each `add_*` call returns a handle: `IntegrationButton`, `IntegrationSwitch` or `IntegrationSensor`, all importable from `hassette`. The app keeps the handle to set the entity's state later. `Instant` comes from the [`whenever`](https://whenever.readthedocs.io/) library (`from whenever import Instant`), which Hassette uses for times.
 
 !!! warning "Declare entities only in `on_initialize`"
     Hassette commits an instance's declared entities once, after `on_initialize` returns and before the instance is marked running. A later `add_*` call raises `IntegrationDeclarationClosedError`. The committed set replaces the one from the last run, so an entity the app stops declaring is removed, with its state.
@@ -43,7 +43,7 @@ A sensor's device class, unit and state class decide which values `set()` accept
 |---|---|
 | A `unit`, a `state_class`, or a numeric device class such as `temperature` | An `int` or `float` |
 | `device_class="enum"` with `options=[...]` | One of `options` |
-| `device_class="timestamp"` | A `whenever` `Instant`, `ZonedDateTime` or `OffsetDateTime`, stored as an `Instant` |
+| `device_class="timestamp"` or `"uptime"` | A `whenever` `Instant`, `ZonedDateTime` or `OffsetDateTime`, stored as an `Instant` |
 | `device_class="date"` | A `whenever` `Date` |
 | Anything else | A `str` |
 

@@ -268,7 +268,11 @@ class Integration(Resource):
         return valid
 
     async def declare_sensor(self, declaration: Declaration) -> IntegrationSensor:
-        """Record a sensor declaration."""
+        """Record a sensor declaration.
+
+        Re-checks the key, which ``add_sensor`` already checked: the window may have closed, or the key been
+        declared, between that call and this coroutine running.
+        """
         self.check_declarable(declaration.key, declaration.platform)
         self._declarations[declaration.key] = declaration
         return IntegrationSensor(self, declaration)
@@ -285,7 +289,8 @@ class Integration(Resource):
         """Record a button or switch declaration and register its handler's listener on the app's bus.
 
         The key is reserved before the listener registers and released if registration fails, so a declaration
-        never exists without its listener.
+        never exists without its listener. It is re-checked first, since the window may have closed, or the key
+        been declared, between the ``add_*`` call and this coroutine running.
         """
         self.check_declarable(declaration.key, declaration.platform)
         self._declarations[declaration.key] = declaration
@@ -331,12 +336,13 @@ class Integration(Resource):
         else its default. After the commit: the committed state.
         """
         committed = self.service.committed((self.app_key, self.instance_name), declaration)
-        if not self._window_closed:
-            if (pending := self._pending.get(declaration.key)) is not None:
-                return pending
-            if committed is not None and fits(declaration, committed.state.value):
-                return committed.state
-        elif committed is not None:
+        if self._window_closed:
+            return committed.state if committed is not None else default_state(declaration)
+        if (pending := self._pending.get(declaration.key)) is not None:
+            return pending
+        # The same D12 check ``IntegrationService.initial_state`` applies at the commit, so the handle never
+        # shows a restored value the commit is about to reset.
+        if committed is not None and fits(declaration, committed.state.value):
             return committed.state
         return default_state(declaration)
 

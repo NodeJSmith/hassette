@@ -347,8 +347,9 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
             desc=f"{app.class_name} RUNNING",
             timeout=Timeouts.WAIT_FOR_READY,
         )
-        # The lifecycle commits an instance's declared entities after its initialization; the harness starts the
-        # app directly, so it commits here.
+        # The lifecycle commits an instance's declared entities once initialize() has finished (so after the app
+        # resource reaches RUNNING, as here) and before the registry's RUNNING write, which the harness doesn't have.
+        # The harness starts the app directly, so it commits here.
         await app.integration.commit_declarations()
 
     @staticmethod
