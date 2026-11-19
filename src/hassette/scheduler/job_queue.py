@@ -90,10 +90,7 @@ class _ScheduledJobQueue(Resource):
 
         async with self._lock:
             current_time = reference_time
-            while not self._queue.is_empty():
-                candidate = self._queue.peek()
-                if candidate is None:
-                    break
+            while (candidate := self._queue.peek()) is not None:
                 # Heap invariant, enforced by add(): every enqueued job has a concrete fire_at.
                 if candidate.fire_at is None:
                     raise RuntimeError(f"Enqueued job {candidate!r} has no fire_at; add() must reject such jobs")
@@ -122,9 +119,8 @@ class _ScheduledJobQueue(Resource):
 
         if removed:
             self.logger.debug("Removed job: %s", job)
-            return removed
-
-        self.logger.debug("Job not found in queue, cannot remove: %s", job)
+        else:
+            self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
 
     def remove_item_sync(self, job: "Job") -> bool:

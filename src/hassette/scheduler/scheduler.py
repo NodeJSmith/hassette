@@ -133,6 +133,9 @@ class Scheduler(Resource):
     is object identity.
     """
 
+    _error_handler: "SchedulerErrorHandlerType | None"
+    """App-level error handler for this scheduler's jobs, resolved at dispatch time."""
+
     _entity_time_subs: dict[str, "Subscription"]
     """State-change subscriptions that reschedule ``EntityTime`` jobs, keyed by job name.
 
@@ -146,8 +149,8 @@ class Scheduler(Resource):
             raise RuntimeError("Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)")
         self.scheduler_service = self.hassette.scheduler_service
         self._jobs_by_name = {}
-        self._jobs_by_group: dict[str, set[Job]] = {}
-        self._error_handler: SchedulerErrorHandlerType | None = None
+        self._jobs_by_group = {}
+        self._error_handler = None
         self._entity_time_subs = {}
         self.sync = self.add_child(SchedulerSyncFacade, scheduler=self)
 
@@ -295,10 +298,10 @@ class Scheduler(Resource):
                 # reach the write queue first, and the old job's removed_at write would then
                 # land on the live row. detach_self lets a self-replacing job's in-flight run finish.
                 await self.scheduler_service.remove_job(existing, detach_self=True)
-            elif if_exists == "skip" and existing.matches(job):
-                return existing
             elif if_exists == "skip":
                 changed_fields = existing.diff_fields(job)
+                if not changed_fields:
+                    return existing
                 raise ValueError(
                     f"A job named '{job.name}' already exists but its configuration has changed "
                     f"(changed fields: {', '.join(changed_fields)})"
@@ -314,32 +317,21 @@ class Scheduler(Resource):
         job._scheduler_service = self.scheduler_service
 
         if job.group is not None:
-            if job.group not in self._jobs_by_group:
-                self._jobs_by_group[job.group] = set()
-            self._jobs_by_group[job.group].add(job)
+            self._jobs_by_group.setdefault(job.group, set()).add(job)
 
         job.set_app_error_handler_resolver(lambda: self._error_handler)
         try:
             await self.scheduler_service.add_job(job)
         except Exception:
             try:
-                await self._rollback_failed_registration(job)
+                # Unified removal undoes the partial registration (registry, heap, name/group indexes
+                # via the removal callback, removed_at if a row was written).
+                await self.scheduler_service.remove_job(job)
             except Exception:
                 self.logger.exception("Rollback of failed registration for %s also failed", job)
             raise
 
         return job
-
-    async def _rollback_failed_registration(self, job: "Job") -> None:
-        """Undo a partial registration after ``scheduler_service.add_job()`` raised.
-
-        Delegates to the unified removal operation (``scheduler_service.remove_job()``); no
-        execution has been spawned yet, so there is no guard state or queued invocation. It
-        removes registry membership, any heap entry, and this scheduler's name/group indexes,
-        and persists ``removed_at`` when a row ID was assigned, so the job never appears live.
-        A failure here is logged by the caller and never replaces the registration error.
-        """
-        await self.scheduler_service.remove_job(job)
 
     def remove_job(self, job: "Job") -> None:
         """Remove an individual job's registration via the unified removal operation.

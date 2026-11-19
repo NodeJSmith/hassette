@@ -374,39 +374,21 @@ class Job:
     def matches(self, other: "Job") -> bool:
         """Check whether two jobs represent the same logical configuration.
 
-        Compares callable, trigger (by trigger_id()), group, jitter, timeout,
-        timeout_disabled, args, kwargs, error_handler (by identity), mode, and
-        predicate (by equality — lambdas/closures compare by identity).
-        Does not compare runtime state (db_id, next_run, sort_index, _scheduler,
-        _dequeued, owner, or any other mutable runtime field).
-
-        Two jobs with identical callable/trigger/args but different groups are distinct
-        logical jobs and will not match.
+        True when ``diff_fields()`` finds no differing configuration field; see it for the
+        field list and comparison rules. Two jobs with identical callable/trigger/args but
+        different groups are distinct logical jobs and will not match.
         """
-        if self.trigger is not None and other.trigger is not None:
-            triggers_match = self.trigger.trigger_id() == other.trigger.trigger_id()
-        else:
-            triggers_match = self.trigger is other.trigger
-        return (
-            self.job == other.job
-            and triggers_match
-            and self.group == other.group
-            and self.jitter == other.jitter
-            and self.timeout == other.timeout
-            and self.timeout_disabled == other.timeout_disabled
-            and self.args == other.args
-            and self.kwargs == other.kwargs
-            and self.error_handler is other.error_handler
-            and self.mode is other.mode
-            and self.predicate == other.predicate
-        )
+        return not self.diff_fields(other)
 
     def diff_fields(self, other: "Job") -> list[str]:
         """Return a list of configuration field names that differ between two jobs.
 
-        Compares the same fields as ``matches()`` — callable, trigger, group,
-        jitter, timeout, timeout_disabled, args, kwargs, error_handler, mode,
-        and predicate.
+        This is the single source of truth for job configuration equality (``matches()``
+        delegates here). Compares callable, trigger (by ``trigger_id()``; two ``None``
+        triggers match), group, jitter, timeout, timeout_disabled, args, kwargs,
+        error_handler (by identity), mode (by identity), and predicate (by equality —
+        lambdas/closures compare by identity). Does not compare runtime state (db_id,
+        next_run, sort_index, _scheduler, _dequeued, owner, or any other mutable runtime field).
         """
         changed: list[str] = []
         if self.job != other.job:
