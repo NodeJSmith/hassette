@@ -477,6 +477,13 @@ class HassetteHarness:
                 self.hassette._loop_watchdog.stop()
             self.hassette._loop_watchdog = None
 
+        # A bus that never entered its drain loop (startup failed first) never closes its receive
+        # clone itself. Close it before teardown, as Hassette._fail_startup() does; a draining bus
+        # keeps its streams open, so this is a no-op after a normal start.
+        if self.hassette._bus_service is not None:
+            with collect_shutdown_errors(shutdown_errors):
+                await self.hassette._bus_service.close_streams_unless_draining()
+
         # Shut down in reverse order so dependents stop before their dependencies.
         for resource in reversed(self.hassette.children):
             with collect_shutdown_errors(shutdown_errors):
