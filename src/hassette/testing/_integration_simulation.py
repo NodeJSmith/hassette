@@ -2,9 +2,9 @@
 
 from typing import TYPE_CHECKING
 
-from hassette.core.integration_service import CommandDispatchResult
 from hassette.events import IntegrationCommandEvent
-from hassette.integration.declarations import IntegrationPlatform
+from hassette.integration.declarations import CommandDispatchResult, IntegrationPlatform
+from hassette.integration.errors import IntegrationCommandRejectedError
 from hassette.testing._simulation import DEFAULT_SIMULATE_TIMEOUT
 
 if TYPE_CHECKING:
@@ -49,8 +49,8 @@ class IntegrationSimulationMixin:
             The dispatched command event, returned after the handler has drained.
 
         Raises:
-            ValueError: The app declared no button with this key.
-            RuntimeError: The app instance isn't running: it hasn't started or has stopped.
+            IntegrationCommandRejectedError: The app instance isn't running (it hasn't started or has stopped), or
+                it declared no button with this key. ``reason`` says which.
             DrainError: The handler raised.
             DrainTimeout: The drain did not finish within ``timeout``.
         """
@@ -73,8 +73,8 @@ class IntegrationSimulationMixin:
             The dispatched command event, returned after the handler has drained.
 
         Raises:
-            ValueError: The app declared no switch with this key.
-            RuntimeError: The app instance isn't running: it hasn't started or has stopped.
+            IntegrationCommandRejectedError: The app instance isn't running (it hasn't started or has stopped), or
+                it declared no switch with this key. ``reason`` says which.
             DrainError: The handler raised.
             DrainTimeout: The drain did not finish within ``timeout``.
         """
@@ -86,8 +86,6 @@ class IntegrationSimulationMixin:
         app = self.require_app()
         service = self.require_harness().integration_service
         admitted = service.admit_command(app.app_key, app.instance_name, key, platform, value)
-        if admitted is CommandDispatchResult.NOT_RUNNING:
-            raise RuntimeError(f"app instance {app.instance_name!r} isn't running, so it takes no {platform} command")
         if isinstance(admitted, CommandDispatchResult):
-            raise ValueError(f"app instance {app.instance_name!r} declared no {platform} with key {key!r}")
+            raise IntegrationCommandRejectedError(admitted, app.instance_name, key, platform)
         return admitted

@@ -12,9 +12,9 @@ import pytest
 
 from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
-from hassette.core.integration_service import CommandDispatchResult, CommitCounts, IntegrationService
+from hassette.core.integration_service import CommitCounts, IntegrationService
 from hassette.integration import Integration, IntegrationSensor
-from hassette.integration.declarations import Declaration, EntityState, IntegrationPlatform
+from hassette.integration.declarations import CommandDispatchResult, Declaration, EntityState, IntegrationPlatform
 from hassette.integration.errors import IntegrationDeclarationClosedError, IntegrationHandleClosedError
 from hassette.testing import wait_for
 from tests.support.factories import make_app

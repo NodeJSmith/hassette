@@ -11,7 +11,6 @@ import typing
 import uuid
 from collections.abc import Coroutine, Mapping
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Any, ClassVar, TypeVar
 
 from hassette_wire import LogLevel
@@ -20,6 +19,7 @@ from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
 from hassette.events.hassette import IntegrationCommandEvent
 from hassette.integration.declarations import (
+    CommandDispatchResult,
     Declaration,
     EntityState,
     IntegrationPlatform,
@@ -43,20 +43,6 @@ InstanceKey: typing.TypeAlias = tuple[str, str]
 
 EntityKey: typing.TypeAlias = tuple[str, IntegrationPlatform]
 """``(key, platform)``, an entity's identity within its instance."""
-
-
-class CommandDispatchResult(StrEnum):
-    """What ``IntegrationService.dispatch_command`` did with a press or toggle."""
-
-    DISPATCHED = "dispatched"
-    """The command event was published. Not proof the handler ran: its execution mode may drop it."""
-
-    NOT_RUNNING = "not_running"
-    """The instance has no live ``Integration`` owner (it hasn't committed yet, or has stopped), so nothing was
-    published."""
-
-    NOT_DECLARED = "not_declared"
-    """The instance's committed declarations have no such key on that platform, so nothing was published."""
 
 
 @dataclass(frozen=True, slots=True)

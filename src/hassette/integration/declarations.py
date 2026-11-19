@@ -37,6 +37,20 @@ class IntegrationPlatform(StrEnum):
     SENSOR = "sensor"
 
 
+class CommandDispatchResult(StrEnum):
+    """What ``IntegrationService.dispatch_command`` did with a press or toggle."""
+
+    DISPATCHED = "dispatched"
+    """The command event was published. Not proof the handler ran: its execution mode may drop it."""
+
+    NOT_RUNNING = "not_running"
+    """The instance has no live ``Integration`` owner (it hasn't committed yet, or has stopped), so nothing was
+    published."""
+
+    NOT_DECLARED = "not_declared"
+    """The instance's committed declarations have no such key on that platform, so nothing was published."""
+
+
 @dataclass(frozen=True, slots=True)
 class Declaration:
     """One declared entity: everything that describes it, without its state.

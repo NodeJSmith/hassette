@@ -1,6 +1,7 @@
 """App-declared buttons, switches and sensors through AppTestHarness (spec 157)."""
 
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from hassette_wire import ExecutionMode
@@ -12,15 +13,17 @@ from hassette import (
     D,
     HassetteConfig,
     IntegrationButton,
+    IntegrationCommandRejectedError,
     IntegrationDeclarationClosedError,
     IntegrationHandleClosedError,
     IntegrationSensor,
     IntegrationSwitch,
 )
-from hassette.core.integration_service import CommandDispatchResult
-from hassette.integration.declarations import EntityState, IntegrationPlatform
+from hassette.integration.declarations import CommandDispatchResult, EntityState, IntegrationPlatform
 from hassette.testing import AppTestHarness, HassetteHarness
-from tests.support.app_manifests import make_test_app_manifest
+from tests.support.app_staging_helpers import APP_KEY, build_config_class, stage_app
+
+INTEGRATION_COMMIT_FILENAME = "integration_commit_app.py"
 
 
 class EntitiesConfig(AppConfig):
@@ -91,17 +94,22 @@ async def test_switch_keeps_state_when_handler_does_not_set_it() -> None:
 
 async def test_simulating_an_undeclared_key_raises() -> None:
     async with AppTestHarness(EntitiesApp, config={"instance_name": "entities"}) as harness:
-        with pytest.raises(ValueError, match="declared no switch"):
+        with pytest.raises(IntegrationCommandRejectedError, match="declared no such entity") as exc_info:
             await harness.simulate_switch_toggle("feed", True)
+        assert exc_info.value.reason is CommandDispatchResult.NOT_DECLARED
+        assert (exc_info.value.key, exc_info.value.platform) == ("feed", IntegrationPlatform.SWITCH)
 
 
 async def test_a_press_after_the_instance_stopped_raises() -> None:
     async with AppTestHarness(EntitiesApp, config={"instance_name": "entities"}) as harness:
         await harness.app.shutdown()
-        with pytest.raises(RuntimeError, match="isn't running"):
+        with pytest.raises(IntegrationCommandRejectedError, match="isn't running") as press_info:
             await harness.simulate_button_press("feed")
-        with pytest.raises(RuntimeError, match="isn't running"):
+        with pytest.raises(IntegrationCommandRejectedError, match="isn't running") as toggle_info:
             await harness.simulate_switch_toggle("show", True)
+        assert press_info.value.reason is CommandDispatchResult.NOT_RUNNING
+        assert toggle_info.value.reason is CommandDispatchResult.NOT_RUNNING
+        assert press_info.value.instance_name == "entities"
         assert harness.app.presses == 0
         assert harness.app.toggles == []
 
@@ -203,19 +211,28 @@ async def test_button_mode_reaches_its_listener() -> None:
         assert harness.app.feed.subscription.listener.options.mode is ExecutionMode.QUEUED
 
 
+def write_integration_commit_app(app_dir: Path) -> None:
+    source = Path(__file__).parents[1] / "data" / "apps" / "integration_commit_app.py"
+    (app_dir / INTEGRATION_COMMIT_FILENAME).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 async def test_harness_reset_keeps_re_bootstrapped_apps_entities_and_ownership(
-    hassette_harness: Callable[[HassetteConfig], HassetteHarness], test_config_with_apps: HassetteConfig
+    hassette_harness: Callable[[HassetteConfig], HassetteHarness], tmp_path: Path
 ) -> None:
-    app_key = "integration_commit"
-    manifest = make_test_app_manifest(app_key, "integration_commit_app.py", "IntegrationCommitApp")
-    async with hassette_harness(test_config_with_apps).with_app_handler().with_integration() as harness:
-        harness.app_handler.registry.set_manifests({app_key: manifest})
-        harness._capture_original_app_manifests()  # pyright: ignore[reportPrivateUsage]
+    staged = stage_app(
+        tmp_path,
+        writer=write_integration_commit_app,
+        filename=INTEGRATION_COMMIT_FILENAME,
+        class_name="IntegrationCommitApp",
+        module_name="integration_commit_app",
+    )
+    config = build_config_class(toml_file=staged.toml_file, env_files=[], scratch_dir=tmp_path / "data")()
+    async with hassette_harness(config).with_app_handler().with_integration() as harness:
         service = harness.integration_service
 
         await harness.reset()
 
-        [app] = [a for a in harness.app_handler.registry.all_apps() if a.app_key == app_key]
-        event = service.admit_command(app_key, app.instance_name, "temp", IntegrationPlatform.SENSOR, None)
+        [app] = [a for a in harness.app_handler.registry.all_apps() if a.app_key == APP_KEY]
+        event = service.admit_command(APP_KEY, app.instance_name, "temp", IntegrationPlatform.SENSOR, None)
         assert not isinstance(event, CommandDispatchResult)
-        assert [e.declaration.key for e in service.entities(app_key, app.instance_name)] == ["temp"]
+        assert [e.declaration.key for e in service.entities(APP_KEY, app.instance_name)] == ["temp"]

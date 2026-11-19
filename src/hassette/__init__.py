@@ -24,6 +24,7 @@ from .exceptions import HassetteBlockingIOWarning, HassetteForgottenAwaitWarning
 from .integration import (
     Integration,
     IntegrationButton,
+    IntegrationCommandRejectedError,
     IntegrationDeclarationClosedError,
     IntegrationHandleClosedError,
     IntegrationSensor,
@@ -68,6 +69,7 @@ __all__ = [
     "HassetteForgottenAwaitWarning",
     "Integration",
     "IntegrationButton",
+    "IntegrationCommandRejectedError",
     "IntegrationDeclarationClosedError",
     "IntegrationHandleClosedError",
     "IntegrationSensor",
