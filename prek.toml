@@ -86,7 +86,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/crate-ci/typos"
-rev = "v1.52.0"
+rev = "v1.52.2"
 hooks = [
     { id = "typos", args = ["--force-exclude"], require_serial = true, stages = ["pre-commit", "pre-push"] },
 ]
