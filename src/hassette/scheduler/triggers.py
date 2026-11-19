@@ -36,9 +36,8 @@ class _WaitingSentinel:
     returns this value; every other trigger's ``first_run_time()``/``next_run_time()``
     return type never includes it.
 
-    Replaces the old year-9999 ``NO_OCCURRENCE`` timestamp sentinel, which parked a waiting
-    job on the due-time heap. ``WAITING`` instead keeps the job registered and watched but
-    off the heap — see ``Job.schedule_status`` (``ScheduleStatus.WAITING``).
+    ``WAITING`` keeps the job registered and watched but off the due-time heap — see
+    ``Job.schedule_status`` (``ScheduleStatus.WAITING``).
     """
 
     def __repr__(self) -> str:

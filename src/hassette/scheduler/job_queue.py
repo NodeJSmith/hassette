@@ -182,12 +182,9 @@ class HeapQueue(Generic[T]):
     def remove_item(self, item: T) -> bool:
         """Remove a specific item from the queue if present, by identity.
 
-        Identity-based (not ``in``/``__eq__``, which compares ``sort_index`` on ``Job``):
-        a job that was never enqueued (waiting, completed, or manual-only — never assigned
-        a ``sort_index``, an ``init=False`` field with no default) can reach this method via
-        ``dequeue_job()``/``Job.remove()`` regardless of whether it ever touched the heap. An
-        ``__eq__``-based lookup would raise ``AttributeError`` reading the missing field;
-        identity comparison never touches it.
+        Identity-based, not ``in``/``__eq__``: ``Job.__eq__`` compares ``sort_index``, and removal
+        must target this exact object, which may be a waiting/completed/manual job that was never
+        on the heap.
         """
         for index, candidate in enumerate(self._queue):
             if candidate is item:

@@ -28,9 +28,6 @@ Examples:
         # Every day at 6:30 AM (wall-clock anchored, DST-safe)
         await self.scheduler.run_daily(self.morning_routine, at="06:30", name="morning_routine")
 
-        # Every 5 minutes
-        await self.scheduler.run_minutely(self.quick_check, minutes=5, name="quick_check")
-
     Cron-style scheduling::
 
         # Weekdays at 9 AM
@@ -114,7 +111,11 @@ _SCHEDULER_MATCHERS = (TypeMatcher(Job),)
 
 
 class Scheduler(Resource):
-    """Scheduler resource for managing scheduled jobs."""
+    """Scheduler resource for managing scheduled jobs.
+
+    Convenience methods and ``schedule()``/``register()`` return ``add_job``'s guarded coroutine unchanged; the
+    single ``guard_await`` lives in ``add_job``.
+    """
 
     scheduler_service: SchedulerServiceProtocol
     """The scheduler service instance."""
@@ -129,7 +130,7 @@ class Scheduler(Resource):
     """Tracks jobs by group for bulk cancellation.
 
     Uses ``set`` for O(1) membership test and discard. ``Job.__hash__``
-    is based on ``job_id``, which is unique and immutable after construction.
+    is object identity.
     """
 
     _entity_time_subs: dict[str, "Subscription"]
@@ -241,7 +242,7 @@ class Scheduler(Resource):
             ValueError: If a job with the same name already exists and either
                 ``if_exists="error"`` or the existing job's configuration differs.
         """
-        # Synchronous validation runs before the handle is constructed (design Edge Cases).
+        # Synchronous validation runs before the coroutine is built, so a bad call raises even if never awaited.
         if not isinstance(job, Job):
             raise TypeError(f"Expected Job, got {type(job).__name__}")
         if not job.name:
@@ -578,8 +579,6 @@ class Scheduler(Resource):
             schedule_status=ScheduleStatus.MANUAL,
             next_run=None,
         )
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.add_job(job, if_exists=if_exists)
 
     def schedule(
@@ -713,11 +712,9 @@ class Scheduler(Resource):
             schedule_status=initial_status,
             next_run=initial_next_run,
         )
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         # source_location/registration_source are NOT passed here; add_job backfills them.
         if isinstance(trigger, EntityTime):
-            # Not a Shape B delegate: the entity path wraps add_job in its own coroutine, so it
+            # Not a pass-through: the entity path wraps add_job in its own coroutine, so it
             # needs its own guard to keep the forgotten-await warning pointing at the user's frame.
             source_location, _ = capture_registration_source()
             return guard_await(
@@ -827,8 +824,6 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = After(seconds=delay, minutes=minutes, hours=hours)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
@@ -898,8 +893,6 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Once(at=at, if_past=if_past)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
@@ -966,8 +959,6 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Every(hours=hours, minutes=minutes, seconds=seconds)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
@@ -1032,8 +1023,6 @@ class Scheduler(Resource):
         if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
         trigger = Every(minutes=minutes)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
@@ -1098,8 +1087,6 @@ class Scheduler(Resource):
         if hours < 1:
             raise ValueError("Hour interval must be at least 1")
         trigger = Every(hours=hours)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
@@ -1165,8 +1152,6 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Daily(at=at)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
@@ -1236,8 +1221,6 @@ class Scheduler(Resource):
             ValueError: If the cron expression is syntactically invalid.
         """
         trigger = Cron(expression)
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(
             func,
             trigger,
