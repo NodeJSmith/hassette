@@ -142,6 +142,21 @@ class AppInstanceLifecycleMixin:
             await self.shutdown_instance(inst, cause=exc, outcomes=outcomes)
             return
 
+        # Process exit or a stop may have reached this instance while it initialized; such an instance gets no
+        # commit. No await between this check and the commit's synchronous snapshot.
+        if not self.admits_init(inst, class_name, STARTING, outcomes=outcomes):
+            return
+        try:
+            # Outside the startup timeout and shielded inside, so the commit's outcome is always known (spec 157 D10).
+            await inst.integration._commit_declarations()
+        except Exception as exc:
+            self.logger.exception(
+                "Failed to commit the declared entities of app '%s' (%s)", inst.instance_name, class_name
+            )
+            # Initialization itself finished, so the app's own shutdown hooks still run.
+            await self.shutdown_instance(inst, cause=exc, outcomes=outcomes)
+            return
+
         self.logger.info("App '%s' (%s) initialized successfully", inst.instance_name, class_name)
         outcomes.succeeded(inst.instance_name)
         await self.set_app_status(inst.app_key, inst.instance_name, RUNNING)
@@ -319,6 +334,10 @@ class AppInstanceLifecycleMixin:
             )
             return outcome
         finally:
+            # Every stop closes the instance's ``Integration``, including a walk-away or a raised teardown that never
+            # reached its own shutdown, so no command or write is admitted after it, even from a commit still in
+            # flight.
+            inst.integration._close()
             structlog.contextvars.unbind_contextvars("app_key", "instance_name")
             # An instance no longer registered (its entry FAILED or removed) is out of reach of ``off``, yet its
             # loggers are process-global and keyed by name, so return them to config here, even when its teardown
@@ -538,9 +557,15 @@ class AppInstanceLifecycleMixin:
         - a stale STOPPED can remove a same-name replacement's entry;
         - a teardown that settles after ``clear_all`` can leave a FAILED entry behind.
 
-        Nothing acts on that state, since ``clear_all`` discards it. The one race with consequences, initializing
-        an instance this already reached, is closed in ``initialize_instance``, which checks admission right
-        before the STARTING write and again right before ``initialize()``.
+        ``clear_all`` discards that state. Command admission doesn't read it: ``IntegrationService.admit_command``
+        follows the instance's ``Integration`` ownership, which the instance's shutdown ends and a commit that
+        lands after it never takes.
+
+        The one race with consequences, initializing an instance this already reached, is closed in
+        ``initialize_instance``, which checks admission right before the STARTING write, right before
+        ``initialize()``, and right before the integration commit. A stop that lands during that commit's write
+        still sees the commit land, followed by a late RUNNING; the commit is the instance's own completed
+        declarations, so it is safe to keep.
         """
         self.logger.debug("Shutting down all apps")
         instances = [

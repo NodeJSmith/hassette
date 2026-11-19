@@ -37,14 +37,26 @@ from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.testing._harness_graph import DEPENDENCIES, STARTUP_ORDER
-from hassette.testing._harness_resources import HarnessEventStreamService, HarnessHassette, HarnessStateProxy
+from hassette.testing._harness_resources import (
+    HarnessEventStreamService,
+    HarnessHassette,
+    HarnessIntegrationService,
+    HarnessStateProxy,
+)
 from hassette.testing._harness_support import (
     Timeouts,
     collect_shutdown_errors,
     harness_dispatch,
     shutdown_resource,
 )
-from hassette.testing._reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
+from hassette.testing._reset import (
+    reset_app_handler,
+    reset_bus,
+    reset_integration,
+    reset_mock_api,
+    reset_scheduler,
+    reset_state_proxy,
+)
 from hassette.testing._server import SimpleTestServer
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.testing.config import TEST_TOKEN
@@ -52,6 +64,7 @@ from hassette.testing.config import TEST_TOKEN
 if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.core.core import Hassette
+    from hassette.core.integration_service import IntegrationService
     from hassette.core.state_proxy import StateProxy
     from hassette.events import AnyEvent, HassStateDict
 
@@ -121,6 +134,14 @@ class HassetteHarness:
         if ss is None:
             raise RuntimeError("CommandExecutor mock is not available; ensure with_scheduler() was called")
         return cast("AsyncMock", ss._executor)
+
+    @property
+    def integration_service(self) -> "IntegrationService":
+        """The in-memory IntegrationService managed by this harness."""
+        service = self.hassette._integration_service
+        if service is None:
+            raise RuntimeError("IntegrationService is not available — ensure with_integration() was called")
+        return service
 
     @property
     def bus(self) -> "Bus":
@@ -194,8 +215,13 @@ class HassetteHarness:
         Components are only reset when active (``has_component()`` guard or non-None
         check). The cost is negligible per test — one ``remove_all_listeners()`` and
         one ``remove_all_jobs()`` call at most.
+
+        The integration service resets before the app handler: re-bootstrapped apps commit their
+        declared entities and become owners, so they must land on an already-clean service.
         """
-        # app_handler resets first: re-bootstrap registers fresh listeners/jobs,
+        if self.has_component("integration"):
+            reset_integration(self.integration_service)
+        # app_handler resets next: re-bootstrap registers fresh listeners/jobs,
         # then bus/scheduler resets clear any stale test-added ones.
         if self.has_component("app_handler") and self._original_app_manifests is not None:
             await reset_app_handler(self.app_handler, self._original_app_manifests)
@@ -269,6 +295,10 @@ class HassetteHarness:
 
     def with_file_watcher(self) -> "HassetteHarness":
         self._components.add("file_watcher")
+        return self
+
+    def with_integration(self) -> "HassetteHarness":
+        self._components.add("integration")
         return self
 
     def with_app_handler(self) -> "HassetteHarness":
@@ -567,6 +597,9 @@ class HassetteHarness:
         self.hassette._command_executor.reconcile_registrations = AsyncMock()
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
 
+    async def _start_integration(self) -> None:
+        self.hassette._integration_service = self.hassette.add_child(HarnessIntegrationService)
+
     async def _start_app_bootstrap_coordinator(self) -> None:
         self.hassette._app_bootstrap_coordinator = self.hassette.add_child(AppBootstrapCoordinator)
 
@@ -615,6 +648,7 @@ class HassetteHarness:
         "scheduler": _start_scheduler,
         "file_watcher": _start_file_watcher,
         "api_mock": _start_api_mock,
+        "integration": _start_integration,
         "app_bootstrap_coordinator": _start_app_bootstrap_coordinator,
         "app_handler": _start_app_handler,
         "state_proxy": _start_state_proxy,

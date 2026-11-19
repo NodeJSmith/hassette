@@ -283,7 +283,7 @@ flowchart TD
 
 ### Schema
 
-The database has ten tables:
+The database has eleven tables:
 
 | Table | Purpose |
 |---|---|
@@ -297,6 +297,7 @@ The database has ten tables:
 | `lifecycle_events` | One row per app status, connection state, or block change, with a per-kind `details` JSON object |
 | `listener_misses` | Hourly counts of events that reached an app listener without running it, per listener, reason and filter |
 | `app_manifests` | Persisted app manifest metadata for dashboard and seed-database workflows |
+| `integration_entities` | One row per button, switch or sensor an app instance declared, with a switch's or sensor's last state; natural key `(app_key, instance_name, key, platform)`. Not a telemetry table: retention and the size failsafe leave it alone, and rows go only when their instance or declaration does |
 
 `executions` stores one row per handler or job execution outcome. Most rows correspond to actual handler/job invocations, but the table also records pre-invocation outcomes such as predicate failures and scheduler predicates that return `False` (`status='skipped'`). The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.
 

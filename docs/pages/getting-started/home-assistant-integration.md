@@ -12,6 +12,8 @@ Each app gets a device named after its display name. The display name defaults t
 
 The integration also adds a `hassette.send` action, which sends a message from Home Assistant to your apps. See [Send Messages to Your Apps](#send-messages-to-your-apps).
 
+Your apps can add their own buttons, switches and sensors to their devices. See [Buttons, Switches and Sensors](../core-concepts/apps/integration-entities.md).
+
 Run `hassette app` to see each app's key and display name. Every app device shows **Connected via Hassette**, a hub device for the server itself.
 
 ## Prerequisites

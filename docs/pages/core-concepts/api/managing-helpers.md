@@ -246,3 +246,4 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
 - [API Methods](methods.md): `call_service` for timer actions and other service calls
 - [Testing Apps](../../testing/index.md): full harness documentation
 - [Apps](../apps/index.md): lifecycle hooks including `on_initialize`
+- [Buttons, Switches and Sensors](../apps/integration-entities.md): entities an app declares through the Hassette integration, and when to use them instead of helpers

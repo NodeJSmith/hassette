@@ -131,6 +131,23 @@ class TestOwnerlessLoggers:
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("ctx_app", None)
 
+    def test_ownerless_logger_keeps_subject_passed_in_extra(self) -> None:
+        structlog.contextvars.bind_contextvars(app_key="ctx_app", instance_name="ctx")
+
+        record = stamp_identity("hassette.identity_test.shared_service", app_key="extra_app", instance_name="kitchen")
+
+        assert identity_subject(record) == ("extra_app", "kitchen")
+
+    def test_owner_wins_over_subject_passed_in_extra(self) -> None:
+        set_logger_identity(
+            logging.getLogger("hassette.identity_test.owned_extra"),
+            LogIdentity(author="app", app_key="owner_app", instance_name="owner"),
+        )
+
+        record = stamp_identity("hassette.identity_test.owned_extra", app_key="extra_app", instance_name="kitchen")
+
+        assert identity_subject(record) == ("owner_app", "owner")
+
     def test_no_context_means_no_subject(self) -> None:
         record = stamp_identity("hassette.identity_test.no_ctx")
 

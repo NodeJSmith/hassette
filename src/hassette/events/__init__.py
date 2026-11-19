@@ -27,6 +27,8 @@ from .hassette import (
     HassetteFileWatcherEvent,
     HassetteServiceEvent,
     HassetteSimpleEvent,
+    IntegrationCommandEvent,
+    IntegrationCommandPayload,
     ServiceStatusPayload,
 )
 from .type_checks import is_event_type
@@ -56,6 +58,8 @@ __all__ = [
     "HassettePayload",
     "HassetteServiceEvent",
     "HassetteSimpleEvent",
+    "IntegrationCommandEvent",
+    "IntegrationCommandPayload",
     "LogbookEntryEvent",
     "RawStateChangeEvent",
     "ScriptStartedEvent",

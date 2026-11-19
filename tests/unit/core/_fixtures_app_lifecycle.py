@@ -267,6 +267,7 @@ def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: 
     app.bus.owner_id = f"{class_name}.{instance_name}"
     app.scheduler = MagicMock()
     app.scheduler.get_job_db_ids = Mock(return_value=[])
+    app.integration._close = Mock()
     app.scheduler.remove_all_jobs = Mock(side_effect=lambda: asyncio.sleep(0))
     return app
 

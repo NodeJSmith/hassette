@@ -5,6 +5,7 @@ from hassette_wire import LogLevel
 
 from hassette.core.api_resource import ApiResource
 from hassette.core.bus_service import BusService
+from hassette.core.integration_service import IntegrationService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
@@ -22,6 +23,7 @@ class AppBootstrapCoordinator(Resource):
     depends_on: ClassVar[list[type[Resource]]] = [
         ApiResource,
         BusService,
+        IntegrationService,
         SchedulerService,
         StateProxy,
         SyncExecutorService,

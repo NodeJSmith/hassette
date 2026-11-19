@@ -121,6 +121,7 @@ An app's `log_level` covers the lines its own code writes: `self.logger` and any
 | Listener and job activity | the app's `Bus` and `Scheduler` children | `logging.bus_service`, `logging.scheduler_service` |
 | API calls and state reads | the app's `Api` and `StateManager` children | `logging.api`, `logging.state_proxy` |
 | Task spawning and cleanup | the app's `TaskBucket` | `logging.task_bucket` |
+| Its declared buttons, switches and sensors | the app's `Integration` child | `logging.app_handler` |
 
 These lines still carry the app's name and instance, so the app's own log view and `hassette log --app <key>` show them. They are marked `framework`, not `app`. Below ERROR, the web UI hides them until **all framework lines** is on, and `hassette log` hides them until `--author all` is passed. `--author app` leaves them out entirely.
 
@@ -186,7 +187,7 @@ A `[hassette.logging]` field can set the level of several loggers. Each Hassette
 | `database_service` | `hassette.DatabaseService`, `hassette.SessionManager` |
 | `bus_service` | `hassette.BusService`, `hassette.EventStreamService`, `hassette.Bus` |
 | `scheduler_service` | `hassette.SchedulerService`, `hassette.SchedulerService._ScheduledJobQueue`, `hassette.Scheduler` |
-| `app_handler` | `hassette.AppHandler`, `hassette.AppHandler.AppLifecycleService`, `hassette.AppBootstrapCoordinator` |
+| `app_handler` | `hassette.AppHandler`, `hassette.AppHandler.AppLifecycleService`, `hassette.AppBootstrapCoordinator`, `hassette.IntegrationService` |
 | `web_api` | `hassette.WebApiService`, `hassette.RuntimeQueryService`, `hassette.TelemetryQueryService` |
 | `websocket` | `hassette.WebsocketService` |
 | `file_watcher` | `hassette.FileWatcherService`, `hassette.WebUiWatcherService` |

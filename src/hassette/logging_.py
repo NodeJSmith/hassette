@@ -256,8 +256,8 @@ class LogIdentityFilter(logging.Filter):
     Attached to both output paths: the console stream handler ``enable_basic_logging`` installs
     (Phase 1, before the resource tree exists) and the queue handler ``LoggingService`` swaps in
     (Phase 2), so both phases see the same identity. The writing logger's owner wins over bound
-    context; context supplies the subject only for ownerless loggers (shared services, user module
-    loggers, libraries).
+    context; an ownerless logger (shared services, user module loggers, libraries) takes its subject
+    from an ``app_key`` passed in ``extra=``, else from context.
 
     Idempotent: Phase 2 moves the stream handler under the queue listener, whose thread has no
     bound context, so a record this filter already resolved on the caller's thread is left alone.
@@ -265,6 +265,10 @@ class LogIdentityFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Stamp the record's author and subject (``app_key``, ``instance_name``) once.
+
+        The subject comes from the writing logger's owner, else from an ``app_key`` the call passed in ``extra=``
+        (pass ``instance_name`` with it; the pair is taken together, never mixed with context), else from bound
+        context.
 
         Returns:
             Always True; this filter annotates records and never drops them.
@@ -289,6 +293,10 @@ class LogIdentityFilter(logging.Filter):
         if identity is not None and identity.app_key is not None:
             record.app_key = identity.app_key  # pyright: ignore[reportAttributeAccessIssue]
             record.instance_name = identity.instance_name  # pyright: ignore[reportAttributeAccessIssue]
+        elif getattr(record, "app_key", None) is not None:
+            # An ownerless logger naming its subject with ``extra=`` (a shared service logging about one instance)
+            # keeps it: the call site knows the subject better than whatever context happens to be bound.
+            record.instance_name = getattr(record, "instance_name", None)  # pyright: ignore[reportAttributeAccessIssue]
         else:
             ctx = structlog.contextvars.get_contextvars()
             record.app_key = ctx.get("app_key")  # pyright: ignore[reportAttributeAccessIssue]

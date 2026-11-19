@@ -53,6 +53,7 @@ nav:
           - Configuration: pages/core-concepts/apps/configuration.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
           - Task Bucket: pages/core-concepts/apps/task-bucket.md
+          - Buttons, Switches and Sensors: pages/core-concepts/apps/integration-entities.md
       - Bus:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md

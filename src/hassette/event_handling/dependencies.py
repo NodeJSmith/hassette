@@ -238,6 +238,20 @@ async def handler(data: D.EventData[MyData]):
 ```
 """
 
+SwitchCommand: TypeAlias = Annotated[bool, AnnotationDetails(ensure_present(A.get_path("payload.data.value")))]
+"""The on/off value a toggle of an app-declared switch commands: ``True`` for on.
+
+Use in the ``on_toggle`` handler of ``self.integration.add_switch``. The switch keeps its state until the
+handler calls ``set()``, so set it first to show the change in Home Assistant straight away.
+
+Example:
+```python
+async def on_show_toggled(self, on: D.SwitchCommand):
+    await self.show.set(on)
+    ...
+```
+"""
+
 MessageData: TypeAlias = Annotated[
     EventDataT,
     AnnotationDetails(ensure_present(A.get_path("payload.data.data"))),

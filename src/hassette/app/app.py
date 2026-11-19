@@ -9,6 +9,7 @@ from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest, resolve_instance_name
 from hassette.conversion import StateRegistry, TypeRegistry
+from hassette.integration import Integration
 from hassette.logging_ import LogIdentity, set_logger_identity
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
@@ -34,6 +35,7 @@ _APP_PUBLIC_API: frozenset[str] = frozenset(
         "api",
         "scheduler",
         "bus",
+        "integration",
         "states",
         "app_config",
         "instance_name",
@@ -136,6 +138,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     states: StateManager
     """States manager instance for accessing Home Assistant states."""
 
+    integration: Integration
+    """Buttons, switches and sensors this instance declares to Home Assistant through hass-hassette."""
+
     app_config: AppConfigT
     """Configuration for this app instance."""
 
@@ -176,6 +181,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.scheduler = self.add_child(Scheduler)
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)
+        self.integration = self.add_child(Integration)
         if debug_capture:
             self._lifecycle_logger.warning(
                 "Debug capture is on: this instance and the framework loggers it owns log at DEBUG. %s",

@@ -201,6 +201,21 @@ EXPECTED_TABLES = {
         "details",
         "ts",
     },
+    "integration_entities": {
+        "app_key",
+        "instance_name",
+        "key",
+        "platform",
+        "name",
+        "default_entity_id",
+        "initial",
+        "unit",
+        "device_class",
+        "state_class",
+        "options",
+        "value",
+        "attributes",
+    },
 }
 
 

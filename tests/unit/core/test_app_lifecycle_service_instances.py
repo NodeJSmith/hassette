@@ -231,6 +231,8 @@ class TestShutdownInstanceEntryDeadline:
         mock_app_instance._force_terminal.assert_called_once()
         mock_app_instance.bus.remove_all_listeners.assert_called_once()
         mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
+        # Its Integration never shut down, so the stop itself closes it.
+        mock_app_instance.integration._close.assert_called_once()
         [failed] = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert (failed.app_key, failed.instance_name) == (mock_app_instance.app_key, "test_instance")
         assert failed.previous_status is ResourceStatus.RUNNING

@@ -30,6 +30,7 @@ from hassette.core.core import Hassette
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.integration_service import IntegrationService
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService, _ScheduledJobQueue
@@ -40,6 +41,8 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
+from hassette.integration.integration import Integration
+from hassette.integration.sync import IntegrationSyncFacade
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
@@ -63,6 +66,9 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     EventStreamService: ("on_initialize",),
     HelperClient: ("on_initialize",),
     HelperClientSyncFacade: ("on_initialize",),
+    Integration: ("on_initialize",),
+    IntegrationService: ("on_initialize",),
+    IntegrationSyncFacade: ("on_initialize",),
     LoggingService: ("on_initialize",),
     RecordingApi: ("on_initialize",),
     RuntimeQueryService: ("on_initialize",),

@@ -35,7 +35,7 @@ Because `WebsocketService`'s lifecycle readiness never implies HA connectivity, 
 
 ## App bootstrap gate
 
-`AppBootstrapCoordinator` (`app_bootstrap_coordinator.py`) is the single authoritative decision point for "may apps start?" It is a `Resource`, not a `Service` — no serve loop, no failure routing, no continuous enforcement. Its `depends_on` is the complete app-facing prerequisite set: `[ApiResource, BusService, SchedulerService, StateProxy, SyncExecutorService]`.
+`AppBootstrapCoordinator` (`app_bootstrap_coordinator.py`) is the single authoritative decision point for "may apps start?" It is a `Resource`, not a `Service` — no serve loop, no failure routing, no continuous enforcement. Its `depends_on` is the complete app-facing prerequisite set: `[ApiResource, BusService, SchedulerService, StateProxy, SyncExecutorService, IntegrationService]`. `IntegrationService` is there so every instance's stored entity declarations are pruned and loaded before any instance can commit its own.
 
 Once that dependency wait completes it marks its own Resource readiness — so the finite startup wave finishes even without Home Assistant — then waits in background work for `StateProxy.wait_initial_state_capability()`. Only when that capability resolves does it open a separate, process-latched release (`wait_released()` / `is_released()`). That latch, not Resource readiness, means "apps may initialize code": it opens once, never re-closes on a later disconnect, and framework shutdown cancels any outstanding wait so teardown is never delayed by a Home Assistant that never connects.
 

@@ -52,6 +52,7 @@ SERVER_ONLY_COLUMNS: dict[tuple[str, str], str] = {
     ("scheduled_jobs", "trigger_type"): "trigger type is not served as a vocabulary",
     ("blocking_events", "reason"): "also holds 'attributed'; UnattributedReason covers only unattributed stalls",
     ("lifecycle_events", "kind"): "lifecycle rows are not served over the wire yet (#4084 adds the read path)",
+    ("integration_entities", "platform"): "declared entities are not served over the wire yet (#4219 adds them)",
 }
 
 

@@ -1,10 +1,18 @@
 """Resource subclasses the test harness runs in place of their production counterparts."""
 
+from collections.abc import Coroutine
+from typing import Any, TypeVar
+
+from hassette.core import integration_store
 from hassette.core.core import Hassette
 from hassette.core.event_stream_service import EventStreamService
+from hassette.core.integration_service import InstanceKey, IntegrationService
 from hassette.core.state_proxy import StateProxy
+from hassette.integration.declarations import Declaration, EntityState
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
+
+T = TypeVar("T")
 
 
 class HarnessHassette(Hassette):
@@ -80,3 +88,29 @@ class HarnessEventStreamService(EventStreamService):
     async def _close_streams_now(self) -> None:
         """Close streams unconditionally — bypasses the no-op override above."""
         await super().close_streams()
+
+
+class HarnessIntegrationService(IntegrationService):
+    """IntegrationService that keeps declarations and entity state in memory only.
+
+    The harness runs no ``DatabaseService``, so each write job runs straight away with no storage step. The commit
+    and ``set()`` rules (the replace-set commit, the restore check, the identical-``set()`` no-op, the owner check)
+    are the base class's and hold unchanged. A write here never fails, so failed-write behavior needs the real
+    service.
+    """
+
+    async def run_write(self, coro: Coroutine[Any, Any, T]) -> T:
+        return await coro
+
+    async def prune_and_load(
+        self, live: set[InstanceKey]
+    ) -> tuple[list[integration_store.PrunedInstance], list[integration_store.StoredRow]]:
+        return [], []
+
+    async def persist_instance_set(
+        self, instance: InstanceKey, entities: list[tuple[Declaration, EntityState]]
+    ) -> None:
+        pass
+
+    async def persist_state(self, instance: InstanceKey, declaration: Declaration, state: EntityState) -> None:
+        pass

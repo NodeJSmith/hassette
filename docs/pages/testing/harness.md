@@ -179,6 +179,31 @@ without a live instance:
 All drain triggered handlers before returning, like the other `simulate_*`
 methods.
 
+### Declared Buttons, Switches and Sensors
+
+`simulate_button_press(key)` and `simulate_switch_toggle(key, on)` press and
+toggle the entities the app declared with
+[`self.integration`](../core-concepts/apps/integration-entities.md), as
+Home Assistant would. Both drain the handler before returning. The harness
+commits the app's declarations as soon as it starts, so a test reads the
+handles straight away.
+
+```python
+--8<-- "pages/testing/snippets/testing_integration_entities.py"
+```
+
+A toggle changes the switch only if the handler calls `set()`, as in
+production. `harness.integration_entities` lists every committed declaration
+with its current state, in key order. Pressing a key the app never declared,
+or pressing or toggling after the app instance has stopped, raises
+`IntegrationCommandRejectedError`. Its `reason` says which:
+`CommandDispatchResult.NOT_RUNNING` or `NOT_DECLARED`, both importable from
+`hassette.integration`.
+
+The harness keeps declarations and state in memory, and a write never fails
+there. A failed database write, which fails the instance's start or raises from
+`set()`, only happens under a real Hassette.
+
 ### Arbitrary Events
 
 `simulate_event(event)` sends any Hassette event through the bus and drains

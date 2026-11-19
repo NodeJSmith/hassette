@@ -183,7 +183,7 @@ docker compose exec hassette df -h /data
 
 The database file is at `/data/hassette.db` by default.
 
-**Safe to delete.** Deleting `hassette.db` only removes telemetry history. Your automations continue to run. Restart Hassette to recreate the database.
+**Safe to delete.** Deleting `hassette.db` removes telemetry history and resets the switches and sensors your apps declare with [`self.integration`](core-concepts/apps/integration-entities.md) to their defaults. The declarations themselves come back at the next start. Your automations continue to run. Restart Hassette to recreate the database.
 
 **Schema version mismatch.** If the database was created by a newer version of Hassette, startup raises [`SchemaVersionError`][hassette.exceptions.SchemaVersionError] and halts. Hassette will not try to update the old database automatically. Either upgrade Hassette to match the database or delete the database to start fresh.
 
