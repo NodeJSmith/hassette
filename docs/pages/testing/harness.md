@@ -195,7 +195,8 @@ handles straight away.
 A toggle changes the switch only if the handler calls `set()`, as in
 production. `harness.integration_entities` lists every committed declaration
 with its current state, in key order. Pressing a key the app never declared
-raises `ValueError`.
+raises `ValueError`, and pressing or toggling after the app instance has
+stopped raises `RuntimeError`.
 
 The harness keeps declarations and state in memory, and a write never fails
 there. A failed database write, which fails the instance's start or raises from

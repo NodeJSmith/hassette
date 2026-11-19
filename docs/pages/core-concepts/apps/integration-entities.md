@@ -53,7 +53,7 @@ A sensor's device class, unit and state class decide which values `set()` accept
 --8<-- "pages/core-concepts/apps/snippets/integration_entities.py:sensor"
 ```
 
-An unknown device class, an enum sensor without `options`, or `options` on any other sensor raises `ValueError` from `add_sensor`.
+An unknown device class, an enum sensor without `options` or with a `unit` or `state_class`, or `options` on any other sensor raises `ValueError` from `add_sensor`.
 
 ## State and Attributes
 
@@ -83,7 +83,7 @@ Home Assistant picks the entity ID from the device and entity names when it firs
 
 - A press while Hassette is down fails in Home Assistant, where a helper would change with nobody listening.
 - A switch changes only when the app confirms it with `set()`.
-- A sensor is read-only in Home Assistant and carries a unit, device class and state class, so it gets long-term statistics.
+- A sensor is read-only in Home Assistant and carries a unit, device class and state class. Home Assistant records long-term statistics only for a sensor with a `state_class`, like the `portion` example above.
 - An entity the app stops declaring is removed.
 
 Helpers suit an app that has to work without the Hassette integration installed.
