@@ -49,6 +49,7 @@ from .database_service import DatabaseService
 from .event_stream_service import EventStreamService
 from .file_watcher import FileWatcherService
 from .hassette_accessors import HassetteAccessorsMixin, service_not_wired_error
+from .integration_service import IntegrationService
 from .logging_service import LoggingService
 from .loop_watchdog import LoopWatchdog
 from .pipeline_counters import PipelineCounters
@@ -133,6 +134,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self._sync_executor_service: SyncExecutorService | None = None
         self._event_stream_service: EventStreamService | None = None
         self._database_service: DatabaseService | None = None
+        self._integration_service: IntegrationService | None = None
         self._api_write_recorder: ApiWriteRecorder | None = None
         self._logging_service: LoggingService | None = None
         self._command_executor: CommandExecutor | None = None
@@ -194,6 +196,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
         self._database_service = self.add_child(DatabaseService)
+        self._integration_service = self.add_child(IntegrationService)
         self._api_write_recorder = ApiWriteRecorder(self)
         self._logging_service = self.add_child(LoggingService, stream_handler=self._basic_stream_handler)
         self._command_executor = self.add_child(CommandExecutor)

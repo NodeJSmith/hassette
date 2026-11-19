@@ -121,6 +121,9 @@ class Topic(StrEnum):
     HASSETTE_EVENT_EXECUTION_COMPLETED = "hassette.event.execution_completed"
     """Handler or job execution persisted to the telemetry database"""
 
+    HASSETTE_EVENT_INTEGRATION_COMMAND = "hassette.event.integration_command"
+    """A press or toggle of an app-declared button or switch, sent to the declaring instance's handler"""
+
     # Home Assistant events
 
     HASS_EVENT_STATE_CHANGED = "hass.event.state_changed"

@@ -522,3 +522,16 @@ Facts about the code:
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- `IntegrationService` is a `Resource`, not a `Service`: it has no serve loop, like `AppBootstrapCoordinator` and `SessionManager`.
+- Keys are unique per instance across all three platforms (parent D11), which keeps listener names `integration.<platform>.<key>` unambiguous.
+- A failed running-time commit runs the app's own shutdown hooks: `on_initialize` finished, so its cleanup applies, unlike a failed init.
+- The admission re-check before the commit records its outcome the way `admits_init` already does (failed "stopped before init", or refused).
+- The service records which `Integration` committed each instance; a `set()` whose owner isn't that one raises `IntegrationHandleClosedError` inside its write job. This covers D10.6 (a `set()` queued behind a commit that failed) even when the previous run's row still exists, and a task leaked past a reload.
+- A D12 reset sets the default state (a sensor's unknown, a switch's `initial`) and clears the attributes, which described the dropped value.
+- During init a handle applies the D12 check to its restored value too, so it never reads a value its own declaration rejects.
+- A stored value that doesn't parse loads as the default state with a WARNING.
+- The table keeps a switch's `initial` in its own column, per D4's "typed columns for every field", though nothing reads it back.
+- The harness press/toggle helpers live on a new `IntegrationSimulationMixin`: `_simulation.py` is already past the file-size limit.
+- The two errors live in `hassette.integration.errors` (exported from `hassette`), since `exceptions.py` is at the 800-line limit.
+- A sensor with no numeric, enum, timestamp or date shape accepts only `str` (D5's "else string"); a numeric sensor rejects non-finite numbers, which a JSON scalar can't carry.

@@ -142,6 +142,21 @@ class AppInstanceLifecycleMixin:
             await self.shutdown_instance(inst, cause=exc, outcomes=outcomes)
             return
 
+        # Process exit or a stop may have reached this instance while it initialized; such an instance gets no
+        # commit. No await between this check and the commit's synchronous snapshot.
+        if not self.admits_init(inst, class_name, STARTING, outcomes=outcomes):
+            return
+        try:
+            # Outside the startup timeout and shielded inside, so the commit's outcome is always known (spec 157 D10).
+            await inst.integration.commit_declarations()
+        except Exception as exc:
+            self.logger.exception(
+                "Failed to commit the declared entities of app '%s' (%s)", inst.instance_name, class_name
+            )
+            # Initialization itself finished, so the app's own shutdown hooks still run.
+            await self.shutdown_instance(inst, cause=exc, outcomes=outcomes)
+            return
+
         self.logger.info("App '%s' (%s) initialized successfully", inst.instance_name, class_name)
         outcomes.succeeded(inst.instance_name)
         await self.set_app_status(inst.app_key, inst.instance_name, RUNNING)

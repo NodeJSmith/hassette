@@ -21,6 +21,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.integration_service import IntegrationService
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
@@ -58,6 +59,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
         SyncExecutorService,
         EventStreamService,
         DatabaseService,
+        IntegrationService,
         LoggingService,
         CommandExecutor,
         BusService,

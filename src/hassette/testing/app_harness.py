@@ -43,6 +43,7 @@ from hassette.state_manager import StateManager
 from hassette.testing._factories import make_state_dict
 from hassette.testing._harness import HassetteHarness
 from hassette.testing._harness_support import Timeouts, wait_for
+from hassette.testing._integration_simulation import IntegrationSimulationMixin
 from hassette.testing._simulation import SimulationMixin
 from hassette.testing._time_control import TimeControlMixin
 from hassette.testing.config import make_test_config
@@ -198,7 +199,7 @@ def synthesize_manifest(app_cls: type[App], instance_name: object) -> AppManifes
         raise AppConfigurationError(app_cls, exc) from exc
 
 
-class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
+class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMixin, Generic[AppType]):
     """Async context manager that wires an App class into Hassette test infrastructure.
 
     Provides a fully initialized app instance with access to its bus, scheduler,
@@ -291,6 +292,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
             .with_scheduler()
             .with_state_proxy()
             .with_state_registry()
+            .with_integration()
         )
         self._harness = harness
 
@@ -345,6 +347,9 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
             desc=f"{app.class_name} RUNNING",
             timeout=Timeouts.WAIT_FOR_READY,
         )
+        # The lifecycle commits an instance's declared entities after its initialization; the harness starts the
+        # app directly, so it commits here.
+        await app.integration.commit_declarations()
 
     @staticmethod
     async def _safe_app_shutdown(app: App) -> None:

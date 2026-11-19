@@ -32,6 +32,7 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
             "app_manifests",
             "blocking_events",
             "executions",
+            "integration_entities",
             "lifecycle_events",
             "listener_misses",
             "listeners",

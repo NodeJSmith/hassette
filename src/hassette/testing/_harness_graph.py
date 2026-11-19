@@ -5,6 +5,7 @@ import typing
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
+from hassette.core.integration_service import IntegrationService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
@@ -16,7 +17,8 @@ DEPENDENCIES: dict[str, set[str]] = {
     "scheduler": {"sync_executor", "bus"},
     "file_watcher": set(),
     "api_mock": set(),
-    "app_bootstrap_coordinator": {"bus", "scheduler", "state_proxy", "sync_executor"},
+    "integration": set(),
+    "app_bootstrap_coordinator": {"bus", "integration", "scheduler", "state_proxy", "sync_executor"},
     "app_handler": {"app_bootstrap_coordinator"},
     "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
@@ -34,6 +36,7 @@ COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "sync_executor": SyncExecutorService,
     "bus": BusService,
     "scheduler": SchedulerService,
+    "integration": IntegrationService,
     "app_bootstrap_coordinator": AppBootstrapCoordinator,
     "app_handler": AppHandler,
     "state_proxy": StateProxy,

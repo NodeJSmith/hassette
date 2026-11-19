@@ -32,6 +32,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.models.entities",  # entities module
         "hassette.models.states",  # states module
         "hassette.task_bucket",  # TaskBucket
+        "hassette.integration",  # IntegrationButton, IntegrationSwitch, IntegrationSensor, errors
         "hassette.event_handling.accessors",  # A / accessors
         "hassette.event_handling.conditions",  # C / conditions
         "hassette.event_handling.dependencies",  # D / dependencies

@@ -183,6 +183,10 @@ See the [Cache](../cache/index.md) page for typed access, TTL, and cache invalid
 
 See the [Task Bucket](task-bucket.md) page for `run_in_thread`, `make_async_adapter`, and cross-thread communication.
 
+### Declare Buttons, Switches and Sensors
+
+[`self.integration`](integration-entities.md) declares Home Assistant entities that belong to the app instance: a button that runs a handler, a switch the app controls, a sensor the app sets. They need the [Hassette integration](../../getting-started/home-assistant-integration.md).
+
 ## Restricting Which Apps Run
 
 `hassette run --app <key>` starts Hassette with only the named app. Every other enabled app is excluded and reports status `blocked` — shown as [`BLOCKED`](../../web-ui/manage-apps.md) in the web UI and listed by [`hassette app`](../../cli/commands.md#hassette-app). Disabled apps remain `disabled`. A startup log line names the apps that will run. The key is the `[hassette.apps.<key>]` section name from `hassette.toml`.
@@ -227,3 +231,4 @@ Nothing in the source changes, so there is nothing to remember to remove before 
 
 - **[Lifecycle](lifecycle.md)**: `on_initialize`, `on_shutdown`, and automatic resource cleanup.
 - **[Task Bucket](task-bucket.md)**: background tasks, thread offloading, and cross-thread communication.
+- **[Buttons, Switches and Sensors](integration-entities.md)**: Home Assistant entities an app declares and controls.

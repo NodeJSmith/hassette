@@ -16,6 +16,7 @@ from hassette.events import (
     CallServiceEvent,
     ComponentLoadedEvent,
     HassetteMessageEvent,
+    IntegrationCommandEvent,
     RawStateChangeEvent,
     ServiceRegisteredEvent,
 )
@@ -36,6 +37,12 @@ class CaptureAllApp(App[CaptureConfig]):
     async def on_initialize(self) -> None:
         self.received = []
         await self.bus.on(topic="*", handler=self.capture, name="capture_all")
+        # Declared so the press and toggle simulations have entities to target.
+        await self.integration.add_button("feed", name="Feed", on_press=self.ignore)
+        await self.integration.add_switch("show", name="Show", on_toggle=self.ignore)
+
+    async def ignore(self) -> None:
+        pass
 
     async def capture(self, event: AnyEvent) -> None:
         self.received.append(event)
@@ -57,6 +64,8 @@ SIMULATIONS: list[tuple[str, Simulate, type[AnyEvent]]] = [
     ("call_service", lambda h: h.simulate_call_service("light", "turn_on", brightness=255), CallServiceEvent),
     ("component_loaded", lambda h: h.simulate_component_loaded("mqtt"), ComponentLoadedEvent),
     ("hassette_message", lambda h: h.simulate_hassette_message("tracker_done"), HassetteMessageEvent),
+    ("button_press", lambda h: h.simulate_button_press("feed"), IntegrationCommandEvent),
+    ("switch_toggle", lambda h: h.simulate_switch_toggle("show", True), IntegrationCommandEvent),
     ("service_registered", lambda h: h.simulate_service_registered("light", "turn_on"), ServiceRegisteredEvent),
     (
         "hassette_service_status",

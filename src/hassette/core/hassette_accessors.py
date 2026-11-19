@@ -19,6 +19,7 @@ if typing.TYPE_CHECKING:
     from .command_executor import CommandExecutor
     from .database_service import DatabaseService
     from .event_stream_service import EventStreamService
+    from .integration_service import IntegrationService
     from .logging_service import LoggingService
     from .runtime_query_service import RuntimeQueryService
     from .scheduler_service import SchedulerService
@@ -58,6 +59,7 @@ class HassetteAccessorsMixin:
     _command_executor: "CommandExecutor | None"
     _logging_service: "LoggingService | None"
     _database_service: "DatabaseService | None"
+    _integration_service: "IntegrationService | None"
     _api_write_recorder: "ApiWriteRecorder | None"
     _runtime_query_service: "RuntimeQueryService | None"
     _telemetry_query_service: "TelemetryQueryService | None"
@@ -205,6 +207,13 @@ class HassetteAccessorsMixin:
         if self._logging_service is None:
             return False
         return self._logging_service.persistence_active
+
+    @property
+    def integration_service(self) -> "IntegrationService":
+        """IntegrationService instance holding every app instance's declared entities and their state."""
+        if self._integration_service is None:
+            raise service_not_wired_error("IntegrationService")
+        return self._integration_service
 
     @property
     def database_service(self) -> "DatabaseService":
