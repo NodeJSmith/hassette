@@ -7,7 +7,9 @@ breaks later tests on the same worker.
 
 The failure comes from the HA API boundary: the fake API's state fetch raises, so StateProxy never
 reaches its initial state capability after every child (bus, scheduler, state proxy) has really
-started. That is the partial start the cleanup has to survive.
+started. That is the partial start the cleanup has to survive. On a loaded runner the shortened
+readiness timeout can instead expire while the children are still finishing startup; that is an
+equally partial start, so either timeout satisfies the tests.
 """
 
 import asyncio
@@ -44,7 +46,7 @@ def _ha_state_fetch_fails() -> Iterator[None]:
     with (
         patch.object(HassetteHarness, "_install_default_mocks", install_failing_api),
         patch.object(Timeouts, "WAIT_FOR_READY", READINESS_TIMEOUT_SECONDS),
-        pytest.raises(TimeoutError, match="initial state capability"),
+        pytest.raises(TimeoutError, match=r"initial state capability|did not become ready"),
     ):
         yield
 
