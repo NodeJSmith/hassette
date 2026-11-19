@@ -8,8 +8,6 @@ from hassette.resources.shutdown_outcome import ShutdownOutcome
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
-    from logging import Logger
-
     from hassette.types.enums import ResourceRole
 
 
