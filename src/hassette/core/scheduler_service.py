@@ -399,7 +399,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         before proceeding: destructive replacement (``if_exists="replace"``, which must
         await the old job's ``removed_at`` write landing before issuing the new
         registration's upsert against the same natural-key row — see
-        ``Scheduler._add_job()``) and registration rollback (``_rollback_failed_registration``).
+        ``Scheduler._add_job()``) and registration rollback (the ``except`` path in ``Scheduler._add_job()``).
         Owner cleanup (``remove_jobs()``) runs the same steps across all its jobs one step at a time:
         every live-state removal, then every guard release, then every ``removed_at`` write.
 

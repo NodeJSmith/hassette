@@ -221,7 +221,7 @@ class TestIfExistsReplace:
         """Generic (non-EntityTime, non-replace) rollback path: a plain registration whose
         persistence succeeds (``db_id`` assigned) but a later registration step fails must
         leave no registry, group, or name residue, and the persisted row must be marked
-        removed via ``mark_job_removed``. Exercises ``Scheduler._rollback_failed_registration()``
+        removed via ``mark_job_removed``. Exercises the rollback in ``Scheduler._add_job()``
         through the ordinary ``add_job()`` path (no ``if_exists='replace'`` involved).
         """
         scheduler = make_scheduler(wire_dequeue=True)
