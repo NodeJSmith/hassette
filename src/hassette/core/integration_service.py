@@ -200,7 +200,7 @@ class IntegrationService(Resource):
         self, owner: "Integration", declarations: list[Declaration], pending: Mapping[str, EntityState]
     ) -> CommitCounts:
         """The running-time commit's write job: build the new set, write it, then update memory."""
-        instance = (owner.app_key, owner.instance_name)
+        instance = owner.instance_key
         previous = self._entities.get(instance, {})
         entities = [
             (
@@ -269,7 +269,7 @@ class IntegrationService(Resource):
 
     def is_owner(self, owner: "Integration") -> bool:
         """Whether ``owner`` holds its instance's committed set: it committed last and hasn't released it."""
-        return self._owners.get((owner.app_key, owner.instance_name)) is owner
+        return self._owners.get(owner.instance_key) is owner
 
     def release(self, owner: "Integration") -> None:
         """End ``owner``'s ownership of its instance, if it still holds it. Its committed state stays.
@@ -277,7 +277,7 @@ class IntegrationService(Resource):
         Called when the owning ``Integration`` shuts down, so a handle used after that is rejected by ``set_job``.
         """
         if self.is_owner(owner):
-            del self._owners[(owner.app_key, owner.instance_name)]
+            del self._owners[owner.instance_key]
 
     async def set_state(self, owner: "Integration", declaration: Declaration, state: EntityState) -> None:
         """Write one committed entity's state, as one write job.
@@ -291,7 +291,7 @@ class IntegrationService(Resource):
 
     async def set_job(self, owner: "Integration", declaration: Declaration, state: EntityState) -> None:
         """``set()``'s write job: a no-op if nothing changed, else write the row, then update memory."""
-        instance = (owner.app_key, owner.instance_name)
+        instance = owner.instance_key
         current = self.committed(instance, declaration)
         if not self.is_owner(owner) or current is None:
             raise IntegrationHandleClosedError(owner.instance_name, declaration.key)

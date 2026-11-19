@@ -4,9 +4,7 @@ import typing
 from collections.abc import Mapping
 from typing import Any
 
-from whenever import Date, Instant
-
-from .declarations import Declaration, EntityState
+from .declarations import Declaration, EntityState, EntityValue
 
 if typing.TYPE_CHECKING:
     from hassette.bus import Subscription
@@ -113,7 +111,7 @@ class IntegrationSensor(IntegrationStatefulHandle):
     """A sensor an app instance declared. The app sets its value; Home Assistant shows it."""
 
     @property
-    def value(self) -> bool | int | float | str | Instant | Date | None:
+    def value(self) -> EntityValue:
         """The current value; ``None`` is unknown."""
         return self.state.value
 

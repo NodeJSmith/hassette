@@ -141,6 +141,38 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
 
 
 @dataclass(slots=True, frozen=True)
+class IntegrationCommandPayload:
+    """A press of an app-declared button, or a toggle of an app-declared switch.
+
+    ``value`` is the commanded state for a switch and ``None`` for a button.
+    """
+
+    app_key: str
+    instance_name: str
+    key: str
+    platform: str
+    value: bool | None = None
+
+
+class IntegrationCommandEvent(Event[HassettePayload[IntegrationCommandPayload]]):
+    """Event that runs the handler an app instance declared for one of its buttons or switches.
+
+    Published by ``IntegrationService.dispatch_command`` once the instance is running and the key is declared.
+    A switch handler reads the commanded value with ``D.SwitchCommand``.
+    """
+
+    @classmethod
+    def create(
+        cls, *, app_key: str, instance_name: str, key: str, platform: str, value: bool | None = None
+    ) -> "IntegrationCommandEvent":
+        """Build a command event on the integration-command topic, ready to send on the bus."""
+        command = IntegrationCommandPayload(
+            app_key=app_key, instance_name=instance_name, key=key, platform=platform, value=value
+        )
+        return cls(topic=Topic.HASSETTE_EVENT_INTEGRATION_COMMAND, payload=HassettePayload(data=command))
+
+
+@dataclass(slots=True, frozen=True)
 class AppStateChangePayload:
     """Payload for app instance state change events.
 
@@ -248,39 +280,3 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
             topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
             payload=HassettePayload(data=payload),
         )
-
-
-@dataclass(slots=True, frozen=True)
-class IntegrationCommandPayload:
-    """A press of an app-declared button, or a toggle of an app-declared switch.
-
-    ``value`` is the commanded state for a switch and ``None`` for a button.
-    """
-
-    app_key: str
-    instance_name: str
-    key: str
-    platform: str
-    value: bool | None = None
-
-
-class IntegrationCommandEvent(Event[HassettePayload[IntegrationCommandPayload]]):
-    """Event that runs the handler an app instance declared for one of its buttons or switches.
-
-    Published by ``IntegrationService.dispatch_command`` once the instance is running and the key is declared.
-    A switch handler reads the commanded value with ``D.SwitchCommand``.
-    """
-
-    @classmethod
-    def create(
-        cls, *, app_key: str, instance_name: str, key: str, platform: str, value: bool | None = None
-    ) -> "IntegrationCommandEvent":
-        """Build a command event on the integration-command topic.
-
-        Returns:
-            The event, ready to send on the bus.
-        """
-        payload = IntegrationCommandPayload(
-            app_key=app_key, instance_name=instance_name, key=key, platform=platform, value=value
-        )
-        return cls(topic=Topic.HASSETTE_EVENT_INTEGRATION_COMMAND, payload=HassettePayload(data=payload))

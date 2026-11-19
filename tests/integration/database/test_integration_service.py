@@ -19,6 +19,7 @@ from hassette.integration.declarations import Declaration, EntityState, Integrat
 from hassette.integration.errors import IntegrationHandleClosedError
 from hassette.testing import wait_for
 from tests.support.factories import make_app
+from tests.support.helpers import async_noop
 
 FEED = Declaration(key="feed", platform=IntegrationPlatform.BUTTON, name="Feed")
 SHOW = Declaration(key="show", platform=IntegrationPlatform.SWITCH, name="Show", initial=True)
@@ -30,7 +31,7 @@ TEMP_AS_ENUM = Declaration(
 
 def owner(instance_name: str = "kitchen") -> Any:
     """A stand-in for an instance's ``Integration``: the service reads only its identity."""
-    return SimpleNamespace(app_key="my_app", instance_name=instance_name)
+    return SimpleNamespace(app_key="my_app", instance_name=instance_name, instance_key=("my_app", instance_name))
 
 
 @pytest.fixture
@@ -228,6 +229,18 @@ async def declare_temp(integration: Integration, value: float | None = None) -> 
     return sensor
 
 
+async def committed_temp(service: IntegrationService, value: float | None = None) -> IntegrationSensor:
+    """Declare ``temp`` (optionally setting it during init) on a new ``Integration`` and commit it."""
+    integration = make_integration(service)
+    temp = await declare_temp(integration, value)
+    await integration.commit_declarations()
+    return temp
+
+
+async def fail_with_disk_error(*_: Any) -> Any:
+    raise aiosqlite.OperationalError("disk I/O error")
+
+
 def gate(target: Any, name: str, monkeypatch: pytest.MonkeyPatch) -> tuple[asyncio.Event, asyncio.Event]:
     """Hold ``target.name`` (an async method) at its start; returns ``(entered, release)``."""
     entered, release = asyncio.Event(), asyncio.Event()
@@ -244,11 +257,7 @@ def gate(target: Any, name: str, monkeypatch: pytest.MonkeyPatch) -> tuple[async
 
 async def flush_writer(db: DatabaseService) -> None:
     """Wait until every write queued before this call has run."""
-
-    async def noop() -> None:
-        pass
-
-    await db.submit(noop())
+    await db.submit(async_noop())
 
 
 async def test_commit_lands_when_its_caller_is_cancelled(db: DatabaseService, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -273,9 +282,7 @@ async def test_started_set_takes_effect_when_its_caller_is_cancelled(
     db: DatabaseService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = await start_service(db)
-    integration = make_integration(service)
-    temp = await declare_temp(integration)
-    await integration.commit_declarations()
+    temp = await committed_temp(service)
     entered, release = gate(service, "persist_state", monkeypatch)
 
     task = asyncio.create_task(temp.set(30))
@@ -294,9 +301,7 @@ async def test_queued_set_is_withdrawn_when_its_caller_is_cancelled(
     db: DatabaseService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = await start_service(db)
-    integration = make_integration(service)
-    temp = await declare_temp(integration, 1)
-    await integration.commit_declarations()
+    temp = await committed_temp(service, 1)
 
     busy, free = asyncio.Event(), asyncio.Event()
 
@@ -329,9 +334,7 @@ async def test_queued_set_is_withdrawn_when_its_caller_is_cancelled(
 
 async def test_concurrent_sets_leave_memory_equal_to_the_stored_row(db: DatabaseService) -> None:
     service = await start_service(db)
-    integration = make_integration(service)
-    temp = await declare_temp(integration)
-    await integration.commit_declarations()
+    temp = await committed_temp(service)
 
     await asyncio.gather(*(temp.set(value) for value in range(10)))
 
@@ -370,10 +373,7 @@ async def test_failed_commit_closes_the_handles_and_discards_pending_values(
     integration = make_integration(service)
     temp = await declare_temp(integration, 5)
 
-    async def fail(*_: Any) -> None:
-        raise aiosqlite.OperationalError("disk I/O error")
-
-    monkeypatch.setattr(service, "persist_instance_set", fail)
+    monkeypatch.setattr(service, "persist_instance_set", fail_with_disk_error)
     with pytest.raises(aiosqlite.OperationalError):
         await integration.commit_declarations()
     monkeypatch.undo()
@@ -408,9 +408,7 @@ async def test_instance_that_declares_nothing_writes_nothing(db: DatabaseService
 
 async def test_attributes_are_copied_in_and_out(db: DatabaseService) -> None:
     service = await start_service(db)
-    integration = make_integration(service)
-    temp = await declare_temp(integration)
-    await integration.commit_declarations()
+    temp = await committed_temp(service)
 
     attributes: dict[str, Any] = {"history": [1]}
     await temp.set(1, attributes=attributes)
@@ -423,9 +421,6 @@ async def test_attributes_are_copied_in_and_out(db: DatabaseService) -> None:
 
 
 async def test_prune_failure_fails_startup(db: DatabaseService, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fail(*_: Any) -> Any:
-        raise aiosqlite.OperationalError("disk I/O error")
-
-    monkeypatch.setattr(integration_store, "prune_and_load", fail)
+    monkeypatch.setattr(integration_store, "prune_and_load", fail_with_disk_error)
     with pytest.raises(aiosqlite.OperationalError):
         await start_service(db)

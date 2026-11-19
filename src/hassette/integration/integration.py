@@ -103,6 +103,11 @@ class Integration(Resource):
         return self.app.instance_name
 
     @property
+    def instance_key(self) -> tuple[str, str]:
+        """``(app_key, instance_name)``: the instance this resource declares for."""
+        return (self.app_key, self.instance_name)
+
+    @property
     def service(self) -> "IntegrationService":
         """The core service holding every instance's committed declarations and state."""
         return self.hassette.integration_service
@@ -115,7 +120,7 @@ class Integration(Resource):
         on_press: "HandlerType",
         mode: ExecutionMode | str | None = None,
         default_entity_id: str | None = None,
-    ) -> "Coroutine[Any, Any, IntegrationButton]":
+    ) -> Coroutine[Any, Any, IntegrationButton]:
         """Declare a button. Pressing it in Home Assistant runs ``on_press``.
 
         Must be awaited, during initialization. ``on_press`` is registered as a bus listener named
@@ -164,7 +169,7 @@ class Integration(Resource):
         initial: bool = False,
         mode: ExecutionMode | str | None = None,
         default_entity_id: str | None = None,
-    ) -> "Coroutine[Any, Any, IntegrationSwitch]":
+    ) -> Coroutine[Any, Any, IntegrationSwitch]:
         """Declare a switch. Toggling it in Home Assistant runs ``on_toggle``.
 
         Must be awaited, during initialization. ``on_toggle`` is registered as a bus listener named
@@ -220,7 +225,7 @@ class Integration(Resource):
         state_class: str | None = None,
         options: list[str] | None = None,
         default_entity_id: str | None = None,
-    ) -> "Coroutine[Any, Any, IntegrationSensor]":
+    ) -> Coroutine[Any, Any, IntegrationSensor]:
         """Declare a sensor, whose value the app sets.
 
         Must be awaited, during initialization. The device class, unit and state class decide which values
@@ -355,7 +360,7 @@ class Integration(Resource):
         """
         if self._phase is Phase.CLOSED:
             raise IntegrationHandleClosedError(self.instance_name, declaration.key)
-        committed = self.service.committed((self.app_key, self.instance_name), declaration)
+        committed = self.service.committed(self.instance_key, declaration)
         if self._phase is Phase.COMMITTED:
             state = committed.state if committed is not None else default_state(declaration)
         else:
@@ -371,7 +376,6 @@ class Integration(Resource):
         resource refuses first, since a shutdown during the commit closes it before the commit makes it the owner.
         """
         if self._phase is Phase.CLOSED:
-            # A shutdown during the commit closes this resource before the commit makes it the owner.
             raise IntegrationHandleClosedError(self.instance_name, declaration.key)
         state = EntityState(
             value=check_value(declaration, value), attributes=check_attributes(declaration.key, attributes)
@@ -400,7 +404,7 @@ class Integration(Resource):
         declarations = list(self._declarations.values())
         pending = dict(self._pending)
         self._pending.clear()
-        if not declarations and not self.service.entities(self.app_key, self.instance_name):
+        if not declarations and not self.service.entities(*self.instance_key):
             self._phase = Phase.COMMITTED
             return None
         self._phase = Phase.COMMITTING

@@ -114,20 +114,24 @@ async def prune_and_load(
         raise
     cursor = await db.execute(SELECT_ALL_SQL)
     rows: list[StoredRow] = []
-    for raw in await cursor.fetchall():
+    for row in await cursor.fetchall():
         try:
-            rows.append(parse_row(raw))
+            rows.append(parse_row(row))
         except (ValueError, TypeError):
             # Skipped, not fatal: the instance's next commit rewrites the row as a new entity with its default state.
+            app_key, instance_name, key, platform = row[:4]
             owner.logger.warning(
-                "Skipped a stored integration entity that doesn't parse: %s",
-                raw[:4],
-                extra={"app_key": raw[0], "instance_name": raw[1], "key": raw[2]},
+                "Skipped stored %s '%s' of app instance '%s/%s': it doesn't parse",
+                platform,
+                key,
+                app_key,
+                instance_name,
+                extra={"app_key": app_key, "instance_name": instance_name, "key": key},
             )
     return pruned, rows
 
 
-def parse_row(row: "Iterable[typing.Any]") -> StoredRow:
+def parse_row(row: Iterable[typing.Any]) -> StoredRow:
     """Build a ``StoredRow`` from a ``SELECT_ALL_SQL`` row.
 
     Raises:
@@ -191,7 +195,7 @@ async def replace_instance_set(
         await db.executemany(
             UPSERT_SQL, [row_params(app_key, instance_name, declaration, state) for declaration, state in entities]
         )
-        keep = [(declaration.key, str(declaration.platform)) for declaration, _ in entities]
+        keep = {(declaration.key, str(declaration.platform)) for declaration, _ in entities}
         cursor = await db.execute(
             "SELECT key, platform FROM integration_entities WHERE app_key = ? AND instance_name = ?",
             (app_key, instance_name),

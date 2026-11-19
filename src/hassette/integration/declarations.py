@@ -127,7 +127,7 @@ def validate_sensor_fields(
     *,
     device_class: str | None,
     state_class: str | None,
-    options: "list[str] | tuple[str, ...] | None",
+    options: list[str] | tuple[str, ...] | None,
 ) -> tuple[str, ...] | None:
     """Check a sensor declaration's fields the way Home Assistant does; return ``options`` as a tuple.
 
