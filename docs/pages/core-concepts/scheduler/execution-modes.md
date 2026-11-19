@@ -18,9 +18,11 @@ Recurring jobs reschedule the next occurrence at dispatch time — before the
 current invocation runs. This means an overrunning job fires on its grid,
 not interval-after-completion.
 
-A job scheduled every 30 seconds that takes 45 seconds fires at T+0, T+30
-(held by the mode), T+60, T+90 — not T+0, T+45, T+75. A job that
-completes within its interval fires at identical times to before.
+A job scheduled every 30 seconds that takes 45 seconds keeps its ticks on
+the grid: T+0, T+30, T+60, T+90 — not T+0, T+45, T+75.
+Under the default `single` mode, the runs at T+0 and T+60 execute. The
+T+30 and T+90 ticks are dropped because the previous run is still in
+flight. A job that completes within its interval runs on every tick.
 
 The mode governs what happens when that next-tick entry becomes due while
 the current run is still in flight.
