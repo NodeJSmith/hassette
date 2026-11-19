@@ -9,14 +9,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 import pytest
-from hassette_wire import ResourceStatus
 
 from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
 from hassette.core.integration_service import CommandDispatchResult, IntegrationService
 from hassette.integration import Integration, IntegrationSensor
 from hassette.integration.declarations import Declaration, EntityState, IntegrationPlatform
-from hassette.integration.errors import IntegrationHandleClosedError
+from hassette.integration.errors import IntegrationDeclarationClosedError, IntegrationHandleClosedError
 from hassette.testing import wait_for
 from tests.support.factories import make_app
 from tests.support.helpers import async_noop
@@ -31,7 +30,9 @@ TEMP_AS_ENUM = Declaration(
 
 def owner(instance_name: str = "kitchen") -> Any:
     """A stand-in for an instance's ``Integration``: the service reads only its identity."""
-    return SimpleNamespace(app_key="my_app", instance_name=instance_name, instance_key=("my_app", instance_name))
+    return SimpleNamespace(
+        app_key="my_app", instance_name=instance_name, instance_key=("my_app", instance_name), closed=False
+    )
 
 
 @pytest.fixture
@@ -188,18 +189,19 @@ async def test_set_writes_once_and_rejects_a_replaced_owner(db: DatabaseService)
     assert await stored_rows(db) == [("kitchen", "temp", "sensor", "5", "{}")]
 
 
-async def test_dispatch_checks_running_and_declared(db: DatabaseService) -> None:
+async def test_dispatch_admits_only_a_live_owner_and_a_committed_key(db: DatabaseService) -> None:
     service = await start_service(db)
-    await service.commit_instance(owner(), [FEED, SHOW], {})
+    integration = make_integration(service)
+    integration.register_listener = AsyncMock(return_value=MagicMock())  # pyright: ignore[reportAttributeAccessIssue]
+    await integration.add_button("feed", name="Feed", on_press=async_noop)
+    await integration.add_switch("show", name="Show", on_toggle=async_noop)
+    await integration.add_sensor("temp", name="Temp")
     hassette = cast("MagicMock", db.hassette)
     hassette.send_event = AsyncMock()
-    hassette.app_handler = MagicMock()
-    registry = hassette.app_handler.registry
 
-    registry.get_status.return_value = ResourceStatus.FAILED
     assert await service.dispatch_command("my_app", "kitchen", "feed", "button") is CommandDispatchResult.NOT_RUNNING
+    await integration.commit_declarations()
 
-    registry.get_status.return_value = ResourceStatus.RUNNING
     assert await service.dispatch_command("my_app", "kitchen", "nope", "button") is CommandDispatchResult.NOT_DECLARED
     assert await service.dispatch_command("my_app", "kitchen", "show", "button") is CommandDispatchResult.NOT_DECLARED
     hassette.send_event.assert_not_awaited()
@@ -213,6 +215,47 @@ async def test_dispatch_checks_running_and_declared(db: DatabaseService) -> None
         await service.dispatch_command("my_app", "kitchen", "show", "switch")
     with pytest.raises(ValueError, match="no commands"):
         await service.dispatch_command("my_app", "kitchen", "temp", "sensor")
+
+    await integration.on_shutdown()
+    hassette.send_event.reset_mock()
+    assert await service.dispatch_command("my_app", "kitchen", "feed", "button") is CommandDispatchResult.NOT_RUNNING
+    hassette.send_event.assert_not_awaited()
+
+
+async def test_command_after_a_commit_that_lands_after_shutdown_is_not_running(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Process exit landing while the commit is in flight: the commit lands, but nothing owns it."""
+    service = await start_service(db)
+    integration = make_integration(service)
+    integration.register_listener = AsyncMock(return_value=MagicMock())  # pyright: ignore[reportAttributeAccessIssue]
+    await integration.add_button("feed", name="Feed", on_press=async_noop)
+    hassette = cast("MagicMock", db.hassette)
+    hassette.send_event = AsyncMock()
+    entered, release = gate(service, "persist_instance_set", monkeypatch)
+
+    commit = asyncio.create_task(integration.commit_declarations())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    await integration.on_shutdown()
+    release.set()
+    await commit
+
+    assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["feed"]
+    assert await service.dispatch_command("my_app", "kitchen", "feed", "button") is CommandDispatchResult.NOT_RUNNING
+    hassette.send_event.assert_not_awaited()
+
+
+async def test_instance_that_declared_nothing_is_running_but_has_no_such_key(db: DatabaseService) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    await integration.commit_declarations()
+    assert service.admit_command("my_app", "kitchen", "feed", IntegrationPlatform.BUTTON, None) is (
+        CommandDispatchResult.NOT_DECLARED
+    )
+    await integration.on_shutdown()
+    assert service.admit_command("my_app", "kitchen", "feed", IntegrationPlatform.BUTTON, None) is (
+        CommandDispatchResult.NOT_RUNNING
+    )
 
 
 def make_integration(service: IntegrationService) -> Integration:
@@ -424,3 +467,109 @@ async def test_prune_failure_fails_startup(db: DatabaseService, monkeypatch: pyt
     monkeypatch.setattr(integration_store, "prune_and_load", fail_with_disk_error)
     with pytest.raises(aiosqlite.OperationalError):
         await start_service(db)
+
+
+async def test_set_racing_the_commit_lands_after_it(db: DatabaseService) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 1)
+
+    await asyncio.gather(integration.commit_declarations(), temp.set(2))
+
+    assert temp.value == 2
+    assert await stored_rows(db) == [("kitchen", "temp", "sensor", "2", "{}")]
+
+
+async def test_set_waiting_on_a_commit_that_fails_raises_closed(db: DatabaseService) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 1)
+    service.persist_instance_set = fail_with_disk_error  # pyright: ignore[reportAttributeAccessIssue]
+
+    commit, write = await asyncio.gather(integration.commit_declarations(), temp.set(2), return_exceptions=True)
+
+    assert isinstance(commit, aiosqlite.OperationalError)
+    assert isinstance(write, IntegrationHandleClosedError)
+
+
+async def test_set_waiting_on_a_commit_when_the_instance_stops_raises_closed(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 1)
+    entered, release = gate(service, "persist_instance_set", monkeypatch)
+
+    commit = asyncio.create_task(integration.commit_declarations())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    write = asyncio.create_task(temp.set(2))
+    await asyncio.sleep(0)
+    await integration.on_shutdown()
+    release.set()
+    await commit
+
+    with pytest.raises(IntegrationHandleClosedError):
+        await write
+    assert [entity.state.value for entity in service.entities("my_app", "kitchen")] == [1]
+
+
+async def test_read_during_the_commit_returns_the_value_set_during_init(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    temp = await declare_temp(integration, 21.5)
+    entered, release = gate(service, "persist_instance_set", monkeypatch)
+
+    commit = asyncio.create_task(integration.commit_declarations())
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    assert temp.value == 21.5
+    release.set()
+    await commit
+    assert temp.value == 21.5
+
+
+async def test_declaration_is_recorded_only_once_its_listener_is_registered(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+    await declare_temp(integration)
+    subscription = MagicMock()
+
+    async def registered(*_: Any) -> Any:
+        return subscription
+
+    monkeypatch.setattr(integration, "register_listener", registered)
+    entered, release = gate(integration, "register_listener", monkeypatch)
+    adding = asyncio.create_task(integration.add_button("feed", name="Feed", on_press=async_noop))
+    await asyncio.wait_for(entered.wait(), timeout=1)
+
+    await integration.commit_declarations()
+    release.set()
+    with pytest.raises(IntegrationDeclarationClosedError):
+        await adding
+
+    assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["temp"]
+    subscription.cancel.assert_called_once_with()
+
+
+async def test_concurrent_declarations_of_one_key_reject_the_second(
+    db: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = await start_service(db)
+    integration = make_integration(service)
+
+    async def registered(*_: Any) -> Any:
+        await asyncio.sleep(0)
+        return MagicMock()
+
+    monkeypatch.setattr(integration, "register_listener", registered)
+    first = integration.add_button("feed", name="Feed", on_press=async_noop)
+    second = integration.add_button("feed", name="Feed", on_press=async_noop)
+
+    results = await asyncio.gather(first, second, return_exceptions=True)
+
+    assert sum(isinstance(result, ValueError) for result in results) == 1
+    await integration.commit_declarations()
+    assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["feed"]

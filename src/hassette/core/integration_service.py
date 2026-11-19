@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, ClassVar, TypeVar
 
-from hassette_wire import LogLevel, ResourceStatus
+from hassette_wire import LogLevel
 
 from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
@@ -52,7 +52,8 @@ class CommandDispatchResult(StrEnum):
     """The command event was published. Not proof the handler ran: its execution mode may drop it."""
 
     NOT_RUNNING = "not_running"
-    """The instance isn't running, so nothing was published."""
+    """The instance has no live ``Integration`` owner (it hasn't committed yet, or has stopped), so nothing was
+    published."""
 
     NOT_DECLARED = "not_declared"
     """The instance's committed declarations have no such key on that platform, so nothing was published."""
@@ -217,7 +218,11 @@ class IntegrationService(Resource):
             (declaration.key, declaration.platform): CommittedEntity(declaration, state)
             for declaration, state in entities
         }
-        self._owners[instance] = owner
+        if owner.closed:
+            # Shut down while the write was in flight: the set stays, but no closed resource owns it.
+            self._owners.pop(instance, None)
+        else:
+            self._owners[instance] = owner
         self.revision += 1
         new_keys = set(self._entities[instance])
         old_keys = set(previous)
@@ -268,13 +273,26 @@ class IntegrationService(Resource):
         return state
 
     def is_owner(self, owner: "Integration") -> bool:
-        """Whether ``owner`` holds its instance's committed set: it committed last and hasn't released it."""
+        """Whether ``owner`` holds its instance's committed set: it committed last and hasn't released it.
+
+        The authority for writes already submitted: ``set_job`` checks it when it runs, which catches a write
+        queued by an old instance before a restart's new commit landed. ``Integration``'s phase is only its own
+        early refusal, so it never submits a write it already knows will fail.
+        """
         return self._owners.get(owner.instance_key) is owner
+
+    def claim(self, owner: "Integration") -> None:
+        """Make ``owner`` its instance's live owner without writing.
+
+        For an instance that declared nothing and has nothing stored: it commits nothing, but is still running.
+        """
+        self._owners[owner.instance_key] = owner
 
     def release(self, owner: "Integration") -> None:
         """End ``owner``'s ownership of its instance, if it still holds it. Its committed state stays.
 
-        Called when the owning ``Integration`` shuts down, so a handle used after that is rejected by ``set_job``.
+        Called when the owning ``Integration`` shuts down, so a handle used after that is rejected by ``set_job``
+        and a command for the instance is rejected by ``admit_command``.
         """
         if self.is_owner(owner):
             del self._owners[owner.instance_key]
@@ -306,8 +324,7 @@ class IntegrationService(Resource):
     ) -> CommandDispatchResult:
         """Run the handler an instance declared for a button press or switch toggle, by publishing its command event.
 
-        The instance must be running and have ``key`` committed on ``platform``. Nothing awaits between those
-        checks and the publish's start.
+        Admission is ``admit_command``'s. Nothing awaits between it and the publish's start.
 
         Args:
             app_key: The declaring app.
@@ -330,23 +347,32 @@ class IntegrationService(Resource):
         if resolved is IntegrationPlatform.BUTTON and value is not None:
             raise ValueError(f"a button command takes no value, got {value!r}")
 
-        if self.hassette.app_handler.registry.get_status(app_key, instance_name) is not ResourceStatus.RUNNING:
-            return self.reject_command(CommandDispatchResult.NOT_RUNNING, app_key, instance_name, key, resolved)
-        event = self.command_event(app_key, instance_name, key, resolved, value)
-        if event is None:
-            return self.reject_command(CommandDispatchResult.NOT_DECLARED, app_key, instance_name, key, resolved)
-        await self.hassette.send_event(event)
+        admitted = self.admit_command(app_key, instance_name, key, resolved, value)
+        if isinstance(admitted, CommandDispatchResult):
+            return self.reject_command(admitted, app_key, instance_name, key, resolved)
+        await self.hassette.send_event(admitted)
         return CommandDispatchResult.DISPATCHED
 
-    def command_event(
+    def admit_command(
         self, app_key: str, instance_name: str, key: str, platform: IntegrationPlatform, value: bool | None
-    ) -> IntegrationCommandEvent | None:
-        """The command event for a committed button or switch, or ``None`` if the instance has no such entity.
+    ) -> IntegrationCommandEvent | CommandDispatchResult:
+        """Decide whether a button press or switch toggle may run, and build its command event if so.
 
-        Shared by ``dispatch_command`` and the test harness's press and toggle simulation.
+        The one place command admission lives, shared by ``dispatch_command`` and the test harness's press and
+        toggle simulation. A command is admitted when the instance has a live owner (its commit landed and its
+        ``Integration`` hasn't shut down) and ``key`` is committed on ``platform``. The owner map, not the app
+        registry's status, decides "running": ownership ends in the same step as the instance's shutdown and
+        can't be set by a commit that lands after it.
+
+        Returns:
+            The command event, or ``NOT_RUNNING`` when the instance has no live owner, or ``NOT_DECLARED`` when it
+            has no such committed entity.
         """
-        if (key, platform) not in self._entities.get((app_key, instance_name), {}):
-            return None
+        instance = (app_key, instance_name)
+        if instance not in self._owners:
+            return CommandDispatchResult.NOT_RUNNING
+        if (key, platform) not in self._entities.get(instance, {}):
+            return CommandDispatchResult.NOT_DECLARED
         return IntegrationCommandEvent.create(
             app_key=app_key, instance_name=instance_name, key=key, platform=str(platform), value=value
         )

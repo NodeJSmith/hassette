@@ -157,7 +157,8 @@ class IntegrationCommandPayload:
 class IntegrationCommandEvent(Event[HassettePayload[IntegrationCommandPayload]]):
     """Event that runs the handler an app instance declared for one of its buttons or switches.
 
-    Published by ``IntegrationService.dispatch_command`` once the instance is running and the key is declared.
+    Published by ``IntegrationService.dispatch_command`` once ``admit_command`` finds the instance's live owner
+    and the declared key.
     A switch handler reads the commanded value with ``D.SwitchCommand``.
     """
 

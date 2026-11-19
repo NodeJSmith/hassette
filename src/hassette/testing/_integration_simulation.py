@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING
 
+from hassette.core.integration_service import CommandDispatchResult
 from hassette.events import IntegrationCommandEvent
 from hassette.integration.declarations import IntegrationPlatform
 from hassette.testing._simulation import DEFAULT_SIMULATE_TIMEOUT
@@ -49,6 +50,7 @@ class IntegrationSimulationMixin:
 
         Raises:
             ValueError: The app declared no button with this key.
+            RuntimeError: The app instance isn't running: it hasn't started or has stopped.
             DrainError: The handler raised.
             DrainTimeout: The drain did not finish within ``timeout``.
         """
@@ -72,6 +74,7 @@ class IntegrationSimulationMixin:
 
         Raises:
             ValueError: The app declared no switch with this key.
+            RuntimeError: The app instance isn't running: it hasn't started or has stopped.
             DrainError: The handler raised.
             DrainTimeout: The drain did not finish within ``timeout``.
         """
@@ -79,10 +82,12 @@ class IntegrationSimulationMixin:
         return await self.simulate_event(event, timeout=timeout)
 
     def command_event(self, key: str, platform: IntegrationPlatform, value: bool | None) -> IntegrationCommandEvent:
-        """Build the command event for one of the app's committed buttons or switches."""
+        """Build the command event for one of the app's committed buttons or switches, as production admits it."""
         app = self.require_app()
         service = self.require_harness().integration_service
-        event = service.command_event(app.app_key, app.instance_name, key, platform, value)
-        if event is None:
+        admitted = service.admit_command(app.app_key, app.instance_name, key, platform, value)
+        if admitted is CommandDispatchResult.NOT_RUNNING:
+            raise RuntimeError(f"app instance {app.instance_name!r} isn't running, so it takes no {platform} command")
+        if isinstance(admitted, CommandDispatchResult):
             raise ValueError(f"app instance {app.instance_name!r} declared no {platform} with key {key!r}")
-        return event
+        return admitted

@@ -51,7 +51,13 @@ class Phase(Enum):
     """``add_*`` is allowed; ``set()`` values are held until the commit."""
 
     COMMITTING = auto()
-    """The declared set is being written. ``set()`` goes to the service, queued behind the commit."""
+    """The declared set is being written. Reads show the values set during initialization; ``set()`` waits for
+    the commit to settle, then writes (COMMITTED) or raises (CLOSED).
+
+    This phase is the ``Integration``'s own early refusal and ordering: a ``set()`` never reaches the service ahead
+    of the commit. ``IntegrationService.is_owner`` is the authority for writes already queued when ownership
+    changes, such as an old instance's write queued before a restart's new commit landed.
+    """
 
     COMMITTED = auto()
     """This resource holds the instance's committed set; reads and ``set()`` use it."""
@@ -75,6 +81,8 @@ class Integration(Resource):
         super().__init__(hassette, parent=parent)
         self._declarations: dict[str, Declaration] = {}
         self._pending: dict[str, EntityState] = {}
+        self._reserved: set[str] = set()
+        self._commit_task: asyncio.Task[CommitCounts] | None = None
         self._phase = Phase.DECLARING
         self.sync = self.add_child(IntegrationSyncFacade, integration=self)
 
@@ -106,6 +114,11 @@ class Integration(Resource):
     def instance_key(self) -> tuple[str, str]:
         """``(app_key, instance_name)``: the instance this resource declares for."""
         return (self.app_key, self.instance_name)
+
+    @property
+    def closed(self) -> bool:
+        """Whether this resource has shut down or its commit failed, so it must not own the instance's set."""
+        return self._phase is Phase.CLOSED
 
     @property
     def service(self) -> "IntegrationService":
@@ -284,6 +297,8 @@ class Integration(Resource):
             raise IntegrationDeclarationClosedError(valid, platform)
         if (existing := self._declarations.get(valid)) is not None:
             raise ValueError(f"key {valid!r} is already declared on this instance, as a {existing.platform}")
+        if valid in self._reserved:
+            raise ValueError(f"key {valid!r} is already being declared on this instance")
         return valid
 
     async def declare_sensor(self, declaration: Declaration) -> IntegrationSensor:
@@ -305,21 +320,26 @@ class Integration(Resource):
         source_location: str,
         registration_source: str | None,
     ) -> HandleT:
-        """Record a button or switch declaration and register its handler's listener on the app's bus.
+        """Register a button or switch's listener, then record its declaration.
 
-        The key is reserved before the listener registers and released if registration fails, so a declaration
-        never exists without its listener. It is re-checked first, since the window may have closed, or the key
-        been declared, between the ``add_*`` call and this coroutine running.
+        The listener registers first, so a commit never includes a declaration whose listener isn't registered.
+        The key is reserved while it registers, so a second declaration of it is rejected meanwhile. The
+        window is re-checked first, since it may have closed, or the key been declared, between the ``add_*``
+        call and this coroutine running, and again after registering, since a commit may have closed it while
+        the listener registered; that listener is then cancelled.
         """
-        self.check_declarable(declaration.key, declaration.platform)
-        self._declarations[declaration.key] = declaration
+        key = self.check_declarable(declaration.key, declaration.platform)
+        self._reserved.add(key)
         try:
             subscription = await self.register_listener(
                 declaration, handler, mode, source_location, registration_source
             )
-        except BaseException:
-            del self._declarations[declaration.key]
-            raise
+            if self._phase is not Phase.DECLARING:
+                subscription.cancel()
+                raise IntegrationDeclarationClosedError(key, declaration.platform)
+            self._declarations[key] = declaration
+        finally:
+            self._reserved.discard(key)
         return handle_cls(self, declaration, subscription)
 
     async def register_listener(
@@ -351,9 +371,8 @@ class Integration(Resource):
     def read_state(self, declaration: Declaration) -> EntityState:
         """A switch's or sensor's current state, as its handle exposes it, as a copy the caller may change.
 
-        During initialization: the state the commit will start it with (``resolve_state``). While the commit is
-        being written: its restored state or default, since the values set during initialization are in the commit
-        and show once it lands. After: the committed state.
+        During initialization and while the commit is being written: the state the commit starts it with
+        (``resolve_state``), so a value set during initialization reads back throughout. After: the committed state.
 
         Raises:
             IntegrationHandleClosedError: The instance's commit failed, or this resource has shut down.
@@ -371,9 +390,14 @@ class Integration(Resource):
     async def set_state(self, declaration: Declaration, value: object, attributes: Mapping[str, Any] | None) -> None:
         """Validate and set a switch's or sensor's state: held until the commit during init, written after it.
 
-        Once the declarations are submitted, the service decides: it accepts the write only from the
-        ``Integration`` that holds the instance's committed set (``IntegrationService.is_owner``). A closed
-        resource refuses first, since a shutdown during the commit closes it before the commit makes it the owner.
+        While the commit is in flight the write waits for it to settle, so it never reaches the service ahead of
+        the commit, then follows the resulting phase. After that the service decides: it accepts the write only
+        from the ``Integration`` that holds the instance's committed set (``IntegrationService.is_owner``), which
+        also covers a write queued before a restart's new commit landed.
+
+        Raises:
+            ValueError: ``value`` or ``attributes`` is invalid.
+            IntegrationHandleClosedError: The instance has stopped or its commit failed.
         """
         if self._phase is Phase.CLOSED:
             raise IntegrationHandleClosedError(self.instance_name, declaration.key)
@@ -383,15 +407,22 @@ class Integration(Resource):
         if self._phase is Phase.DECLARING:
             self._pending[declaration.key] = state
             return
+        if self._phase is Phase.COMMITTING and self._commit_task is not None:
+            # Waiting, not awaiting the task: its failure belongs to the caller of ``commit_declarations``, and
+            # cancelling this caller must not cancel the commit.
+            await asyncio.wait({self._commit_task})
+            if self.closed:
+                raise IntegrationHandleClosedError(self.instance_name, declaration.key)
         await self.service.set_state(self, declaration, state)
 
     async def commit_declarations(self) -> "CommitCounts | None":
         """Close the declaration window and commit the declared set with its pending values. Framework-internal.
 
-        The window closes and the pending set is taken in one synchronous step before the write is submitted, so
-        no declaration can miss the commit. The write is shielded from cancellation: once submitted, its outcome
-        lands in the service, and this resource's phase follows it, whether or not the caller is still waiting.
-        Pending values are discarded either way.
+        The window closes and the declared set and pending values are taken in one synchronous step before the
+        write is submitted, so no declaration can miss the commit. The write runs as its own task, shielded from
+        cancellation: once started, its outcome lands in the service, and this resource's phase follows it,
+        whether or not the caller is still waiting. The pending values stay readable until the commit settles,
+        then are discarded whatever its outcome.
 
         An instance that declared nothing and has nothing committed has nothing to replace, so it writes nothing.
 
@@ -402,30 +433,31 @@ class Integration(Resource):
             Exception: The commit failed; the instance's last committed set is unchanged.
         """
         declarations = list(self._declarations.values())
-        pending = dict(self._pending)
-        self._pending.clear()
         if not declarations and not self.service.entities(*self.instance_key):
             self._phase = Phase.COMMITTED
+            self._pending.clear()
+            self.service.claim(self)
             return None
         self._phase = Phase.COMMITTING
-        return await asyncio.shield(self.commit_and_settle(declarations, pending))
+        self._commit_task = asyncio.create_task(self.commit_and_settle(declarations, dict(self._pending)))
+        return await asyncio.shield(self._commit_task)
 
     async def commit_and_settle(
         self, declarations: list[Declaration], pending: Mapping[str, EntityState]
     ) -> "CommitCounts":
-        """Run the commit and move to its resulting phase; shielded by ``commit_declarations``.
+        """Run the commit and move to its resulting phase; run as a task by ``commit_declarations``.
 
-        A shutdown that lands while the commit is in flight has already closed this resource, so a commit that
-        then succeeds is released straight away rather than left owned by a closed resource.
+        A shutdown that lands while the commit is in flight has already closed this resource, so the service
+        doesn't make a closed resource the owner of what the commit writes.
         """
         try:
             counts = await self.service.commit_instance(self, declarations, pending)
         except BaseException:
             self._phase = Phase.CLOSED
             raise
-        if self._phase is Phase.CLOSED:
-            self.service.release(self)
-        else:
+        finally:
+            self._pending.clear()
+        if self._phase is not Phase.CLOSED:
             self._phase = Phase.COMMITTED
         return counts
 

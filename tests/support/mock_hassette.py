@@ -70,7 +70,7 @@ def make_mock_hassette(
         - ``.bus_service.get_listeners_by_owner``: :class:`~unittest.mock.Mock` returning ``[]``
         - ``.bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
-        - ``.integration_service.release``, ``.is_owner``: :class:`~unittest.mock.Mock`;
+        - ``.integration_service.release``, ``.claim``, ``.is_owner``: :class:`~unittest.mock.Mock`;
           ``.entities``: :class:`~unittest.mock.Mock` returning ``[]`` (nothing committed)
         - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
         - ``.app_handler.registry.app_keys``, ``.flagged_app_keys``, ``.all_apps``: :class:`~unittest.mock.Mock`
@@ -151,6 +151,7 @@ def make_mock_hassette(
 
     # Integration service stubs — an app's Integration child reads these synchronously at commit and shutdown.
     hassette.integration_service.release = Mock()
+    hassette.integration_service.claim = Mock()
     hassette.integration_service.is_owner = Mock(return_value=False)
     hassette.integration_service.entities = Mock(return_value=[])
 

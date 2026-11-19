@@ -541,3 +541,9 @@ Facts about the code:
 - `IntegrationSyncFacade` is hand-written, not generated like `BusSyncFacade`: it mirrors three methods, and its `set()` takes a handle, a shape the codegen doesn't produce. A signature-parity test (`tests/unit/integration/test_sync_facade_parity.py`) keeps the `add_*` mirrors in step.
 - `default_entity_id` is checked with HA's own `valid_entity_id`, which within D6's character set also rejects an object id starting or ending with `_`, ids HA itself would refuse.
 - A stored row whose declaration doesn't parse (corrupt `options`) is skipped at load with a WARNING, rather than failing startup; the instance's next commit rewrites it as a new entity. A row whose value or attributes don't parse loads as the default state.
+
+## Addendum
+
+- 2026-11-19 (PR review): Two admission rules changed after D10 and D13 were built.
+  - **Writes around the commit.** `Integration` holds its in-flight commit task. A `set()` during `COMMITTING` waits for that task, then writes (committed) or raises (closed), so ordering no longer depends on writer-queue order. The pending values stay readable until the commit settles. `declare_with_handler` registers the listener before recording the declaration, reserving the key meanwhile. `IntegrationService.is_owner` stays the authority for writes already queued across a restart.
+  - **Command admission.** `IntegrationService.admit_command` is the single check for `dispatch_command` and the harness simulation: `not_running` when the instance has no live owner (committed and not released; a commit landing after shutdown never takes ownership), `not_declared` when the key isn't committed. It replaces the app registry status read, which a late RUNNING write at process exit could satisfy.

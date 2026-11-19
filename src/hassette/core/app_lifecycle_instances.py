@@ -553,9 +553,9 @@ class AppInstanceLifecycleMixin:
         - a stale STOPPED can remove a same-name replacement's entry;
         - a teardown that settles after ``clear_all`` can leave a FAILED entry behind.
 
-        ``clear_all`` discards that state. Until it does, ``IntegrationService.dispatch_command`` reads the late
-        RUNNING, so a press arriving in that window is reported dispatched to a bus that is being torn down; an
-        accepted limitation, since ``DISPATCHED`` never promised the handler ran.
+        ``clear_all`` discards that state. Command admission doesn't read it: ``IntegrationService.admit_command``
+        follows the instance's ``Integration`` ownership, which the instance's shutdown ends and a commit that
+        lands after it never takes.
 
         The one race with consequences, initializing an instance this already reached, is closed in
         ``initialize_instance``, which checks admission right before the STARTING write, right before

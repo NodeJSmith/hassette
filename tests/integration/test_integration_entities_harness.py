@@ -90,6 +90,17 @@ async def test_simulating_an_undeclared_key_raises() -> None:
             await harness.simulate_switch_toggle("feed", True)
 
 
+async def test_a_press_after_the_instance_stopped_raises() -> None:
+    async with AppTestHarness(EntitiesApp, config={"instance_name": "entities"}) as harness:
+        await harness.app.shutdown()
+        with pytest.raises(RuntimeError, match="isn't running"):
+            await harness.simulate_button_press("feed")
+        with pytest.raises(RuntimeError, match="isn't running"):
+            await harness.simulate_switch_toggle("show", True)
+        assert harness.app.presses == 0
+        assert harness.app.toggles == []
+
+
 async def test_declaring_after_the_commit_raises() -> None:
     async with AppTestHarness(EntitiesApp, config={"instance_name": "entities"}) as harness:
         with pytest.raises(IntegrationDeclarationClosedError):
