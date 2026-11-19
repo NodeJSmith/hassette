@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.core.app_handler import AppHandler
     from hassette.core.core import Hassette
+    from hassette.core.integration_service import IntegrationService
     from hassette.core.state_proxy import StateProxy
     from hassette.resources.base import Resource
     from hassette.scheduler.scheduler import Scheduler
@@ -52,6 +53,21 @@ async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capabi
         ready = await proxy.wait_initial_state_capability(timeout=WAIT_FOR_READY_TIMEOUT_SECONDS)
         if not ready:
             raise TimeoutError("Timed out waiting for StateProxy initial state capability during reset")
+
+
+def reset_integration(service: "IntegrationService") -> None:
+    """Forget every committed entity and owner and zero the revision.
+
+    A harness's in-memory integration service keeps what one test committed until this runs, so the next
+    test on a shared harness would otherwise see its entities. ``boot_id`` stays: it identifies the service
+    instance, which survives the reset.
+
+    Args:
+        service: The IntegrationService to reset.
+    """
+    service._entities.clear()
+    service._owners.clear()
+    service.revision = 0
 
 
 async def reset_bus(bus: "Bus") -> None:

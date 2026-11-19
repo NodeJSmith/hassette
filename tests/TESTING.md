@@ -130,6 +130,7 @@ excluded — they are recreated fresh for each test, so no cleanup is needed.
 | Component      | Reset action                                              |
 | -------------- | --------------------------------------------------------- |
 | `app_handler`  | Stop/clear/re-bootstrap cycle via `reset_app_handler()`   |
+| `integration`  | Committed entities/owners cleared, revision zeroed via `reset_integration()`; runs before `app_handler` so re-bootstrapped apps commit onto a clean service |
 | `state_proxy`  | Full shutdown/initialize cycle via `reset_state_proxy()`  |
 | `bus`          | All listeners removed via `reset_bus()`                   |
 | `scheduler`    | All jobs removed via `reset_scheduler()`                  |

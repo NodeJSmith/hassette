@@ -1,5 +1,7 @@
 """App-declared buttons, switches and sensors through AppTestHarness (spec 157)."""
 
+from collections.abc import Callable
+
 import pytest
 from hassette_wire import ExecutionMode
 
@@ -8,14 +10,17 @@ from hassette import (
     AppConfig,
     AppSync,
     D,
+    HassetteConfig,
     IntegrationButton,
     IntegrationDeclarationClosedError,
     IntegrationHandleClosedError,
     IntegrationSensor,
     IntegrationSwitch,
 )
-from hassette.integration.declarations import EntityState
-from hassette.testing import AppTestHarness
+from hassette.core.integration_service import CommandDispatchResult
+from hassette.integration.declarations import EntityState, IntegrationPlatform
+from hassette.testing import AppTestHarness, HassetteHarness
+from tests.support.app_manifests import make_test_app_manifest
 
 
 class EntitiesConfig(AppConfig):
@@ -196,3 +201,21 @@ class QueuedButtonApp(App[EntitiesConfig]):
 async def test_button_mode_reaches_its_listener() -> None:
     async with AppTestHarness(QueuedButtonApp, config={"instance_name": "queued"}) as harness:
         assert harness.app.feed.subscription.listener.options.mode is ExecutionMode.QUEUED
+
+
+async def test_harness_reset_keeps_re_bootstrapped_apps_entities_and_ownership(
+    hassette_harness: Callable[[HassetteConfig], HassetteHarness], test_config_with_apps: HassetteConfig
+) -> None:
+    app_key = "integration_commit"
+    manifest = make_test_app_manifest(app_key, "integration_commit_app.py", "IntegrationCommitApp")
+    async with hassette_harness(test_config_with_apps).with_app_handler().with_integration() as harness:
+        harness.app_handler.registry.set_manifests({app_key: manifest})
+        harness._capture_original_app_manifests()  # pyright: ignore[reportPrivateUsage]
+        service = harness.integration_service
+
+        await harness.reset()
+
+        [app] = [a for a in harness.app_handler.registry.all_apps() if a.app_key == app_key]
+        event = service.admit_command(app_key, app.instance_name, "temp", IntegrationPlatform.SENSOR, None)
+        assert not isinstance(event, CommandDispatchResult)
+        assert [e.declaration.key for e in service.entities(app_key, app.instance_name)] == ["temp"]

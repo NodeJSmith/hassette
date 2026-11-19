@@ -49,7 +49,14 @@ from hassette.testing._harness_support import (
     harness_dispatch,
     shutdown_resource,
 )
-from hassette.testing._reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
+from hassette.testing._reset import (
+    reset_app_handler,
+    reset_bus,
+    reset_integration,
+    reset_mock_api,
+    reset_scheduler,
+    reset_state_proxy,
+)
 from hassette.testing._server import SimpleTestServer
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.testing.config import TEST_TOKEN
@@ -208,8 +215,13 @@ class HassetteHarness:
         Components are only reset when active (``has_component()`` guard or non-None
         check). The cost is negligible per test — one ``remove_all_listeners()`` and
         one ``remove_all_jobs()`` call at most.
+
+        The integration service resets before the app handler: re-bootstrapped apps commit their
+        declared entities and become owners, so they must land on an already-clean service.
         """
-        # app_handler resets first: re-bootstrap registers fresh listeners/jobs,
+        if self.has_component("integration"):
+            reset_integration(self.integration_service)
+        # app_handler resets next: re-bootstrap registers fresh listeners/jobs,
         # then bus/scheduler resets clear any stale test-added ones.
         if self.has_component("app_handler") and self._original_app_manifests is not None:
             await reset_app_handler(self.app_handler, self._original_app_manifests)
