@@ -503,11 +503,9 @@ class EntityShapeError(StateRegistryError):
     """Base for state-conversion errors carrying ``(entity_id, device_class, state_class)`` context.
 
     Shared by :class:`UnableToConvertAnnotatedStateError`, :class:`SensorShapeMismatchError`, and
-    :class:`EntityNotInViewError` — same three-parameter shape, same three attribute assignments,
-    differing only in the message template. Subclasses override :meth:`_build_message` and should not
-    override ``__init__``, so the attribute assignments stay in one place. The sole exception is
-    :class:`EntityNotInViewError`, which mixes in ``KeyError`` and must re-delegate explicitly — see
-    the comment on its ``__init__`` for why.
+    :class:`EntityNotInViewError`, which differ only in the message template: each overrides the abstract
+    :meth:`_build_message` and leaves ``__init__`` alone so the attribute assignments stay in one place (except
+    :class:`EntityNotInViewError`, which mixes in ``KeyError`` and must re-delegate; see its ``__init__``).
 
     Matches design.md's documented exception convention ("a message plus structured attributes, not
     a bare string"; see ``UnableToConvertStateError``) — that convention constrains the shape of each
@@ -522,9 +520,7 @@ class EntityShapeError(StateRegistryError):
 
     @abstractmethod
     def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
-        # Exceptions skip ABCMeta's instantiation check (``BaseException.__new__`` doesn't run it), so the raise is
-        # what stops a direct ``EntityShapeError(...)`` at runtime; ``@abstractmethod`` lets pyright flag it statically.
-        raise NotImplementedError
+        raise NotImplementedError  # BaseException.__new__ skips ABCMeta's instantiation check
 
 
 class UnableToConvertAnnotatedStateError(EntityShapeError):
