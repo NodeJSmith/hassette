@@ -14,7 +14,7 @@ This is the root cause of the most common migration bug. A call that looks compl
 --8<-- "pages/migration/snippets/async_coroutine_basics.py:unawaited"
 ```
 
-The handler finishes without error. The coroutine object is created, never started, and discarded. No service is called, nothing is logged, and Hassette can't catch it for you — creating a coroutine without running it is legal Python. A type checker can catch it: Pyright flags this exact code with `reportUnusedCoroutine`, which is a strong reason to run Pyright over migrated apps.
+The handler finishes without error. The coroutine object is created, never started, and discarded. No service is called and no exception is raised. Hassette does detect the dropped coroutine and logs a `HassetteForgottenAwaitWarning` naming the call site. The `forgotten_await_behavior` setting controls that warning (see [Troubleshooting](../troubleshooting.md#forgotten-await)). A type checker can catch it: Pyright flags this exact code with `reportUnusedCoroutine`, which is a strong reason to run Pyright over migrated apps.
 
 Adding `await` runs the call:
 
@@ -24,7 +24,7 @@ Adding `await` runs the call:
 
 `await` does two things: it starts the coroutine and pauses the current handler until it finishes. While this handler is paused, the event loop runs other handlers — yours and other apps'. That cooperative handoff is how one thread serves every app.
 
-Python eventually notices a discarded coroutine and emits `RuntimeWarning: coroutine '...' was never awaited`. In test output, that warning is the clearest sign of a missing `await` — see [Testing](testing.md).
+Hassette notices the discarded coroutine and emits `HassetteForgottenAwaitWarning: Coroutine from '<method>' was never awaited (app: ..., call site: file:line)`. In test output, that warning is the clearest sign of a missing `await` — see [Testing](testing.md).
 
 ## Which Calls Need `await`
 
@@ -68,12 +68,12 @@ If most of an app's code blocks, don't wrap every call — use [`AppSync`][hasse
 
 A missing `await` never raises at the call site, so it shows up as something else looking broken. The symptoms map directly to the call that was skipped:
 
-- **A service call has no effect** — no light turns on, no error in the logs. Check the `self.api.*` call for a missing `await`.
+- **A service call has no effect** — no light turns on, no exception — only a `HassetteForgottenAwaitWarning` in the logs. Check the `self.api.*` call for a missing `await`.
 - **A listener never fires** — the handler is defined but nothing reaches it. Check the `self.bus.on_*` registration in `on_initialize`.
 - **A scheduled job never runs** — check the `self.scheduler.*` call that was supposed to create it.
-- **`RuntimeWarning: coroutine '...' was never awaited`** appears in logs or pytest output — the warning names the coroutine, which points you at the exact call.
+- **`HassetteForgottenAwaitWarning: Coroutine from '...' was never awaited`** appears in logs or pytest output — it names the method and the file:line call site of the missing `await`.
 
-The first three fail silently in live operation, which is why tests catch this class of bug faster than log-watching does — the `RuntimeWarning` surfaces in pytest output even when every assertion passes. The [Migration Checklist](checklist.md) folds these checks into the step-by-step workflow.
+The first three raise no error in live operation. The only signal is the `HassetteForgottenAwaitWarning` in the logs, and it also surfaces in pytest output even when every assertion passes. The [Migration Checklist](checklist.md) folds these checks into the step-by-step workflow.
 
 ## See Also
 
