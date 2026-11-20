@@ -58,7 +58,7 @@ from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing._sync_facade import RECORDED_API_METHODS, RecordingSyncFacade
-from hassette.testing.api_call import ApiCall
+from hassette.testing.api_call import ApiCall, matches_partial
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -321,11 +321,6 @@ def not_implemented(method_name: str) -> Never:
         "Seed state via AppTestHarness.set_state() for read methods, "
         "or use a full integration test for methods requiring a live HA connection."
     )
-
-
-def matches_partial(call: ApiCall, expected: dict[str, Any]) -> bool:
-    """Return True if every expected key/value pair appears in the call's recorded kwargs."""
-    return all(k in call.kwargs and call.kwargs[k] == v for k, v in expected.items())
 
 
 class RecordingHelperClient:
