@@ -229,21 +229,21 @@ class ApiServiceCallsMixin:
     ) -> ServiceResponse | None:
         # dup-ignore-end
         """Async body for call_service."""
-        payload = {
+        payload: dict[str, Any] = {
             "type": "call_service",
             "domain": domain,
             "service": service,
-            "target": unwrap_secrets(target) if target is not None else None,
-            "return_response": return_response,
+            "return_response": bool(return_response),
         }
+        if target is not None:
+            payload["target"] = unwrap_secrets(target)
 
-        filtered_payload = {k: v for k, v in payload.items() if v is not None}
         service_data = {k: v for k, v in data.items() if v is not None}
 
         if service_data:
             self.logger.debug("Adding extra data to service call: %s", service_data)
             # Logged before unwrapping, so a SecretStr prints masked; HA gets the plaintext.
-            filtered_payload["service_data"] = unwrap_secrets(service_data)
+            payload["service_data"] = unwrap_secrets(service_data)
 
         # Recorded from the caller's own target and data, so a SecretStr stays masked in the record.
         record = self.begin_write(
@@ -258,7 +258,7 @@ class ApiServiceCallsMixin:
         # the call, so a retry could apply it twice (counter.increment would count twice), and
         # a response-returning service can still act (conversation.process, scripts).
         if return_response:
-            resp = await self.ws_send_and_wait(retry_on_timeout=False, record=record, **filtered_payload)
+            resp = await self.ws_send_and_wait(retry_on_timeout=False, record=record, **payload)
             return ServiceResponse(**resp)
 
         if wait_for_ack:
@@ -267,11 +267,11 @@ class ApiServiceCallsMixin:
             # counter.increment) reject return_response=True outright, so this is the only way
             # to surface their HA-side errors. ws_send_and_wait raises CommandRejectedError on a
             # failed envelope, so no envelope parsing is needed here.
-            await self.ws_send_and_wait(retry_on_timeout=False, record=record, **filtered_payload)
+            await self.ws_send_and_wait(retry_on_timeout=False, record=record, **payload)
             return None
 
         # A recorded call's reply is tracked in the background, so a rejection still reaches its record.
-        await self.ws_send_json(record=record, **filtered_payload)
+        await self.ws_send_json(record=record, **payload)
         return None
 
     def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
@@ -286,7 +286,6 @@ class ApiServiceCallsMixin:
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
             **data: Additional service data forwarded to the service call.
-
         """
         return self._entity_service("turn_on", entity_id, domain, data)
 
@@ -302,7 +301,6 @@ class ApiServiceCallsMixin:
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
             **data: Additional service data forwarded to the service call.
-
         """
         return self._entity_service("turn_off", entity_id, domain, data)
 
@@ -318,7 +316,6 @@ class ApiServiceCallsMixin:
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
             **data: Additional service data forwarded to the service call.
-
         """
         return self._entity_service("toggle", entity_id, domain, data)
 
@@ -371,4 +368,4 @@ class ApiServiceCallsMixin:
             straight to :meth:`notify` — e.g. ``["mobile_app_phone", "persistent_notification"]``.
         """
         services = await self.get_services()
-        return sorted(services.get(NOTIFY_DOMAIN, {}).keys())
+        return sorted(services.get(NOTIFY_DOMAIN, {}))

@@ -275,6 +275,9 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
     _api_service: "ApiResource"
     """Internal API service instance."""
 
+    _write_owner: tuple[str, str] | None
+    """``(app_key, instance_name)`` of the app whose writes this Api records; None records nothing."""
+
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._api_service = self.hassette.api_service
@@ -282,8 +285,7 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         # self._api.helpers to wire its own nested HelperClientSyncFacade.
         self.helpers = self.add_child(HelperClient, api=self)
         self.sync = self.add_child(ApiSyncFacade, api=self)
-        self._write_owner: tuple[str, str] | None = None
-        """``(app_key, instance_name)`` of the app whose writes this Api records; None records nothing."""
+        self._write_owner = None
 
     async def on_initialize(self) -> None:
         """Mark the API ready; transport is delegated to ``hassette.api_service``, so there is nothing to set up."""
@@ -354,11 +356,12 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
             OutcomeUnknownError: If no response arrived (``ResponseTimeoutError``) or the
                 connection dropped while waiting (``ResponseLostError``).
         """
+        on_resolve = record.resolve if record is not None else None
         try:
             if not self._api_service.ws_conn.is_connected:
                 raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
             return await self._api_service.ws_conn.send_and_wait(
-                retry_on_timeout=retry_on_timeout, on_resolve=record.resolve if record is not None else None, **data
+                retry_on_timeout=retry_on_timeout, on_resolve=on_resolve, **data
             )
         except (CommandRejectedError, OutcomeUnknownError):
             # Sent: the pending-reply entry owns the record and already resolved it, or will.

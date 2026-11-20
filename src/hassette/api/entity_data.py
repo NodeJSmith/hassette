@@ -119,7 +119,7 @@ class ApiEntityDataMixin:
         Returns:
             The entity object.
         """
-        if not issubclass(model, BaseEntity):  # runtime check
+        if not issubclass(model, BaseEntity):
             raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
 
         raw = await self.get_state_raw(entity_id)
@@ -280,11 +280,10 @@ class ApiEntityDataMixin:
         if not entries:
             return {}
 
-        converted = {}
-        for history_list in entries:
-            converted[history_list[0]["entity_id"]] = [HistoryEntry.model_validate(entry) for entry in history_list]
-
-        return converted
+        return {
+            history_list[0]["entity_id"]: [HistoryEntry.model_validate(entry) for entry in history_list]
+            for history_list in entries
+        }
 
     async def get_logbook(
         self,
@@ -364,7 +363,6 @@ class ApiEntityDataMixin:
                 record.resolve("not_sent")
             raise
 
-        # Merge current attributes with new attributes.
         # This client-side merge is load-bearing: HA's POST /api/states/{id} replaces the attribute
         # set rather than merging it, so a partial write would wipe the attributes it doesn't name.
         # See tests/system/test_api.py::test_set_state_preserves_unnamed_attributes.
@@ -400,9 +398,7 @@ class ApiEntityDataMixin:
             The camera image data.
         """
         url = f"camera_proxy/{entity_id}"
-        params = {}
-        if timestamp:
-            params["timestamp"] = timestamp
+        params = {"timestamp": timestamp} if timestamp else {}
 
         response = await self.get_rest_request(url, params=params)
 
