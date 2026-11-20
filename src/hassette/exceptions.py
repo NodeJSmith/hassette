@@ -588,6 +588,12 @@ class EntityNotInViewError(KeyError, EntityShapeError):
         # directly. Pinned by test_entity_not_in_view_error_defines_own_init.
         EntityShapeError.__init__(self, entity_id, device_class, state_class)
 
+    def __str__(self) -> str:
+        # KeyError precedes HassetteError in the MRO, and KeyError.__str__ returns repr() of the
+        # message (extra quotes, escaped inner quotes) and skips the suggestion suffix. As with
+        # __init__, super() would resolve to KeyError; name the base directly.
+        return HassetteError.__str__(self)
+
     def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
         return (
             f"Entity '{entity_id}' (device_class: {device_class!r}) is not a member of this view; "
