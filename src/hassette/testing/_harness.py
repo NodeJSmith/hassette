@@ -5,7 +5,7 @@ import logging
 import threading
 import traceback
 import typing
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
@@ -549,14 +549,7 @@ class HassetteHarness:
                     log_label=f"topic={cmd.topic}",
                 )
 
-        listener_id_counter = itertools.count(1)
-
-        async def _register_listener_stub(*_args: Any, **_kwargs: Any) -> int:
-            return next(listener_id_counter)
-
-        mock_executor = AsyncMock(spec=CommandExecutor)
-        mock_executor.execute = AsyncMock(side_effect=_stub_execute)
-        mock_executor.register_listener = AsyncMock(side_effect=_register_listener_stub)
+        mock_executor = make_stub_executor(_stub_execute, register_method="register_listener")
         mock_executor.reconcile_registrations = AsyncMock()
         self.hassette._bus_service = self.hassette.add_child(
             BusService, stream=self.hassette._event_stream_service.receive_stream.clone(), executor=mock_executor
@@ -580,14 +573,7 @@ class HassetteHarness:
                     log_label=f"job={cmd.job.name}",
                 )
 
-        job_id_counter = itertools.count(1)
-
-        async def _register_job_stub(*_args: Any, **_kwargs: Any) -> int:
-            return next(job_id_counter)
-
-        mock_executor = AsyncMock(spec=CommandExecutor)
-        mock_executor.execute = AsyncMock(side_effect=_stub_execute)
-        mock_executor.register_job = AsyncMock(side_effect=_register_job_stub)
+        mock_executor = make_stub_executor(_stub_execute, register_method="register_job")
         self.hassette._scheduler_service = self.hassette.add_child(SchedulerService, executor=mock_executor)
         self.hassette._scheduler = self.hassette.add_child(Scheduler)
 
@@ -654,3 +640,25 @@ class HassetteHarness:
         "state_proxy": _start_state_proxy,
         "state_registry": _start_state_registry,
     }
+
+
+def make_stub_executor(dispatch: Callable[[Any], Awaitable[None]], *, register_method: str) -> AsyncMock:
+    """Build a mock `CommandExecutor` whose `execute` runs `dispatch` and whose register method returns fresh ids.
+
+    Args:
+        dispatch: Awaited with each command passed to `execute`.
+        register_method: Name of the registration method (e.g. `register_listener`) to stub with an
+            incrementing id counter starting at 1.
+
+    Returns:
+        The configured `AsyncMock(spec=CommandExecutor)`.
+    """
+    id_counter = itertools.count(1)
+
+    async def _register_stub(*_args: Any, **_kwargs: Any) -> int:
+        return next(id_counter)
+
+    mock_executor = AsyncMock(spec=CommandExecutor)
+    mock_executor.execute = AsyncMock(side_effect=dispatch)
+    setattr(mock_executor, register_method, AsyncMock(side_effect=_register_stub))
+    return mock_executor
