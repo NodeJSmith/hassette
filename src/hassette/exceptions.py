@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -519,7 +520,10 @@ class EntityShapeError(StateRegistryError):
         self.device_class = device_class
         self.state_class = state_class
 
+    @abstractmethod
     def _build_message(self, entity_id: str, device_class: str | None, state_class: type["BaseState"]) -> str:
+        # Exceptions skip ABCMeta's instantiation check (``BaseException.__new__`` doesn't run it), so the raise is
+        # what stops a direct ``EntityShapeError(...)`` at runtime; ``@abstractmethod`` lets pyright flag it statically.
         raise NotImplementedError
 
 

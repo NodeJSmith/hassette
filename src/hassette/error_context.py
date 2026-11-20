@@ -1,10 +1,11 @@
 """Base error context for bus and scheduler error handlers."""
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
-class ErrorContext:
+class ErrorContext(ABC):
     """Shared base for error contexts passed to user-registered error handlers.
 
     Subclassed by :class:`~hassette.bus.error_context.BusErrorContext` and
@@ -33,10 +34,6 @@ class ErrorContext:
         return base
 
     @property
+    @abstractmethod
     def domain_label(self) -> str:
-        """Label naming the error's source, without the execution ID; subclasses must override it.
-
-        Raises:
-            NotImplementedError: Always, on the base class.
-        """
-        raise NotImplementedError
+        """Label naming the error's source, without the execution ID."""
