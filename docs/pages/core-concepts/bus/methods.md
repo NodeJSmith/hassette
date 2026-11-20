@@ -339,7 +339,7 @@ Both methods accept `handler`, `where`, `kwargs`, `name`, `on_error`, and the [s
 
 ### `on_hassette_service_status` and shorthands
 
-`on_hassette_service_status` fires when a Hassette background service (WebSocket, database, bus, scheduler) transitions to a new [`ResourceStatus`][hassette.ResourceStatus]. Most apps never need this — Hassette restarts failed services on its own. It exists for apps that pause work or alert when a service goes down. Three shorthands cover the common cases: `on_hassette_service_failed` (status `FAILED`), `on_hassette_service_crashed` (status `CRASHED`), and `on_hassette_service_started` (status `RUNNING`).
+`on_hassette_service_status` fires when a Hassette background service (WebSocket, database, bus, scheduler) transitions to a new [`ResourceStatus`][hassette.ResourceStatus]. Nothing restarts a failed service in-process. A required service's failure stops Hassette, so a [supervisor](../../operating/index.md#health-and-supervisors) can restart it. An optional service stays down until Hassette restarts or the app that owns it reloads. This method exists for apps that pause work or alert when a service goes down. Three shorthands cover the common cases: `on_hassette_service_failed` (status `FAILED`), `on_hassette_service_crashed` (status `CRASHED`), and `on_hassette_service_started` (status `RUNNING`).
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_service_events.py:service"
