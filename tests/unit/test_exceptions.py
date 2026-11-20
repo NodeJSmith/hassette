@@ -296,6 +296,24 @@ def test_entity_not_in_view_error_defines_own_init() -> None:
     assert err.state_class is NumericSensorState
 
 
+def test_entity_not_in_view_error_str_is_plain_message() -> None:
+    """``str()`` must render the message itself, not ``KeyError``'s ``repr()`` of it.
+
+    ``KeyError`` precedes the ``HassetteError`` hierarchy in the MRO, so an inherited ``__str__``
+    resolves to ``KeyError.__str__``, which wraps the message in quotes and escapes inner ones.
+    """
+    err = EntityNotInViewError("sensor.mode", "enum", NumericSensorState)
+    assert str(err) == err.args[0]
+    assert not str(err).startswith('"')
+
+
+def test_entity_not_in_view_error_str_includes_suggestion() -> None:
+    """A set ``suggestion`` is appended, which ``KeyError.__str__`` would drop."""
+    err = EntityNotInViewError("sensor.mode", "enum", NumericSensorState)
+    err.suggestion = "Use self.states.sensor instead."
+    assert str(err) == f"{err.args[0]}\n  Suggestion: Use self.states.sensor instead."
+
+
 def test_hassette_error_without_suggestion_renders_message_unchanged() -> None:
     assert str(HassetteError("msg")) == "msg"
 
