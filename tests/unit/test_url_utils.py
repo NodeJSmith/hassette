@@ -125,12 +125,24 @@ def test_config_with_empty_base_url_raises(func):
 
 
 @pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
-def test_ipv6_address(func):
-    """Test IPv6 address handling."""
-    config = make_config("http://[::1]:8123")
+@pytest.mark.parametrize(
+    "ipv6_url",
+    ["http://[::1]:8123", "http://[2001:db8:0:0:1:0:0:1]:8123", "'http://[2001:db8::1]'"],
+    ids=["compressed", "uncompressed", "quoted"],
+)
+def test_ipv6_address(func, ipv6_url):
+    """Every IPv6 host is rejected, compressed or not."""
+    config = make_config(ipv6_url)
 
     with pytest.raises(IPV6NotSupportedError):
         func(config)
+
+
+def test_double_colon_outside_host_is_accepted():
+    """A "::" in the path or query is not mistaken for an IPv6 address."""
+    config = make_config("http://homeassistant:8123/ha::proxy?x=::")
+
+    assert build_rest_url(config) == "http://homeassistant:8123/ha::proxy/api/"
 
 
 @pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])

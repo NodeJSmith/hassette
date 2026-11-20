@@ -41,9 +41,6 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> BaseUrlParts:
     if not config.base_url:
         raise BaseUrlRequiredError(f"base_url must be set in the configuration, got: {config.base_url}")
 
-    if "::" in config.base_url:
-        raise IPV6NotSupportedError(f"IPv6 addresses are not supported in base_url, got: {config.base_url}")
-
     cleaned_url = config.base_url.strip().strip("'\"")
     yurl = URL(cleaned_url)
 
@@ -52,6 +49,10 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> BaseUrlParts:
 
     if yurl.host is None:
         raise BaseUrlRequiredError(f"base_url must include a valid hostname, got: {cleaned_url}")
+
+    # yarl returns an IPv6 host without brackets; hostnames and IPv4 addresses never contain ":".
+    if ":" in yurl.host:
+        raise IPV6NotSupportedError(f"IPv6 addresses are not supported in base_url, got: {cleaned_url}")
 
     return BaseUrlParts(yurl.scheme, yurl.host, yurl.explicit_port, yurl.raw_path.rstrip("/"))
 
