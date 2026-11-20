@@ -28,6 +28,7 @@ from .declarations import (
     resolve_state,
     validate_default_entity_id,
     validate_key,
+    validate_name,
     validate_sensor_fields,
 )
 from .errors import IntegrationDeclarationClosedError, IntegrationHandleClosedError
@@ -153,14 +154,14 @@ class Integration(Resource):
             The button's handle.
 
         Raises:
-            ValueError: An invalid or duplicate key, or an invalid ``default_entity_id``.
+            ValueError: An invalid or duplicate key, an invalid name, or an invalid ``default_entity_id``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.BUTTON
         declaration = Declaration(
             key=self._check_declarable(key, platform),
             platform=platform,
-            name=name,
+            name=validate_name(name, platform),
             default_entity_id=validate_default_entity_id(default_entity_id, platform),
         )
         source_location, registration_source = capture_registration_source()
@@ -205,7 +206,8 @@ class Integration(Resource):
             The switch's handle.
 
         Raises:
-            ValueError: An invalid or duplicate key, a non-bool ``initial``, or an invalid ``default_entity_id``.
+            ValueError: An invalid or duplicate key, an invalid name, a non-bool ``initial``, or an invalid
+                ``default_entity_id``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.SWITCH
@@ -214,7 +216,7 @@ class Integration(Resource):
         declaration = Declaration(
             key=self._check_declarable(key, platform),
             platform=platform,
-            name=name,
+            name=validate_name(name, platform),
             default_entity_id=validate_default_entity_id(default_entity_id, platform),
             initial=initial,
         )
@@ -261,8 +263,8 @@ class Integration(Resource):
             The sensor's handle.
 
         Raises:
-            ValueError: An invalid or duplicate key, an unknown device or state class, an enum sensor without
-                options or with a unit or state class, options on another sensor, or an invalid
+            ValueError: An invalid or duplicate key, an invalid name, an unknown device or state class, an enum
+                sensor without options or with a unit or state class, options on another sensor, or an invalid
                 ``default_entity_id``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
@@ -271,7 +273,7 @@ class Integration(Resource):
         declaration = Declaration(
             key=key,
             platform=platform,
-            name=name,
+            name=validate_name(name, platform),
             default_entity_id=validate_default_entity_id(default_entity_id, platform),
             unit=unit,
             device_class=device_class,

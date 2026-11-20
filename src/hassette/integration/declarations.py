@@ -120,13 +120,22 @@ def validate_key(key: object, platform: IntegrationPlatform) -> str:
     return key
 
 
-def validate_default_entity_id(default_entity_id: str | None, platform: IntegrationPlatform) -> str | None:
+def validate_name(name: object, platform: IntegrationPlatform) -> str:
+    """Return ``name`` if it is a non-empty string, else raise ``ValueError``."""
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"{platform} name must be a non-empty string, got {name!r}")
+    return name
+
+
+def validate_default_entity_id(default_entity_id: object, platform: IntegrationPlatform) -> str | None:
     """Return ``default_entity_id`` if it is ``None`` or a valid entity id on ``platform``; else raise ``ValueError``.
 
     A valid one is ``<platform>.<object_id>``, with an object id of lowercase letters, digits and ``_``.
     """
     if default_entity_id is None:
         return None
+    if not isinstance(default_entity_id, str):
+        raise ValueError(f"default_entity_id must be a string, got {default_entity_id!r}")
     domain, _, _ = default_entity_id.partition(".")
     if domain != platform or not VALID_ENTITY_ID.fullmatch(default_entity_id):
         raise ValueError(
@@ -158,12 +167,18 @@ def validate_sensor_fields(
     if device_class == "enum":
         if state_class is not None or unit is not None:
             raise ValueError(f"enum sensor {key!r} can't have a state_class or unit; Home Assistant rejects both")
-        if not options or not all(isinstance(option, str) for option in options):
+        if (
+            not isinstance(options, list | tuple)
+            or not options
+            or not all(isinstance(option, str) for option in options)
+        ):
             raise ValueError(f"enum sensor {key!r} needs options, a non-empty list of strings")
         if len(set(options)) != len(options):
             raise ValueError(f"enum sensor {key!r} has duplicate options")
         return tuple(options)
     if options is not None:
+        if not isinstance(options, list | tuple):
+            raise ValueError(f"sensor {key!r} options must be a list of strings, got {options!r}")
         raise ValueError(f"sensor {key!r} has options, which only an enum sensor (device_class='enum') takes")
     return None
 

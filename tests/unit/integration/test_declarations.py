@@ -16,6 +16,7 @@ from hassette.integration.declarations import (
     fits,
     validate_default_entity_id,
     validate_key,
+    validate_name,
     validate_sensor_fields,
 )
 
@@ -38,6 +39,16 @@ def test_valid_key_passes() -> None:
     assert validate_key("feed_cat2", IntegrationPlatform.BUTTON) == "feed_cat2"
 
 
+@pytest.mark.parametrize("name", [None, 5, ""])
+def test_invalid_name_raises(name: object) -> None:
+    with pytest.raises(ValueError, match="name must be a non-empty string"):
+        validate_name(name, IntegrationPlatform.BUTTON)
+
+
+def test_valid_name_passes() -> None:
+    assert validate_name("Feed cat", IntegrationPlatform.BUTTON) == "Feed cat"
+
+
 @pytest.mark.parametrize(
     "eid",
     [
@@ -56,6 +67,11 @@ def test_invalid_default_entity_id_raises(eid: str) -> None:
         validate_default_entity_id(eid, IntegrationPlatform.BUTTON)
 
 
+def test_non_string_default_entity_id_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="default_entity_id must be a string"):
+        validate_default_entity_id(123, IntegrationPlatform.BUTTON)
+
+
 def test_default_entity_id_on_matching_platform_passes() -> None:
     assert validate_default_entity_id("button.feed_cat", IntegrationPlatform.BUTTON) == "button.feed_cat"
     assert validate_default_entity_id(None, IntegrationPlatform.BUTTON) is None
@@ -68,7 +84,9 @@ def test_default_entity_id_on_matching_platform_passes() -> None:
         ({"device_class": None, "state_class": "sometimes", "unit": None, "options": None}, "unknown state_class"),
         ({"device_class": "enum", "state_class": None, "unit": None, "options": None}, "needs options"),
         ({"device_class": "enum", "state_class": None, "unit": None, "options": []}, "needs options"),
+        ({"device_class": "enum", "state_class": None, "unit": None, "options": "auto"}, "needs options"),
         ({"device_class": "enum", "state_class": None, "unit": None, "options": ["a", "a"]}, "duplicate"),
+        ({"device_class": None, "state_class": None, "unit": None, "options": "auto"}, "must be a list of strings"),
         ({"device_class": "temperature", "state_class": None, "unit": None, "options": ["a"]}, "only an enum sensor"),
         ({"device_class": "enum", "state_class": "measurement", "unit": None, "options": ["a"]}, "state_class or unit"),
         ({"device_class": "enum", "state_class": None, "unit": "g", "options": ["a"]}, "state_class or unit"),
