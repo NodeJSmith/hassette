@@ -14,7 +14,6 @@ from hassette.testing.config import WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.types.enums import ACTIVE_STATUSES
 
 if TYPE_CHECKING:
-    from hassette.bus.bus import Bus
     from hassette.config.classes import AppManifest
     from hassette.core.app_handler import AppHandler
     from hassette.core.core import Hassette
@@ -22,7 +21,6 @@ if TYPE_CHECKING:
     from hassette.core.state_proxy import StateProxy
     from hassette.resources.base import Resource
     from hassette.scheduler.scheduler import Scheduler
-    from hassette.testing._server import SimpleTestServer
 
 
 async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capability: bool = True) -> None:
@@ -70,21 +68,6 @@ def reset_integration(service: "IntegrationService") -> None:
     service.revision = 0
 
 
-async def reset_bus(bus: "Bus") -> None:
-    """Remove all listeners owned by this bus instance.
-
-    Bus listeners accumulate in the BusService router as tests register handlers.
-    This clears them between tests to prevent ordering dependencies. The body is
-    synchronous (remove_all_listeners is sync) but the signature remains async
-    for interface consistency with sibling reset_* helpers that are awaited
-    by HassetteHarness.
-
-    Args:
-        bus: The Bus instance to reset.
-    """
-    bus.remove_all_listeners()
-
-
 async def reset_scheduler(scheduler: "Scheduler") -> None:
     """Remove all jobs owned by this scheduler instance.
 
@@ -95,17 +78,6 @@ async def reset_scheduler(scheduler: "Scheduler") -> None:
         scheduler: The Scheduler instance to reset.
     """
     await scheduler.remove_all_jobs()
-
-
-def reset_mock_api(server: "SimpleTestServer") -> None:
-    """Clear queued expectations and unexpected request log from the mock server.
-
-    Delegates to ``SimpleTestServer.reset()``.
-
-    Args:
-        server: The SimpleTestServer instance to reset.
-    """
-    server.reset()
 
 
 async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[str, "AppManifest"]) -> None:

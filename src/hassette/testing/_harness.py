@@ -47,13 +47,10 @@ from hassette.testing._harness_support import (
     Timeouts,
     collect_shutdown_errors,
     harness_dispatch,
-    shutdown_resource,
 )
 from hassette.testing._reset import (
     reset_app_handler,
-    reset_bus,
     reset_integration,
-    reset_mock_api,
     reset_scheduler,
     reset_state_proxy,
 )
@@ -83,7 +80,6 @@ class HassetteHarness:
         self.unused_tcp_port = unused_tcp_port
         self._components: set[str] = set()
 
-        self.logger = logging.getLogger(HASSETTE_LOGGER_NAME)
         # HarnessHassette.__init__ calls enable_basic_logging() which sets propagate=False and clears handlers.
         # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.
         self.hassette = HarnessHassette(config=self.config)
@@ -231,11 +227,11 @@ class HassetteHarness:
                 require_initial_state_capability=self._require_state_capability,
             )
         if self.has_component("bus"):
-            await reset_bus(self.bus)
+            self.bus.remove_all_listeners()
         if self.has_component("scheduler"):
             await reset_scheduler(self.scheduler)
         if self.api_mock is not None:
-            reset_mock_api(self.api_mock)
+            self.api_mock.reset()
 
     async def seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
         """Seed an entity's state directly into the StateProxy cache.
@@ -432,7 +428,7 @@ class HassetteHarness:
 
         if not self.hassette._websocket_service:
             self.hassette._websocket_service = Mock()
-            self._configure_ready_websocket_mock(self.hassette._websocket_service)
+            configure_ready_websocket_mock(self.hassette._websocket_service)
 
         if not self.hassette._api:
             self.hassette._api = AsyncMock()
@@ -443,10 +439,6 @@ class HassetteHarness:
 
         if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
-
-    @staticmethod
-    def _configure_ready_websocket_mock(websocket_service: Mock) -> None:
-        configure_ready_websocket_mock(websocket_service)
 
     def _capture_original_app_manifests(self) -> None:
         """Snapshot app manifests after startup so reset() can restore them between tests."""
@@ -487,7 +479,7 @@ class HassetteHarness:
         # Shut down in reverse order so dependents stop before their dependencies.
         for resource in reversed(self.hassette.children):
             with collect_shutdown_errors(shutdown_errors):
-                await shutdown_resource(resource)
+                await resource.shutdown()
 
         # Close event streams after all children have stopped — children send
         # STOPPED status events during shutdown, so streams must stay open until then.
@@ -600,9 +592,6 @@ class HassetteHarness:
         self.hassette._scheduler = self.hassette.add_child(Scheduler)
 
     async def _start_file_watcher(self) -> None:
-        if not self.hassette.config:
-            raise RuntimeError("File watcher requires a config")
-
         self.hassette._file_watcher = self.hassette.add_child(FileWatcherService)
 
     async def _start_app_handler(self) -> None:
@@ -617,8 +606,6 @@ class HassetteHarness:
         self.hassette._app_bootstrap_coordinator = self.hassette.add_child(AppBootstrapCoordinator)
 
     async def _start_api_mock(self) -> None:
-        if not self.api_base_url:
-            raise RuntimeError("API harness requires api_base_url")
         mock_server = SimpleTestServer()
         app = web.Application()
         app.router.add_route("*", "/{tail:.*}", mock_server.handle_request)
@@ -627,12 +614,12 @@ class HassetteHarness:
         await runner.setup()
         self._exit_stack.push_async_callback(runner.cleanup)
 
-        site = web.TCPSite(runner, self.api_base_url.host or "127.0.0.1", self.api_base_url.port or 80)
+        site = web.TCPSite(runner, self.api_base_url.host, self.api_base_url.port)
         await site.start()
         self._exit_stack.push_async_callback(site.stop)
 
         self.hassette._websocket_service = Mock(spec=WebsocketService)
-        self._configure_ready_websocket_mock(self.hassette._websocket_service)
+        configure_ready_websocket_mock(self.hassette._websocket_service)
 
         self.hassette._api_service = self.hassette.add_child(
             ApiResource,
@@ -647,7 +634,7 @@ class HassetteHarness:
         if self.hassette._websocket_service is None:
             self.hassette._websocket_service = Mock()
             self.hassette._websocket_service._status = ResourceStatus.RUNNING
-            self._configure_ready_websocket_mock(self.hassette._websocket_service)
+            configure_ready_websocket_mock(self.hassette._websocket_service)
         self.hassette._state_proxy = self.hassette.add_child(HarnessStateProxy)
 
     async def _start_state_registry(self) -> None:
