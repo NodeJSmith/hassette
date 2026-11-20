@@ -8,7 +8,6 @@ import typing
 from collections.abc import Awaitable, Callable, Generator
 from typing import Any
 
-from hassette.resources.base import Resource
 from hassette.testing.config import WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.utils.func_utils import is_async_callable
 
@@ -53,10 +52,6 @@ async def wait_for(
         if loop.time() >= deadline:
             raise TimeoutError(f"Timed out waiting for {desc}")
         await asyncio.sleep(interval)
-
-
-async def shutdown_resource(res: Resource) -> None:
-    await res.shutdown()
 
 
 @contextlib.contextmanager
