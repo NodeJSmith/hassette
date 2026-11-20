@@ -282,28 +282,21 @@ class TestWebSocketEdgeCases:
             await _read_client(mock_ws, ws_state, scope)
         assert scope.cancel_called, "a reader error must end the connection's task group"
 
-    async def test_client_disconnect_unregisters_without_further_broadcasts(self) -> None:
+    async def test_client_disconnect_unregisters_without_further_broadcasts(
+        self, mock_hassette: MagicMock, runtime_query_service: RuntimeQueryService
+    ) -> None:
         """A client disconnect ends the connection even when nothing is ever broadcast.
 
         Regression test: the reader returning normally on disconnect must cancel the sender, which
         would otherwise stay blocked on ``queue.get()`` and keep the dead client's queue registered.
         """
-        queue: asyncio.Queue = asyncio.Queue()
-        mock_runtime = AsyncMock()
-        mock_runtime.register_ws_client.return_value = queue
-        mock_runtime.get_system_status = MagicMock(return_value=MagicMock())
-
         mock_ws = AsyncMock(spec=WebSocket)
-        mock_ws.app.state.hassette.runtime_query_service = mock_runtime
-        mock_ws.app.state.hassette.config.web_api.auth_enabled = False
+        mock_ws.app.state.hassette = mock_hassette
         mock_ws.receive_json = AsyncMock(side_effect=WebSocketDisconnect(code=1000))
 
-        mock_data = MagicMock()
-        mock_data.model_dump.return_value = {"entity_count": 0}
-        with patch("hassette.web.routes.ws.connected_data_from", return_value=mock_data):
-            await asyncio.wait_for(websocket_endpoint(mock_ws), timeout=5)
+        await asyncio.wait_for(websocket_endpoint(mock_ws), timeout=5)
 
-        mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
+        assert runtime_query_service._ws_clients == set()
 
     @pytest.mark.parametrize(
         "message",
