@@ -35,7 +35,8 @@ def service_call_target(
 
 def target_ids(key: str, value: Any) -> list[str]:
     """One target key's value as a list of ids."""
-    items = [value] if isinstance(value, str) or not isinstance(value, list | tuple) else list(value)
+    is_scalar = isinstance(value, str) or not isinstance(value, list | tuple)
+    items = [value] if is_scalar else list(value)
     if key != "entity_id":
         return [str(item) for item in items]
     ids: list[str] = []
