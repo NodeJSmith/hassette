@@ -46,7 +46,17 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
 
 
 def callable_name(fn: Any) -> str:
-    """Calls ``inspect.unwrap()`` — cache the result rather than calling in hot paths."""
+    """Return a dotted, human-readable name for a callable.
+
+    The output takes one of these forms:
+
+    - Functions: ``module.qualname``
+    - Bound methods: ``module.Class.method``, using the instance's class
+    - ``functools.partial`` objects: ``partial(<inner name>)``
+    - Callable objects: ``module.Class.__call__``
+
+    Calls ``inspect.unwrap()`` — cache the result rather than calling in hot paths.
+    """
     # unwrap decorator chains
     with contextlib.suppress(Exception):
         fn = inspect.unwrap(fn)
@@ -143,8 +153,11 @@ def callable_short_name(fn: Any, num_parts: int = 1) -> str:
                    the result will be 'Class.method'.
 
     Returns:
-        The short name of the callable.
+        The short name of the callable. A ``functools.partial`` keeps its marker and shortens the
+        wrapped callable, e.g. ``partial(on_change)``.
     """
+    if isinstance(fn, partial):
+        return f"partial({callable_short_name(fn.func, num_parts)})"
     full_name = callable_name(fn)
     if num_parts <= 0:
         return full_name
