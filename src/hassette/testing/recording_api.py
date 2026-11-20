@@ -58,7 +58,7 @@ from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing._sync_facade import RECORDED_API_METHODS, RecordingSyncFacade
-from hassette.testing.api_call import ApiCall
+from hassette.testing.api_call import ApiCall, matches_partial
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -954,11 +954,7 @@ class RecordingApi(Resource):
         """
         if name.startswith("_"):
             raise AttributeError(name)
-        raise NotImplementedError(
-            f"RecordingApi.{name}() is not implemented. "
-            "Seed state via AppTestHarness.set_state() for read methods, "
-            "or use a full integration test for methods requiring a live HA connection."
-        )
+        not_implemented(name)
 
     def get_calls(self, method: str | None = None) -> list[ApiCall]:
         """Return all recorded calls, optionally filtered by method name.
@@ -972,6 +968,13 @@ class RecordingApi(Resource):
         if method is None:
             return list(self.calls)
         return [c for c in self.calls if c.method == method]
+
+    def require_calls(self, method: str) -> list[ApiCall]:
+        """Return the recorded calls for ``method``, raising AssertionError if there are none."""
+        calls = self.get_calls(method)
+        if not calls:
+            raise AssertionError(f"Expected '{method}' to have been called, but it was never called.")
+        return calls
 
     def assert_called(self, method: str, **kwargs: Any) -> None:
         """Assert that method was called at least once with matching kwargs.
@@ -997,13 +1000,11 @@ class RecordingApi(Resource):
         """
         self._validate_recorded_method(method)
         self._validate_expected_kwargs(method, kwargs)
-        matching = self.get_calls(method)
-        if not matching:
-            raise AssertionError(f"Expected '{method}' to have been called, but it was never called.")
+        matching = self.require_calls(method)
 
         if kwargs:
             for call in matching:
-                if all(k in call.kwargs and call.kwargs[k] == v for k, v in kwargs.items()):
+                if matches_partial(call, kwargs):
                     return
             closest = self._describe_closest_call(matching, kwargs)
             raise AssertionError(
@@ -1068,9 +1069,7 @@ class RecordingApi(Resource):
         """
         self._validate_recorded_method(method)
         self._validate_expected_kwargs(method, kwargs)
-        matching = self.get_calls(method)
-        if not matching:
-            raise AssertionError(f"Expected '{method}' to have been called, but it was never called.")
+        matching = self.require_calls(method)
 
         for call in matching:
             if call.kwargs == kwargs:
@@ -1098,7 +1097,7 @@ class RecordingApi(Resource):
         self._validate_expected_kwargs(method, kwargs)
         matching = self.get_calls(method)
         if kwargs:
-            matching = [c for c in matching if all(k in c.kwargs and c.kwargs[k] == v for k, v in kwargs.items())]
+            matching = [c for c in matching if matches_partial(c, kwargs)]
             if matching:
                 raise AssertionError(
                     f"Expected '{method}' not to have been called with kwargs {kwargs!r}, "
@@ -1132,7 +1131,7 @@ class RecordingApi(Resource):
 
         matching = self.get_calls(method)
         if kwargs:
-            matching = [c for c in matching if all(k in c.kwargs and c.kwargs[k] == v for k, v in kwargs.items())]
+            matching = [c for c in matching if matches_partial(c, kwargs)]
         actual = len(matching)
         if actual != count:
             if kwargs:

@@ -31,3 +31,8 @@ class ApiCall:
     method: str
     args: tuple[Any, ...] = field(default_factory=tuple)
     kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+def matches_partial(call: ApiCall, expected: dict[str, Any]) -> bool:
+    """Return True if every expected key/value pair appears in the call's recorded kwargs."""
+    return all(k in call.kwargs and call.kwargs[k] == v for k, v in expected.items())
