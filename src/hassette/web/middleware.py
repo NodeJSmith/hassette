@@ -47,7 +47,15 @@ from hassette.web.errors import problem_response
 
 LOGGER = getLogger(__name__)
 
-GATED_PREFIX = "/api/"
+API_PREFIX = "/api"
+"""URL prefix every API router is mounted under.
+
+Defined here, next to the default-deny gate that enforces it, so :data:`GATED_PREFIX` and
+:data:`EXEMPT_ROUTES` cannot drift from the mount point; ``hassette.web.app`` imports it to mount
+the routers and derive ``SpaPathConvertor.regex``.
+"""
+
+GATED_PREFIX = f"{API_PREFIX}/"
 """Only requests whose path starts with this prefix are subject to default-deny.
 
 Everything else — the SPA shell, ``/assets`` — is served by the same app but stays
@@ -57,9 +65,9 @@ Architecture → Middleware and routing for why this is load-bearing, not an opt
 
 EXEMPT_ROUTES = frozenset(
     {
-        ("GET", "/api/health/live"),
-        ("GET", "/api/health/ready"),
-        ("POST", "/api/auth/session"),
+        ("GET", f"{API_PREFIX}/health/live"),
+        ("GET", f"{API_PREFIX}/health/ready"),
+        ("POST", f"{API_PREFIX}/auth/session"),
     }
 )
 """The only three routes that bypass the trusted-peer/bearer/cookie checks entirely.

@@ -20,7 +20,7 @@ from hassette.web.auth.trusted_proxies import (
 )
 from hassette.web.body_limit import RequestBodySizeLimitMiddleware
 from hassette.web.errors import WebApiError, install_problem_handlers, install_problem_openapi
-from hassette.web.middleware import DefaultDenyMiddleware
+from hassette.web.middleware import API_PREFIX, DefaultDenyMiddleware
 from hassette.web.request_context import HassetteContextMiddleware
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.auth import router as auth_router
@@ -58,9 +58,6 @@ _STATIC_EXTENSIONS = frozenset(
 
 _CORS_ALLOW_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 _CORS_ALLOW_HEADERS = ("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With")
-
-API_PREFIX = "/api"
-"""URL prefix every API router is mounted under; ``SpaPathConvertor.regex`` is derived from it."""
 
 SPA_PATH_CONVERTOR = "hassette_spa_path"
 """Path convertor for the SPA catch-all: any path except ``/api`` and ``/api/...``."""
