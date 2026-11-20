@@ -59,9 +59,6 @@ class SimulationMixin:
     def require_harness(self) -> "HassetteHarness":
         """Return the active HassetteHarness or raise RuntimeError.
 
-        Centralises the ``if harness is None: raise RuntimeError(...)`` guard
-        that was previously duplicated at 5+ call sites.
-
         Returns:
             The active HassetteHarness.
 

@@ -16,9 +16,9 @@ Subclasses:
 * :class:`DrainTimeout` — drain did not reach quiescence within the deadline.
 
 ``DrainTimeout`` deliberately does **not** inherit from :class:`TimeoutError`.
-The drain mechanism is a test-harness concern; raising a generic
-``TimeoutError`` leaked that implementation detail to callers and prevented
-them from writing a single ``except DrainFailure:`` clause.
+The drain mechanism is a test-harness concern, so its timeout belongs to the
+``DrainFailure`` hierarchy, where a single ``except DrainFailure:`` clause
+catches it, rather than to the generic ``TimeoutError`` family.
 """
 
 
@@ -77,7 +77,6 @@ class DrainTimeout(DrainFailure):
     includes pending task counts, pending task names, and — when applicable —
     a hint about debounce windows.
 
-    Does NOT inherit from :class:`TimeoutError`. Callers that previously
-    caught ``TimeoutError`` around drain calls should catch ``DrainTimeout``
-    (or the broader ``DrainFailure``) instead.
+    Does NOT inherit from :class:`TimeoutError`: a drain timeout is a
+    test-harness failure, caught as ``DrainTimeout`` or ``DrainFailure``.
     """
