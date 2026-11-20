@@ -1,5 +1,6 @@
 """Unit tests for web UI context helpers."""
 
+from hassette.types.enums import Topic
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
@@ -11,27 +12,46 @@ class TestExtractEntityFromTopic:
     """extract_entity_from_topic parses entity_id from state_changed topics."""
 
     def test_standard_entity(self) -> None:
-        assert extract_entity_from_topic("state_changed.binary_sensor.garage_door") == "binary_sensor.garage_door"
+        assert (
+            extract_entity_from_topic("hass.event.state_changed.binary_sensor.garage_door")
+            == "binary_sensor.garage_door"
+        )
 
     def test_light_entity(self) -> None:
-        assert extract_entity_from_topic("state_changed.light.kitchen") == "light.kitchen"
+        assert extract_entity_from_topic("hass.event.state_changed.light.kitchen") == "light.kitchen"
 
     def test_entity_with_underscores(self) -> None:
-        assert extract_entity_from_topic("state_changed.sensor.outdoor_temperature_f") == "sensor.outdoor_temperature_f"
+        assert (
+            extract_entity_from_topic("hass.event.state_changed.sensor.outdoor_temperature_f")
+            == "sensor.outdoor_temperature_f"
+        )
+
+    def test_topic_built_from_enum(self) -> None:
+        topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"
+        assert extract_entity_from_topic(topic) == "light.kitchen"
+
+    def test_legacy_bare_state_changed_prefix_not_recognized(self) -> None:
+        assert extract_entity_from_topic("state_changed.light.kitchen") is None
+
+    def test_prefix_only(self) -> None:
+        assert extract_entity_from_topic("hass.event.state_changed.") is None
+
+    def test_domain_wildcard_topic(self) -> None:
+        assert extract_entity_from_topic("hass.event.state_changed.light.*") is None
 
     def test_non_state_changed_topic(self) -> None:
         assert extract_entity_from_topic("call_service") is None
 
     def test_bare_state_changed(self) -> None:
-        assert extract_entity_from_topic("state_changed") is None
+        assert extract_entity_from_topic("hass.event.state_changed") is None
 
     def test_state_changed_domain_only(self) -> None:
-        # "state_changed.light" has a domain but no entity — still a valid
+        # "hass.event.state_changed.light" has a domain but no entity — still a valid
         # topic filter (matches all lights), so entity_id is domain-only.
-        assert extract_entity_from_topic("state_changed.light") == "light"
+        assert extract_entity_from_topic("hass.event.state_changed.light") == "light"
 
     def test_wildcard_topic(self) -> None:
-        assert extract_entity_from_topic("state_changed.*") is None
+        assert extract_entity_from_topic("hass.event.state_changed.*") is None
 
     def test_empty_string(self) -> None:
         assert extract_entity_from_topic("") is None

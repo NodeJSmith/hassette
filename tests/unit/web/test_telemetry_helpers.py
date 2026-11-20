@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from hassette.schemas.summary_models import AppHealthAggregates
+from hassette.types.enums import Topic
 from hassette.web.telemetry_helpers import (
     build_app_health,
     compute_error_rate,
@@ -83,9 +84,15 @@ def test_build_app_health_counts_timeouts_as_failures() -> None:
     assert health.last_activity_ts == 1700000000.0
 
 
+def test_format_handler_summary_on_state_change_topic() -> None:
+    """The topic shape Bus.on_state_change registers yields the bare entity id."""
+    listener = FakeListener(topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen", human_description="→ on")
+    assert format_handler_summary(listener) == "light.kitchen → on"
+
+
 def test_format_handler_summary_entity_with_human_description() -> None:
     listener = FakeListener(
-        topic="state_changed.binary_sensor.garage_door",
+        topic="hass.event.state_changed.binary_sensor.garage_door",
         human_description="→ open",
     )
     assert format_handler_summary(listener) == "binary_sensor.garage_door → open"
@@ -93,14 +100,14 @@ def test_format_handler_summary_entity_with_human_description() -> None:
 
 def test_format_handler_summary_entity_with_predicate_description() -> None:
     listener = FakeListener(
-        topic="state_changed.light.kitchen",
+        topic="hass.event.state_changed.light.kitchen",
         predicate_description="EntityMatches(entity_id='light.kitchen')",
     )
     assert format_handler_summary(listener) == "light.kitchen EntityMatches(entity_id='light.kitchen')"
 
 
 def test_format_handler_summary_entity_no_condition() -> None:
-    listener = FakeListener(topic="state_changed.binary_sensor.garage_door")
+    listener = FakeListener(topic="hass.event.state_changed.binary_sensor.garage_door")
     assert format_handler_summary(listener) == "binary_sensor.garage_door"
 
 
@@ -115,13 +122,13 @@ def test_format_handler_summary_non_entity_no_condition() -> None:
 
 
 def test_format_handler_summary_wildcard_topic() -> None:
-    listener = FakeListener(topic="state_changed.*", human_description="state changed")
-    assert format_handler_summary(listener) == "state_changed.* state changed"
+    listener = FakeListener(topic="hass.event.state_changed.*", human_description="state changed")
+    assert format_handler_summary(listener) == "hass.event.state_changed.* state changed"
 
 
 def test_format_handler_summary_human_description_takes_precedence() -> None:
     listener = FakeListener(
-        topic="state_changed.light.kitchen",
+        topic="hass.event.state_changed.light.kitchen",
         human_description="→ on",
         predicate_description="state == on",
     )
