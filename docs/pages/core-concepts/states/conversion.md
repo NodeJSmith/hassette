@@ -38,14 +38,16 @@ The pipeline runs four steps:
 
 ### Strict and Forgiving Paths
 
-The three conversion paths handle failure differently, by design:
+The conversion paths handle failure differently, by design:
 
 - `try_convert_state` is forgiving. It returns [`BaseState`][hassette.models.states.base.BaseState] for an unregistered domain.
   When the resolved class fails to validate, it falls back to `BaseState` and logs a WARNING.
 - Dependency injection is strict. A typed annotation is a contract, so a failed conversion skips the handler.
-- `self.states` is strict. A view's declared model is a contract, so an entity that fails to convert
-  is left out of the view. Looking it up by entity id on a domain view like `self.states.light`
-  raises `UnableToConvertStateError`. A filtered view like `self.states.numeric_sensor` raises `EntityNotInViewError` instead.
+- Domain views like `self.states.light` and shape views like `self.states.numeric_sensor` are strict.
+  A view's declared model is a contract, so an entity that fails to convert is left out of the view.
+  Looking it up by entity id on a domain view raises `UnableToConvertStateError`.
+  A filtered view like `self.states.numeric_sensor` raises `EntityNotInViewError` instead.
+- `self.states.get(entity_id)` is forgiving. It uses `try_convert_state` and falls back to `BaseState`.
 
 `try_convert_state` serves callers with only an entity id or domain, where a generic `BaseState` beats an error.
 To accept several types in a handler, annotate a union, as described in [Union Type Support](#union-type-support).
