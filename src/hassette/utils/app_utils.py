@@ -23,6 +23,7 @@ from hassette.exceptions import (
 )
 from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.types.types import AppDict, RawAppDict
+from hassette.utils.stack_frames import FrameClassifier
 
 if typing.TYPE_CHECKING:
     from types import ModuleType
@@ -36,7 +37,6 @@ LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
-EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
 # Characters kept free under the instance-name length cap for a suggested key's ``_N`` suffix.
 SUGGESTED_KEY_SUFFIX_ROOM = 8
 APP_BASE_NAMES = frozenset({"App", "AppSync"})
@@ -85,7 +85,8 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
     """Pick the most useful traceback frame for an app load error.
 
     1) last frame inside the app's directory
-    2) last frame not in site-packages/importlib/hassette
+    2) last frame ``FrameClassifier`` treats as fallback user code (outside the interpreter,
+       installed libraries, and hassette itself)
     3) final frame of the traceback
     """
     try:
@@ -103,9 +104,9 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
             except (ValueError, OSError):
                 continue
 
+        classifier = FrameClassifier.for_current_interpreter([resolved_app_dir])
         for frame in reversed(tb_list):
-            fn = frame.filename
-            if not any(part in fn for part in EXCLUDED_PATH_PARTS):
+            if classifier.is_fallback_user_code(frame.filename):
                 return frame
 
         return tb_list[-1]
