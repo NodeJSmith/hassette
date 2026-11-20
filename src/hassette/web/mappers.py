@@ -47,9 +47,9 @@ NO_LIVE_COUNTS = LiveCounts(0, 0, 0)
 def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     """Convert a single ``AppInstanceInfo`` to ``AppInstance``.
 
-    Every ``AppInstance`` field has a same-named attribute on ``AppInstanceInfo``, so
-    ``from_attributes`` copies them directly, except ``needs_restart``, whose timestamp is converted by
-    ``NeedsRestartInfo.to_wire``. The source's extra ``error`` attribute is ignored.
+    Every ``AppInstance`` field has a same-named attribute on ``AppInstanceInfo``. This copies each
+    same-named attribute listed in ``AppInstance.model_fields``, except ``needs_restart``, whose
+    timestamp is converted by ``NeedsRestartInfo.to_wire``. The source's extra ``error`` attribute is ignored.
     """
     fields = {name: getattr(instance, name) for name in AppInstance.model_fields if name != "needs_restart"}
     return AppInstance(**fields, needs_restart=instance.needs_restart.to_wire() if instance.needs_restart else None)

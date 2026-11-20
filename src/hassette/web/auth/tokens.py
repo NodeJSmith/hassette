@@ -24,6 +24,9 @@ TOKEN_FILENAME = ".web_api_token"  # noqa: S105 — a filename, not a hardcoded 
 TOKEN_BYTE_LENGTH = 32
 """Byte length passed to ``secrets.token_urlsafe()`` when generating a fresh token."""
 
+TOKEN_FILE_MODE = 0o600
+"""File mode for the persisted token file: owner read/write only."""
+
 
 def resolve_auth_token(config: WebApiConfig, data_dir: Path, *, addon_runtime: bool) -> str:
     """Resolve the web API's bearer-token/session-cookie credential.
@@ -42,8 +45,8 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path, *, addon_runtime: b
        (empty, undecodable, or an OS-level read failure) is treated identically to
        "no file exists" — the failure is logged at ERROR and resolution falls through
        to step 3 rather than crashing.
-    3. A freshly generated ``secrets.token_urlsafe(32)`` value, persisted atomically
-       (temp file in the same directory + atomic rename, mode ``0600``) to that same path.
+    3. A freshly generated ``secrets.token_urlsafe(TOKEN_BYTE_LENGTH)`` value, persisted atomically
+       (temp file in the same directory + atomic rename, mode ``TOKEN_FILE_MODE``) to that same path.
 
     Whichever branch fires is logged at INFO with a distinct, identifiable message on
     every startup, not only the generate branch — so an operator who lost a
@@ -149,7 +152,7 @@ def _read_existing_token(token_path: Path) -> str | None:
 
 
 def _write_token_atomic(token_path: Path, token: str) -> None:
-    """Write ``token`` to ``token_path`` atomically, mode ``0600``.
+    """Write ``token`` to ``token_path`` atomically, mode ``TOKEN_FILE_MODE``.
 
     Writes to a temp file in the same directory as ``token_path`` (not ``/tmp``, which
     may be a different filesystem and would break the rename's atomicity guarantee),
@@ -161,7 +164,7 @@ def _write_token_atomic(token_path: Path, token: str) -> None:
     tmp_path = token_path.with_name(f"{token_path.name}.tmp-{os.getpid()}")
     try:
         token_path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, TOKEN_FILE_MODE)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(token)
         tmp_path.replace(token_path)

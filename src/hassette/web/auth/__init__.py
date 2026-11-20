@@ -3,9 +3,11 @@
 Composes the three independent auth pieces into the one precedence decision both halves of the
 gate use — the HTTP middleware and the WebSocket handshake:
 
-- :mod:`hassette.web.auth.tokens` — bearer-token/session-cookie credential resolution.
+- :mod:`hassette.web.auth.tokens` — resolving and persisting the web API auth token (config value, token
+  file, or generated).
 - :mod:`hassette.web.auth.trusted_proxies` — ``trusted_proxies`` peer matching.
-- :mod:`hassette.web.auth.session` — bearer-token/session-cookie auth primitives.
+- :mod:`hassette.web.auth.session` — bearer-header parsing and comparison, plus session-cookie minting,
+  verification and renewal.
 
 :func:`resolve_auth_outcome` is the composition: a presented ``Authorization`` header is
 authoritative and fails closed on any invalid form; peer trust and the session cookie apply only
@@ -97,9 +99,7 @@ def resolve_auth_outcome(
     # cases back down to peer trust — reintroducing the bypass this ordering exists to close.
     if "authorization" in connection.headers:
         presented_token = extract_bearer_token(connection.headers)
-        if check_bearer_token(presented_token, resolved_token):
-            return AuthOutcome(authenticated=True)
-        return AuthOutcome(authenticated=False)
+        return AuthOutcome(authenticated=check_bearer_token(presented_token, resolved_token))
 
     client_address = peer_address(connection)
     if client_address is not None and is_trusted_peer(client_address, trusted):
@@ -121,7 +121,7 @@ def authorize_ws(websocket: WebSocket) -> bool:
     :class:`~hassette.web.middleware.DefaultDenyMiddleware` calls for HTTP requests — and discards
     the sliding-renewal timestamp, which has no analogue for a handshake.
 
-    Includes the same ``auth_enabled`` bypass (step 0) as the HTTP middleware, for the same
+    Includes the same ``auth_enabled`` bypass as the HTTP middleware, for the same
     reason: ``create_hassette_stub(auth_enabled=False)`` (the default) must keep every existing WS
     test passing unchanged.
 

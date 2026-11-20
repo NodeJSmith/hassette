@@ -1,4 +1,4 @@
-"""Shared serialization helpers for the Hassette web layer."""
+"""Overlay live scheduler-registry state onto persisted ``JobSummary`` rows for the web layer."""
 
 from logging import getLogger
 from typing import TYPE_CHECKING

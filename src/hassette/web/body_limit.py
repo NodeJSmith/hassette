@@ -3,8 +3,8 @@
 Uvicorn has no maximum-body-size setting and Starlette buffers a whole body before a handler
 sees it, so without this middleware the one credential-free JSON route
 (``POST /api/auth/session`` — see ``web/middleware.py``'s ``EXEMPT_ROUTES``) performs
-attacker-controlled allocation before any token comparison happens. An 8 MiB token was verified
-to reach the handler and return its normal 401.
+attacker-controlled allocation before any token comparison happens: an arbitrarily large body
+reaches the handler before the token is ever compared.
 
 This is a raw ASGI middleware rather than a
 :class:`~starlette.middleware.base.BaseHTTPMiddleware` on purpose: it has to wrap ``receive`` to
@@ -32,11 +32,10 @@ LOGGER = getLogger(__name__)
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 """Ceiling on a single request body, in bytes.
 
-The largest body any route legitimately accepts is a session-token exchange, whose token is itself
-capped at ``MAX_SESSION_TOKEN_LENGTH`` (4096) — so 64 KiB leaves roughly 16x headroom over the
-worst legitimate case and about 1500x over a generated 43-character token. Small enough that the
-pre-authentication allocation on ``POST /api/auth/session`` cannot become memory pressure, loose
-enough that no real request comes close.
+Set well above the largest legitimate body, a session-token exchange whose token is capped at
+``MAX_SESSION_TOKEN_LENGTH``. Small enough that the pre-authentication allocation on
+``POST /api/auth/session`` cannot become memory pressure, loose enough that no real request comes
+close.
 """
 
 
@@ -120,13 +119,11 @@ class RequestBodySizeLimitMiddleware:
 
         Deciding pass/reject here — before ``self.app`` (``DefaultDenyMiddleware`` and, beneath
         it, FastAPI's routing) ever runs — is what makes the 413 reachable for a streamed body
-        with no ``Content-Length``. The previous approach raised a private exception out of a
-        wrapped ``receive`` for the app to unwind through, but FastAPI's own body parsing wraps
-        ``await request.json()`` in a broad ``except Exception`` and converts anything raised
-        there — including our exception — into its own generic
-        ``400 {"detail": "There was an error parsing the body"}``, silently losing both the 413
-        and the ``X-Max-Body-Bytes`` header. Buffering ourselves sidesteps that entirely: nothing
-        downstream gets a chance to intercept the decision.
+        with no ``Content-Length``. The decision cannot be signalled by raising from a wrapped
+        ``receive``: FastAPI's body parsing converts any exception raised there into its own
+        generic ``400 {"detail": "There was an error parsing the body"}``, losing both the 413 and
+        the ``X-Max-Body-Bytes`` header. So the pass/reject decision is made here, before
+        ``self.app`` runs, where nothing downstream can intercept it.
 
         Returns the buffered ASGI messages read so far, and whether the body exceeded
         ``max_bytes`` (``True`` means the caller must answer 413 and must not invoke

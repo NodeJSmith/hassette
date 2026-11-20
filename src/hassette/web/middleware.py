@@ -70,9 +70,7 @@ the previously-unauthenticated API-schema fingerprinting surface.
 
 FAILED_AUTH_THRESHOLD = 10
 """Number of failed-auth (401) responses from one source within the window that triggers one
-coalesced WARN. A deliberate, rounder choice in the ballpark of design.md's own illustrative
-"12 failed auth attempts... in the last 5 minutes" example — design.md phrases that figure as an
-"e.g.", not a pinned requirement."""
+coalesced WARN."""
 
 FAILED_AUTH_WINDOW_SECONDS = 300
 """Sliding window, in seconds, over which :data:`FAILED_AUTH_THRESHOLD` is evaluated (5 minutes)."""
@@ -139,7 +137,7 @@ class _FailedAuthTracker:
         now = self._clock()
         window_start = now - FAILED_AUTH_WINDOW_SECONDS
 
-        state = self._evict_stale_attempts(source, window_start)
+        state = self._touch_source(source, window_start)
 
         # Re-arm while the *pre-attempt* survivor count is still below threshold — this must
         # happen before the append below. ``timestamps`` is a ``maxlen``-bounded deque, so once a
@@ -161,8 +159,8 @@ class _FailedAuthTracker:
                 FAILED_AUTH_WINDOW_SECONDS,
             )
 
-    def _evict_stale_attempts(self, source: str, window_start: float) -> _SourceAttempts:
-        """Return ``source``'s state with attempts older than ``window_start`` dropped.
+    def _touch_source(self, source: str, window_start: float) -> _SourceAttempts:
+        """Return ``source``'s state, moved to the LRU end, with attempts older than ``window_start`` dropped.
 
         Also moves ``source`` to the end of ``_attempts``, which is what makes the dict
         LRU-ordered. :meth:`_evict_stale_sources` depends on that ordering — do not drop the
@@ -194,7 +192,7 @@ class _FailedAuthTracker:
     def _evict_stale_sources(self, window_start: float) -> None:
         """Drop every source whose most recent attempt has aged out of the window.
 
-        The dict is LRU-ordered — :meth:`record` moves each touched source to the end — so stale
+        The dict is LRU-ordered — :meth:`_touch_source` moves each touched source to the end — so stale
         sources cluster at the front and the scan can stop at the first live one. That makes this
         O(1) amortized instead of the full walk of up to :data:`MAX_TRACKED_SOURCES` entries that
         a per-request comprehension over the whole dict would cost.
@@ -229,7 +227,7 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
 
     See the module docstring and design.md's Architecture → Middleware and routing for the full
     mechanism. Registered in ``web/app.py`` — see that module for the registration-order rationale
-    (CORS must be the outermost layer).
+    (CORS must wrap this middleware so a preflight is answered before it can 401).
     """
 
     def __init__(self, app: ASGIApp) -> None:
