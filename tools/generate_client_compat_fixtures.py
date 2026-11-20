@@ -82,8 +82,9 @@ from seed_db import generate_scenario  # noqa: E402
 from seed_scenarios import SCENARIOS  # noqa: E402
 
 from hassette.core.telemetry.query_service import TelemetryQueryService  # noqa: E402
-from hassette.web.app import API_PREFIX, create_fastapi_app  # noqa: E402
+from hassette.web.app import create_fastapi_app  # noqa: E402
 from hassette.web.errors import CODE_STATUS, PROBLEM_MEDIA_TYPE  # noqa: E402
+from hassette.web.middleware import API_PREFIX  # noqa: E402
 from tests.e2e.mock_fixtures import (  # noqa: E402
     MANUAL_JOB_ID,
     build_scheduler_jobs,
