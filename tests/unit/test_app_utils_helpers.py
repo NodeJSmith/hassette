@@ -7,6 +7,8 @@ import traceback
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from hassette.utils.app_utils import find_user_frame, log_compact_load_error, root_cause
 
 
@@ -53,6 +55,12 @@ class TestRootCause:
         outer.__cause__ = deepest_cause
 
         assert root_cause(outer) is deepest_cause
+
+    def test_ignores_context_suppressed_by_raise_from_none(self):
+        """``raise X from None`` hides the context, so the root cause is ``X`` itself."""
+        with pytest.raises(ValueError, match="visible") as exc_info:
+            raise_suppressing_context()
+        assert root_cause(exc_info.value) is exc_info.value
 
 
 class TestFindUserFrame:
@@ -123,3 +131,10 @@ class TestLogCompactLoadError:
 
         exc = ImportError("missing module")
         log_compact_load_error(manifest, exc)
+
+
+def raise_suppressing_context() -> None:
+    try:
+        raise RuntimeError("hidden")
+    except RuntimeError:
+        raise ValueError("visible") from None

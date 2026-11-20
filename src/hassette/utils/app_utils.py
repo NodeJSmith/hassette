@@ -68,12 +68,12 @@ def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
 
 
 def root_cause(exc: BaseException) -> BaseException:
-    """Prefer __cause__ (explicit raise ... from ...), else __context__."""
+    """Prefer __cause__ (explicit raise ... from ...), else __context__ unless suppressed (raise ... from None)."""
     err = exc
     while getattr(err, "__cause__", None) is not None:
         err = err.__cause__  # pyright: ignore[reportOptionalMemberAccess]
-    if err is exc and getattr(err, "__context__", None) is not None:
-        err = err.__context__  # pyright: ignore[reportOptionalMemberAccess]
+    if err is exc and not exc.__suppress_context__ and exc.__context__ is not None:
+        err = exc.__context__
 
     if typing.TYPE_CHECKING:
         assert isinstance(err, BaseException)
@@ -479,7 +479,7 @@ def load_app_class(
     # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
     try:
         pkg_name = config.apps.directory.name
-        path_str, module = import_module(app_dir, module_path, pkg_name)
+        mod_name, module = import_module(app_dir, module_path, pkg_name)
     except Exception as exc:
         FAILED_TO_LOAD_CLASSES[cache_key] = exc
         raise
@@ -488,11 +488,11 @@ def load_app_class(
         app_class = getattr(module, class_name)
     except AttributeError:
         FAILED_TO_LOAD_CLASSES[cache_key] = AttributeError(
-            f"Class {class_name} not found in module {path_str} ({module_path})"
+            f"Class {class_name} not found in module {mod_name} ({module_path})"
         )
         raise FAILED_TO_LOAD_CLASSES[cache_key] from None
 
-    if not issubclass(app_class, App | AppSync):
+    if not (isinstance(app_class, type) and issubclass(app_class, App | AppSync)):
         FAILED_TO_LOAD_CLASSES[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
         raise FAILED_TO_LOAD_CLASSES[cache_key]
 
@@ -515,7 +515,7 @@ def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str,
         pkg_name: The package name to use (e.g. 'apps')
 
     Returns:
-        The formatted relative path and the imported module.
+        The dotted module name (e.g. ``apps.my_app``) and the imported module.
     """
     # specifically do not handle exceptions here, to let caller handle them
 
