@@ -53,7 +53,7 @@ A sensor's device class, unit and state class decide which values `set()` accept
 --8<-- "pages/core-concepts/apps/snippets/integration_entities.py:sensor"
 ```
 
-An unknown device class, an enum sensor without `options` or with a `unit` or `state_class`, or `options` on any other sensor raises `ValueError` from `add_sensor`.
+An unknown device class, an enum sensor whose `options` isn't a non-empty list or tuple of strings, an enum sensor with a `unit` or `state_class`, or `options` on any other sensor raises `ValueError` from `add_sensor`.
 
 ## State and Attributes
 
@@ -76,6 +76,8 @@ After the instance stops, reading or setting its handles' state raises `Integrat
 The key identifies an entity within its instance. It follows the `instance_name` rule: lowercase letters, digits and `_`, starting with a letter. Each key is used once per instance, across all three platforms. Changing a key makes a new entity and removes the old one.
 
 Home Assistant picks the entity ID from the device and entity names when it first creates the entity. `default_entity_id="sensor.cat_feeder_mode"` suggests one instead. Home Assistant applies it only at creation, so changing it later does nothing, and a rename in Home Assistant wins. An app that replaces an existing helper gets a new entity ID, so automations and dashboards that used the helper need updating.
+
+Every `add_*` call raises `ValueError` when `name` isn't a non-empty string, or when `default_entity_id` isn't a string of the form `<platform>.<object_id>` on the entity's own platform.
 
 ## Integration Entities or Helpers
 
