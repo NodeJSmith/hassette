@@ -53,11 +53,19 @@ Identity extractors resolve entity IDs and domains from events.
 | `D.EventContext` | `HassContext` | Handler skipped | Home Assistant event context (context ID, parent ID, user ID) |
 | `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
-`D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md) for cross-app communication — one app sends a typed payload, and other apps subscribe to receive it. The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
+`D.EventData[T]` pairs with [`Bus.emit`](handlers.md#cross-app-communication) for cross-app communication. One app sends a typed payload, and other apps subscribe to receive it. `self.bus.emit(topic, data)` publishes `data` on `topic`. This app emits a `SensorAlert` dataclass when the freezer temperature rises above -10:
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py"
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py:sender"
 ```
+
+The receiving app subscribes to the same topic with `on()`. Its handler annotates the parameter with the payload type:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py:receiver"
+```
+
+Both apps read `ALERT_TOPIC` and `SensorAlert`, so sender and receiver stay in sync. Apps in separate files import both from a [shared module](handlers.md#cross-app-communication).
 
 `D.EventData[T]` also reads custom Home Assistant events, the ones a script or automation fires with an `event:` action. The event's data arrives as JSON, so Hassette validates it into `T` when `T` is a pydantic model or a dataclass. This script fires a `doorbell_pressed` event:
 
