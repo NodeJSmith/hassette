@@ -1,7 +1,6 @@
-import typing
 from collections.abc import Callable, Iterator, Mapping
 from logging import getLogger
-from typing import Generic, NamedTuple
+from typing import TYPE_CHECKING, Any, Generic, NamedTuple, cast
 
 from frozendict import deepfreeze, frozendict
 from hassette_wire import LogLevel
@@ -16,7 +15,7 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.types import StateReader, StateT
 from hassette.utils.hass_utils import make_entity_id
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.events import HassStateDict
 
@@ -25,6 +24,17 @@ LOGGER = getLogger(__name__)
 
 HOME_STATE = "home"
 """State value Home Assistant reports for a person or device_tracker that is home."""
+
+SENSOR_DOMAIN = "sensor"
+"""Domain the four narrowed sensor-shape accessors filter."""
+
+# Host attributes that may be read before Resource.__init__ assigns them; __getattr__ must not treat them as domains.
+RESERVED_ATTRIBUTE_NAMES = frozenset({"hassette", "parent", "name"})
+
+
+def state_attributes(state: "HassStateDict") -> Mapping[str, Any]:
+    """Return a raw state's attributes, or an empty mapping when it has none."""
+    return state.get("attributes") or {}
 
 
 def _shape_predicate(shape: SensorShape) -> Callable[["HassStateDict"], bool]:
@@ -37,7 +47,7 @@ def _shape_predicate(shape: SensorShape) -> Callable[["HassStateDict"], bool]:
     """
 
     def predicate(state: "HassStateDict") -> bool:
-        return classify_sensor_shape(state.get("attributes") or {}) == shape
+        return classify_sensor_shape(state_attributes(state)) == shape
 
     return predicate
 
@@ -91,7 +101,6 @@ class DomainStates(Mapping[str, StateT]):
         for entity_id, state in self.states.light.items():
             self.logger.info("%s: %s", entity_id, state.value)
     ```
-
     """
 
     def __init__(
@@ -234,7 +243,7 @@ class DomainStates(Mapping[str, StateT]):
         if self._predicate is None:
             return self._validate_or_return_from_cache(entity_id, state)
 
-        device_class = (state.get("attributes") or {}).get("device_class")
+        device_class = state_attributes(state).get("device_class")
         if not self._predicate(state):
             raise EntityNotInViewError(entity_id, device_class, self._model)
 
@@ -270,6 +279,7 @@ class StateManager(Resource):
 
         # Check count
         self.logger.info("Total lights: %d", len(self.states.light))
+    ```
     """
 
     _domain_states_cache: dict[type[BaseState], DomainStates[BaseState]]
@@ -316,7 +326,7 @@ class StateManager(Resource):
         if cached is None:
             cached = DomainStates(self._state_proxy, state_class, domain=domain, predicate=predicate)
             self._domain_states_cache[state_class] = cached
-        return typing.cast("DomainStates[StateT]", cached)
+        return cast("DomainStates[StateT]", cached)
 
     def __getattr__(self, domain: str) -> "DomainStates[BaseState]":
         """Dynamically access domain states by property name.
@@ -336,7 +346,7 @@ class StateManager(Resource):
             AttributeError: If the attribute name matches a reserved name or if the domain is not registered in the
                 state registry.
 
-        Example:
+        Examples:
             ```python
             # Known domain (typed via .pyi stub)
             for entity_id, light in self.states.light.items():
@@ -349,7 +359,7 @@ class StateManager(Resource):
             ```
         """
         # Avoid recursion for internal attributes
-        if domain.startswith("_") or domain in ("hassette", "parent", "name"):
+        if domain.startswith("_") or domain in RESERVED_ATTRIBUTE_NAMES:
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{domain}'")
 
         try:
@@ -377,7 +387,9 @@ class StateManager(Resource):
         here. Membership requires both a matching shape and a value that actually converts —
         see :func:`hassette.models.states.sensor_shapes.classify_sensor_shape`.
         """
-        return self._domain_states_for(states.NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE)
+        return self._domain_states_for(
+            states.NumericSensorState, domain=SENSOR_DOMAIN, predicate=_NUMERIC_SENSOR_PREDICATE
+        )
 
     @property
     def enum_sensor(self) -> "DomainStates[states.EnumSensorState]":
@@ -388,7 +400,7 @@ class StateManager(Resource):
         A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
         view/projection contract shared by all four narrowed sensor accessors.
         """
-        return self._domain_states_for(states.EnumSensorState, domain="sensor", predicate=_ENUM_SENSOR_PREDICATE)
+        return self._domain_states_for(states.EnumSensorState, domain=SENSOR_DOMAIN, predicate=_ENUM_SENSOR_PREDICATE)
 
     @property
     def timestamp_sensor(self) -> "DomainStates[states.TimestampSensorState]":
@@ -402,7 +414,7 @@ class StateManager(Resource):
         sensor accessors.
         """
         return self._domain_states_for(
-            states.TimestampSensorState, domain="sensor", predicate=_TIMESTAMP_SENSOR_PREDICATE
+            states.TimestampSensorState, domain=SENSOR_DOMAIN, predicate=_TIMESTAMP_SENSOR_PREDICATE
         )
 
     @property
@@ -414,7 +426,7 @@ class StateManager(Resource):
         A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
         view/projection contract shared by all four narrowed sensor accessors.
         """
-        return self._domain_states_for(states.DateSensorState, domain="sensor", predicate=_DATE_SENSOR_PREDICATE)
+        return self._domain_states_for(states.DateSensorState, domain=SENSOR_DOMAIN, predicate=_DATE_SENSOR_PREDICATE)
 
     def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]:
         """Access domain states using the indexing syntax.
@@ -432,7 +444,7 @@ class StateManager(Resource):
         Returns:
             DomainStates container for the specified domain (freshly constructed, uncached).
 
-        Example:
+        Examples:
             ```python
             my_state_instance = self.states[MyStateClass].get("custom_entity")
             ```
@@ -546,8 +558,8 @@ class StateManager(Resource):
         Uses the ``person`` domain, falling back to ``device_tracker`` when no
         ``person`` entities exist.
         """
-        domain = self.person or self.device_tracker
-        return list(domain.values())
+        presence_states = self.person or self.device_tracker
+        return list(presence_states.values())
 
     def __contains__(self, model: object) -> bool:
         """Check the global STATE_REGISTRY, not this proxy's cached instances."""
@@ -559,12 +571,12 @@ class StateManager(Resource):
         """Iterate over registered state keys."""
         return iter(STATE_REGISTRY.keys())
 
-    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
+    def items(self) -> Iterator[tuple[StateKey, DomainStates[BaseState]]]:
         """Iterate over all registered state classes with their keys."""
         for key, state_class in STATE_REGISTRY.items():
             yield key, self._domain_states_for(state_class)
 
-    def values(self) -> Iterator[DomainStates[states.BaseState]]:
+    def values(self) -> Iterator[DomainStates[BaseState]]:
         """Iterate over all registered DomainStates instances."""
         for state_class in STATE_REGISTRY.values():
             yield self._domain_states_for(state_class)
