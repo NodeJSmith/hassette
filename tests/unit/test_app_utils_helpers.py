@@ -88,6 +88,19 @@ class TestFindUserFrame:
             frame = find_user_frame(exc, tmp_path)
             assert frame is not None
 
+    def test_picks_user_frame_under_hassette_named_dir_outside_app_dir(self, tmp_path: Path):
+        helpers_dir = tmp_path / "hassette-apps"
+        helpers_dir.mkdir()
+        helper_file = helpers_dir / "helpers.py"
+        helper_file.write_text("import json\njson.loads('{')\n")
+
+        try:
+            exec(compile(helper_file.read_text(), str(helper_file), "exec"))
+        except ValueError as exc:
+            frame = find_user_frame(exc, tmp_path / "apps")
+            assert frame is not None
+            assert frame.filename == str(helper_file)
+
 
 class TestLogCompactLoadError:
     def test_logs_with_frame_info(self, tmp_path: Path):
