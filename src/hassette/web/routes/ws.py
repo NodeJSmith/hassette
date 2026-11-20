@@ -37,16 +37,24 @@ def _is_disconnect(exc: BaseException) -> bool:
     return False
 
 
-async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
-    """Read messages from the client and handle ping/pong and subscriptions."""
+async def _read_client(websocket: WebSocket, ws_state: dict, scope: anyio.CancelScope) -> None:
+    """Read messages from the client and handle ping/pong and subscriptions.
+
+    Cancels ``scope`` when reading stops for any reason, so a client disconnect ends the whole
+    connection instead of leaving the sender blocked on its queue.
+    """
     try:
         while True:
             data = await websocket.receive_json()
+            if not isinstance(data, dict):
+                continue
             msg_type = data.get("type")
             if msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
             elif msg_type == "subscribe":
                 sub_data = data.get("data", {})
+                if not isinstance(sub_data, dict):
+                    sub_data = {}
                 # A client may still send `min_log_level` (harmless, silently ignored) —
                 # log_hint carries no level, so filtering happens client-side after the hint
                 # triggers a `/logs/recent` refetch instead.
@@ -56,6 +64,8 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
             return
         LOGGER.debug("WebSocket read error", exc_info=True)
         raise
+    finally:
+        scope.cancel()
 
 
 async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state: dict) -> None:
@@ -99,7 +109,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         connected = connected_data_from(status)
         await websocket.send_json({"type": "connected", "data": connected.model_dump(), "timestamp": time.time()})
         async with anyio.create_task_group() as tg:
-            tg.start_soon(_read_client, websocket, ws_state)
+            tg.start_soon(_read_client, websocket, ws_state, tg.cancel_scope)
             tg.start_soon(_send_from_queue, websocket, queue, ws_state)
     except BaseException as exc:  # noqa: ASYNC103 — disconnect errors are intentionally suppressed below
         if isinstance(exc, asyncio.CancelledError):
@@ -107,8 +117,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         if isinstance(exc, BaseExceptionGroup):
             _, rest = exc.split(_is_disconnect)
             if rest is not None:
-                LOGGER.debug("WebSocket connection error", exc_info=rest)
+                LOGGER.warning("WebSocket connection error", exc_info=rest)
         elif not _is_disconnect(exc):
-            LOGGER.debug("WebSocket connection error", exc_info=True)
+            LOGGER.warning("WebSocket connection error", exc_info=True)
     finally:
         await runtime.unregister_ws_client(queue)

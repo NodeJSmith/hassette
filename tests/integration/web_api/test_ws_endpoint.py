@@ -7,12 +7,13 @@ from contextlib import contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import pytest
 import websockets.exceptions
 from fastapi import FastAPI
 from hassette_wire import ResourceStatus
 from starlette.testclient import TestClient, WebSocketTestSession
-from starlette.websockets import WebSocket
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
@@ -276,8 +277,44 @@ class TestWebSocketEdgeCases:
         mock_ws.receive_json = AsyncMock(side_effect=json.JSONDecodeError("bad", "", 0))
 
         ws_state: dict = {}
+        scope = anyio.CancelScope()
         with pytest.raises(json.JSONDecodeError):
-            await _read_client(mock_ws, ws_state)
+            await _read_client(mock_ws, ws_state, scope)
+        assert scope.cancel_called, "a reader error must end the connection's task group"
+
+    async def test_client_disconnect_unregisters_without_further_broadcasts(self) -> None:
+        """A client disconnect ends the connection even when nothing is ever broadcast.
+
+        Regression test: the reader returning normally on disconnect must cancel the sender, which
+        would otherwise stay blocked on ``queue.get()`` and keep the dead client's queue registered.
+        """
+        queue: asyncio.Queue = asyncio.Queue()
+        mock_runtime = AsyncMock()
+        mock_runtime.register_ws_client.return_value = queue
+        mock_runtime.get_system_status = MagicMock(return_value=MagicMock())
+
+        mock_ws = AsyncMock(spec=WebSocket)
+        mock_ws.app.state.hassette.runtime_query_service = mock_runtime
+        mock_ws.app.state.hassette.config.web_api.auth_enabled = False
+        mock_ws.receive_json = AsyncMock(side_effect=WebSocketDisconnect(code=1000))
+
+        mock_data = MagicMock()
+        mock_data.model_dump.return_value = {"entity_count": 0}
+        with patch("hassette.web.routes.ws.connected_data_from", return_value=mock_data):
+            await asyncio.wait_for(websocket_endpoint(mock_ws), timeout=5)
+
+        mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
+
+    @pytest.mark.parametrize(
+        "message",
+        [[1, 2, 3], "just a string", 42, {"type": "subscribe", "data": [1]}],
+        ids=["array", "string", "number", "subscribe-non-object-data"],
+    )
+    def test_non_object_message_ignored_connection_stays_open(self, client: "TestClient", message: Any) -> None:
+        """A JSON value that isn't an object (or a subscribe with non-object data) is ignored."""
+        with subscribed_ws(client) as ws:
+            ws.send_json(message)
+            sync_via_ping(ws)
 
     async def test_cancellation_propagates_and_cleans_up(self) -> None:
         """Cancelling the endpoint task propagates CancelledError while still running finally cleanup.
