@@ -174,6 +174,16 @@ class TestCallableShortName:
         short = callable_short_name(obj)
         assert short == "__call__"
 
+    def test_partial_default(self) -> None:
+        """A partial keeps its marker and shortens the wrapped callable, with no stray parenthesis."""
+        short = callable_short_name(partial(plain_function))
+        assert short == "partial(plain_function)"
+
+    def test_partial_two_parts(self) -> None:
+        obj = MyClass()
+        short = callable_short_name(partial(obj.method), num_parts=2)
+        assert short == "partial(MyClass.method)"
+
 
 class PredicateHolder:
     def is_motion_detected(self) -> bool:
