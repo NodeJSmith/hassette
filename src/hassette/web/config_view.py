@@ -46,6 +46,11 @@ MASK_SENTINEL = "••••••••"
 """Placeholder shown in the UI when a secret field is set but not revealed."""
 
 
+def is_secret_leaf(node: dict[str, Any]) -> bool:
+    """Return True when ``node`` itself is marked ``writeOnly: true`` or ``format: "password"``."""
+    return node.get("writeOnly") is True or node.get("format") == "password"
+
+
 def _is_secret_node(node: dict[str, Any]) -> bool:
     """Return True when a schema property node represents a secret-typed field.
 
@@ -53,12 +58,7 @@ def _is_secret_node(node: dict[str, Any]) -> bool:
     and also inside any ``anyOf`` branch — covering the ``SecretStr | None`` pattern
     where Pydantic emits ``anyOf: [{writeOnly: true, format: password, ...}, {type: null}]``.
     """
-    if node.get("writeOnly") is True or node.get("format") == "password":
-        return True
-    for branch in node.get("anyOf", []):
-        if isinstance(branch, dict) and (branch.get("writeOnly") is True or branch.get("format") == "password"):
-            return True
-    return False
+    return is_secret_leaf(node) or any(isinstance(b, dict) and is_secret_leaf(b) for b in node.get("anyOf", []))
 
 
 def _shape_candidates(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
@@ -329,7 +329,8 @@ def resolve_app_config_cls(
 
     Returns ``None`` when the app has no running instance and its class is not already
     loaded (e.g. a disabled app that never started). Does not import the app module — a
-    config request must not trigger loading of arbitrary app code on the unauthenticated API.
+    config request must not trigger loading of arbitrary app code from a web request, whether or
+    not auth is enabled.
     """
     instance = hassette.app_handler.registry.get(app_key)
     if instance is not None:
@@ -359,7 +360,7 @@ def mask_app_config(
             return mask_values(schema_props, app_config)
         except Exception:
             LOGGER.warning(
-                "Schema generation failed for %s; falling back to safe-floor masking", app_config_cls, exc_info=True
+                "Schema-driven masking failed for %s; falling back to safe-floor masking", app_config_cls, exc_info=True
             )
     if isinstance(app_config, list):
         return [mask_all_values(inst) for inst in app_config]

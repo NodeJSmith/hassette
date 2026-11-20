@@ -36,7 +36,7 @@ _DNS_RESOLVE_TIMEOUT_SECONDS = 5
 """Upper bound on a single ``trusted_proxies`` hostname DNS resolution.
 
 ``_resolve_hostname`` is reachable from a recurring ``Scheduler.run_every()`` job
-(:func:`refresh_trusted_proxies`, invoked every 5 minutes from
+(:func:`refresh_trusted_proxies`, invoked on the ``_TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES`` interval from
 ``WebApiService._refresh_trusted_proxies``) as well as startup (:func:`resolve_trusted_proxies`).
 Without an explicit deadline, a slow or unreachable resolver would leave the awaiting coroutine
 (and, on the refresh path, that scheduler tick) hanging for however long the OS resolver takes to
@@ -201,7 +201,7 @@ async def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | 
     except (OSError, TimeoutError) as exc:
         raise HostnameResolutionError(str(exc) or type(exc).__name__) from exc
 
-    networks = {ipaddress.ip_network(info[4][0], strict=False) for info in infos}
+    networks = {ipaddress.ip_network(sockaddr[0], strict=False) for *_, sockaddr in infos}
     if not networks:
         raise HostnameResolutionError("resolved to no addresses")
     return frozenset(networks)
@@ -297,11 +297,12 @@ async def _resolve_hostnames(
             return await _resolve_hostname(hostname)
         except HostnameResolutionError as exc:
             fallback = fallbacks[hostname]
+            outcome = "keeping last-known-good address(es)" if fallback else "trusting no peer for it"
             LOGGER.warning(
                 "trusted_proxies hostname %r did not resolve (%s); %s until a periodic refresh resolves it",
                 hostname,
                 exc,
-                "keeping last-known-good address(es)" if fallback else "trusting no peer for it",
+                outcome,
             )
             return fallback
 

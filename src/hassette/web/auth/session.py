@@ -1,6 +1,7 @@
 """Bearer-token/session-cookie authentication primitives for the web API.
 
-:func:`check_bearer_token` (timing-safe comparison), :func:`mint_session_cookie`/
+:func:`extract_bearer_token` (parses ``Authorization: Bearer <token>``), :func:`check_bearer_token`
+(timing-safe comparison), :func:`mint_session_cookie`/
 :func:`verify_session_cookie` (stateless, HMAC-derived cookie keyed by the resolved token),
 :func:`should_set_secure_cookie_flag` (reuses :func:`~hassette.web.auth.trusted_proxies.is_trusted_peer`
 to decide the cookie's ``Secure`` attribute), and :func:`should_renew_session_cookie` (the
@@ -26,6 +27,9 @@ SESSION_ID_BYTE_LENGTH = 32
 COOKIE_SEGMENT_COUNT = 3
 """Number of dot-separated segments in a valid session cookie value: ``session_id.issued_at.signature``."""
 
+SESSION_RENEWAL_FRACTION = 0.5
+"""Cookies at or past this fraction of ``session_ttl`` (and not yet expired) are renewed."""
+
 
 def _current_timestamp() -> int:
     """Current time as whole unix seconds.
@@ -39,10 +43,9 @@ def _current_timestamp() -> int:
 def extract_bearer_token(headers: Headers) -> str | None:
     """Parse an ``Authorization: Bearer <token>`` header out of ``headers``.
 
-    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware` (via
-    ``request.headers``) and :func:`~hassette.web.auth.authorize_ws` (via ``websocket.headers``) — both
-    ``Request.headers`` and ``WebSocket.headers`` are the same Starlette
-    :class:`~starlette.datastructures.Headers` type, so one parser serves both call sites.
+    Called by :func:`~hassette.web.auth.resolve_auth_outcome`, which serves both the HTTP middleware
+    and the WebSocket handshake; ``Request.headers`` and ``WebSocket.headers`` are the same Starlette
+    :class:`~starlette.datastructures.Headers` type.
 
     Args:
         headers: The incoming request's or WebSocket's headers.
@@ -239,4 +242,4 @@ def should_renew_session_cookie(issued_at: int, session_ttl: int) -> bool:
         renewal).
     """
     age = _current_timestamp() - issued_at
-    return session_ttl / 2 <= age <= session_ttl
+    return session_ttl * SESSION_RENEWAL_FRACTION <= age <= session_ttl
