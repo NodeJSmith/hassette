@@ -502,10 +502,10 @@ class HassetteHarness:
         """Reset the global singleton and loop state — runs unconditionally, even after a teardown error.
 
         Reset the global singleton ahead of the loop teardown below so a failure restoring the
-        loop can't skip it. If any statement in ``_shut_down_children_and_streams`` escapes the
-        collected-error net — observed on Python 3.11, where a late teardown exception finalizes
-        after that method returns — skipping the reset leaks HASSETTE_INSTANCE and poisons every
-        subsequent test on the worker with "already set" errors.
+        loop can't skip it. ``stop()`` calls this from a ``finally`` so it runs even when
+        ``_shut_down_children_and_streams`` raises past its collected-error net; skipping the reset
+        would leak HASSETTE_INSTANCE and poison every subsequent test on the worker with
+        "already set" errors.
 
         The reset itself can raise ValueError when stop() is driven from a different
         contextvars.Context than the one active when the Token was created — e.g. a synchronous
@@ -627,7 +627,6 @@ class HassetteHarness:
         self.hassette._state_registry = STATE_REGISTRY
         self.hassette._type_registry = TYPE_REGISTRY
 
-    # Dispatch table: component name → starter method
     _starters: typing.ClassVar[dict[str, Callable[["HassetteHarness"], typing.Awaitable[None]]]] = {
         "sync_executor": _start_sync_executor,
         "bus": _start_bus,

@@ -126,13 +126,9 @@ def _reject_tree_if_active_or_reported(resource: "Resource") -> None:
 
     ``reset_hassette_lifecycle()`` calls this on the whole tree after restoring ``children`` to
     an ``original_children`` snapshot (if given) but before clearing ``shutdown_event`` or any
-    other state. Validating each descendant one at a time, right before clearing it (the
-    previous shape of ``reset_resource_flags()``), let a descendant that fails validation deep
-    in the tree raise only after the root and every earlier sibling had already had their
-    ``shutdown_event`` cleared -- leaving the instance in a half-reset state the module
-    docstring says must never happen. Walking the whole tree read-only first, on the tree shape
-    that will actually persist, closes that gap without rejecting a reset over test-added
-    children that ``original_children`` is about to discard anyway.
+    other state. The whole tree is validated before any resource is mutated, so a failing
+    descendant cannot leave the tree half-reset. Validating the restored tree means test-added
+    children that ``original_children`` discards never block a reset.
     """
     _reject_if_active_or_reported(resource)
     for child in resource.children:
@@ -144,11 +140,8 @@ def reset_resource_flags(resource: "Resource") -> None:
 
     The resource itself is not reset.
 
-    Assumes the whole tree was already validated up front by
-    ``_reject_tree_if_active_or_reported()`` (called from ``reset_hassette_lifecycle()`` after
-    the ``original_children`` restore but before any shutdown/ready state mutation) -- this
-    function itself no longer re-validates each descendant, since doing so here is what let a
-    deep validation failure leave earlier siblings half-reset. Never clears coordinator fields
+    Does not validate: the caller must run ``_reject_tree_if_active_or_reported()`` on the whole
+    tree first, so a failing descendant cannot leave the tree half-reset. Never clears coordinator fields
     (``_shutdown_task``, ``_shutdown_body_task``, ``_shutdown_outcome``); those are not
     test-resettable.
     """

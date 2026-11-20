@@ -254,7 +254,7 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
         self._freeze_time_lock_held: bool = False
 
     async def __aenter__(self) -> "AppTestHarness[AppType]":
-        """Set up the full harness in 11 steps with LIFO teardown via AsyncExitStack."""
+        """Set up the full harness with LIFO teardown via AsyncExitStack."""
         exit_stack = AsyncExitStack()
         self._exit_stack = exit_stack
 
@@ -269,20 +269,17 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
 
     async def _setup(self, exit_stack: AsyncExitStack) -> None:
         """Execute all setup steps, registering teardown callbacks as we go."""
-        # Step 1: Resolve data directory
         if self._tmp_path is not None:
             data_dir = self._tmp_path
         else:
             data_dir = Path(tempfile.mkdtemp(prefix="hassette_test_"))
             exit_stack.callback(self._cleanup_tmpdir, data_dir)
 
-        # Step 2: Create minimal HassetteConfig
         hassette_config = make_test_config(data_dir=data_dir)
 
-        # Step 3: Resolve app config class (read-only, safe outside lock).
         app_config_cls = get_app_config_class(self._app_cls)
 
-        # Step 4: Create HassetteHarness (skip_global_set=True — we handle ContextVar below)
+        # skip_global_set=True: the ContextVar is set below via context.use() so its reset is always registered.
         harness = (
             HassetteHarness(
                 hassette_config,
@@ -296,13 +293,13 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
         )
         self._harness = harness
 
-        # Step 6: Start harness. stop() is registered before start() so a start that fails
+        # stop() is registered before start() so a start that fails
         # partway (e.g. a readiness timeout) still restores the task factory, timezone and
         # watchdog it already changed — stop() tolerates a partially started harness.
         exit_stack.push_async_callback(harness.stop)
         await harness.start()
 
-        # Step 7: Set global hassette ContextVar — use context.use() so cleanup is always
+        # Set the global hassette ContextVar with context.use() so cleanup is always
         # registered unconditionally. set_global_hassette() returns None when the same
         # instance is already set (e.g., nested harnesses), which would silently skip token
         # cleanup and leave the next test with a stale ContextVar value. context.use()
@@ -312,15 +309,13 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
             context.use(context.HASSETTE_INSTANCE, cast("Hassette", harness.hassette))  # pyright: ignore[reportArgumentType]
         )
 
-        # Step 8: Synthesize a per-instance manifest and validate the config.
         # synthesize_manifest is a pure function of its arguments. make_hermetic_config writes
         # a shared closure cell, but writes and reads it with no await in between, so
         # concurrent harnesses cannot interleave there. Neither path mutates the App class,
-        # so the per-instance manifest needs no locking — each harness owns its own.
+        # so each harness owns its own per-instance manifest.
         manifest = synthesize_manifest(self._app_cls, self._config_dict.get("instance_name"))
         validated_config = make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
 
-        # Step 9: Instantiate the app with RecordingApi injected via constructor.
         # The manifest is passed per instance, so its app_key is authoritative for
         # the test and no class-level attribute is touched.
         app = self._app_cls(
@@ -337,8 +332,7 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
 
         self._app = app
 
-        # Step 11: Register app shutdown first (late registration = early unwind)
-        # This ensures app shuts down before harness.stop() runs.
+        # Registered last so it unwinds first (LIFO): the app shuts down before harness.stop() runs.
         # Wrapped to prevent shutdown exceptions from masking the original test failure.
         exit_stack.push_async_callback(self._safe_app_shutdown, app)
 
