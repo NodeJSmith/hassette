@@ -5,11 +5,13 @@ from typing import Protocol
 from hassette_wire import AppHealth, ErrorRateClass, HealthStatus
 
 from hassette.schemas.summary_models import AppHealthAggregates
+from hassette.types.enums import Topic
 
 ERROR_RATE_WARN_THRESHOLD = 5
 ERROR_RATE_BAD_THRESHOLD = 10
 HEALTH_GOOD_THRESHOLD = 95
 HEALTH_WARNING_THRESHOLD = 90
+STATE_CHANGED_TOPIC_PREFIX = f"{Topic.HASS_EVENT_STATE_CHANGED!s}."
 
 
 class _ListenerLike(Protocol):
@@ -114,14 +116,12 @@ def extract_entity_from_topic(topic: str) -> str | None:
     """Extract entity_id from a state_changed topic string.
 
     Returns the entity_id portion (e.g. ``"binary_sensor.garage_door"``)
-    for topics like ``"state_changed.binary_sensor.garage_door"``.
+    for topics like ``"hass.event.state_changed.binary_sensor.garage_door"``.
     Returns ``None`` for non-state-changed topics, empty strings,
     or wildcard patterns.
     """
-    if not topic or not topic.startswith("state_changed."):
-        return None
-    remainder = topic[len("state_changed.") :]
-    if not remainder or "*" in remainder:
+    remainder = topic.removeprefix(STATE_CHANGED_TOPIC_PREFIX)
+    if remainder == topic or not remainder or "*" in remainder:
         return None
     return remainder
 

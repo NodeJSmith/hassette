@@ -24,7 +24,7 @@ APP_LISTENERS_PATH = "/api/telemetry/app/my_app/listeners"
 LISTENER_DEFAULTS: dict[str, Any] = {
     "app_key": "my_app",
     "handler_method": "on_light",
-    "topic": "state_changed.light.kitchen",
+    "topic": "hass.event.state_changed.light.kitchen",
     "source_location": "my_app.py:10",
 }
 
