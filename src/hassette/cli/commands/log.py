@@ -5,7 +5,7 @@ from typing import Any
 from hassette_wire import CausingWrite, Execution, ExecutionDetailResponse, LogEntry
 
 import hassette.cli.output as cli_output
-from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.client import execution_path, make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import (
     EMPTY_VALUE,
@@ -93,7 +93,7 @@ def cmd_log(
 # dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
 # filter set has to be restated per command — declaration, not copy-pasted logic.
 def cmd_execution(
-    uuid: str,
+    execution_id: str,
     limit: LimitArg = None,
     author: AuthorArg = None,
     *,
@@ -109,7 +109,7 @@ def cmd_execution(
     client = make_client(ctx)
 
     detail = client.get(
-        f"/api/executions/{uuid}",
+        execution_path(execution_id),
         ExecutionDetailResponse,
         params=query_params(limit=limit, author=author),
     )

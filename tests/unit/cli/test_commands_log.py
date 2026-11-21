@@ -179,21 +179,31 @@ class TestCmdExecution:
         """Execution <uuid> reads only GET /api/executions/{execution_id}."""
         execution_id = "abc-123-def"
         client = _detail_client(cli_client_factory, execution_id, make_execution_detail_response())
-        spy = runner.spy(client, cmd_execution, uuid="abc-123-def")
+        spy = runner.spy(client, cmd_execution, execution_id="abc-123-def")
 
         assert spy.paths == [f"/api/executions/{execution_id}"]
+
+    def test_execution_id_is_quoted_into_the_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """An id containing ``/``, ``?`` or ``#`` is percent-encoded whole, so it can't change the route."""
+        path = "/api/executions/a%2F..%2Fb%3Fx%23y"
+        client = cli_client_factory.build_with_routes(
+            [("GET", path, 200, make_execution_detail_response().model_dump(mode="json"))]
+        )
+        spy = runner.spy(client, cmd_execution, execution_id="a/../b?x#y")
+
+        assert spy.paths == [path]
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution <uuid> --limit 50 passes limit=50 as a query param."""
         client = _detail_client(cli_client_factory, "abc-123", make_execution_detail_response())
-        spy = runner.spy(client, cmd_execution, uuid="abc-123", limit=50)
+        spy = runner.spy(client, cmd_execution, execution_id="abc-123", limit=50)
 
         assert spy.params_for("executions")["limit"] == 50
 
     def test_author_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution <uuid> --author all passes author=all as a query param."""
         client = _detail_client(cli_client_factory, "abc-123", make_execution_detail_response())
-        spy = runner.spy(client, cmd_execution, uuid="abc-123", author="all")
+        spy = runner.spy(client, cmd_execution, execution_id="abc-123", author="all")
 
         assert spy.params_for("executions")["author"] == "all"
 
@@ -204,7 +214,7 @@ class TestCmdExecution:
             make_log_entry(id=2, seq=2, message="second line", author="framework"),
         ]
         client = _detail_client(cli_client_factory, "exec-1", make_execution_detail_response(logs=logs))
-        output = runner.stdout(client, cmd_execution, uuid="exec-1")
+        output = runner.stdout(client, cmd_execution, execution_id="exec-1")
 
         app_row = next(line for line in output.splitlines() if "first line" in line)
         framework_row = next(line for line in output.splitlines() if "second line" in line)
@@ -214,7 +224,7 @@ class TestCmdExecution:
     def test_human_mode_renders_log_table(self, cli_client_factory: CLIClientFactory) -> None:
         entry = make_log_entry(level="ERROR", message="Something failed")
         client = _detail_client(cli_client_factory, "exec-2", make_execution_detail_response(logs=[entry]))
-        output = runner.stdout(client, cmd_execution, uuid="exec-2")
+        output = runner.stdout(client, cmd_execution, execution_id="exec-2")
 
         assert "Something failed" in output
 
@@ -227,19 +237,19 @@ class TestCmdExecution:
         )
         client = _detail_client(cli_client_factory, "exec-3", detail)
 
-        parsed = runner.json_output(client, cmd_execution, uuid="exec-3")
+        parsed = runner.json_output(client, cmd_execution, execution_id="exec-3")
         assert parsed == detail.model_dump(mode="json")
 
     def test_human_mode_missing_record_names_batching_and_retention(self, cli_client_factory: CLIClientFactory) -> None:
         client = _detail_client(cli_client_factory, "exec-7", make_execution_detail_response(execution=None))
 
-        assert EXECUTION_NOT_FOUND_MESSAGE in runner.stderr(client, cmd_execution, uuid="exec-7")
+        assert EXECUTION_NOT_FOUND_MESSAGE in runner.stderr(client, cmd_execution, execution_id="exec-7")
 
     def test_failed_request_fails_the_command(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes([("GET", "/api/executions/exec-6", 500, {"detail": "boom"})])
 
         with pytest.raises(SystemExit) as exc_info:
-            runner.stdout(client, cmd_execution, uuid="exec-6")
+            runner.stdout(client, cmd_execution, execution_id="exec-6")
         assert exc_info.value.code != 0
 
     def test_human_mode_shows_trigger_block_above_logs(self, cli_client_factory: CLIClientFactory) -> None:
@@ -247,7 +257,9 @@ class TestCmdExecution:
             execution=make_execution(execution_id="exec-8", trigger=OFFICE_TRIGGER),
             logs=[make_log_entry(message="handler ran")],
         )
-        output = runner.stdout(_detail_client(cli_client_factory, "exec-8", detail), cmd_execution, uuid="exec-8")
+        output = runner.stdout(
+            _detail_client(cli_client_factory, "exec-8", detail), cmd_execution, execution_id="exec-8"
+        )
 
         assert "light.office" in output
         assert "off → on" in output
@@ -267,7 +279,9 @@ class TestCmdExecution:
             api_writes=[write],
             logs=[make_log_entry(message="handler ran")],
         )
-        output = runner.stdout(_detail_client(cli_client_factory, "exec-11", detail), cmd_execution, uuid="exec-11")
+        output = runner.stdout(
+            _detail_client(cli_client_factory, "exec-11", detail), cmd_execution, execution_id="exec-11"
+        )
 
         write_row = next(line for line in output.splitlines() if "light.turn_on" in line)
         assert "light.porch; area_id: garden" in write_row
@@ -280,7 +294,9 @@ class TestCmdExecution:
         detail = make_execution_detail_response(api_writes=[make_api_write()], api_writes_truncated=True)
         client = _detail_client(cli_client_factory, "exec-12", detail)
 
-        assert API_WRITES_TRUNCATED_MESSAGE.format(shown=1) in runner.stderr(client, cmd_execution, uuid="exec-12")
+        assert API_WRITES_TRUNCATED_MESSAGE.format(shown=1) in runner.stderr(
+            client, cmd_execution, execution_id="exec-12"
+        )
 
     def test_caused_by_names_the_writing_app(self) -> None:
         trigger = ExecutionTrigger(
@@ -298,7 +314,9 @@ class TestCmdExecution:
         trigger = ExecutionTrigger(entity_id="media_player.tv", old_value="[Live] Show", new_value="[/x]")
         detail = make_execution_detail_response(execution=make_execution(execution_id="exec-9", trigger=trigger))
 
-        output = runner.stdout(_detail_client(cli_client_factory, "exec-9", detail), cmd_execution, uuid="exec-9")
+        output = runner.stdout(
+            _detail_client(cli_client_factory, "exec-9", detail), cmd_execution, execution_id="exec-9"
+        )
         assert "[Live] Show → [/x]" in output
 
     def test_bracketed_error_renders_literally(self, cli_client_factory: CLIClientFactory) -> None:
@@ -311,7 +329,9 @@ class TestCmdExecution:
         )
         detail = make_execution_detail_response(execution=execution)
 
-        output = runner.stdout(_detail_client(cli_client_factory, "exec-10", detail), cmd_execution, uuid="exec-10")
+        output = runner.stdout(
+            _detail_client(cli_client_factory, "exec-10", detail), cmd_execution, execution_id="exec-10"
+        )
         assert "OSError: open [/dev/ttyUSB0] failed" in output
 
     def test_error_without_message_shows_type_only(self) -> None:
@@ -331,7 +351,7 @@ class TestCmdExecution:
     def test_empty_execution_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution shows no-results message when the logs list is empty."""
         client = _detail_client(cli_client_factory, "exec-4", make_execution_detail_response(logs=[]))
-        assert "No results" in runner.stderr(client, cmd_execution, uuid="exec-4")
+        assert "No results" in runner.stderr(client, cmd_execution, execution_id="exec-4")
 
     def test_execution_columns_defined(self) -> None:
         """EXECUTION_LOG_COLUMNS includes key log entry fields."""

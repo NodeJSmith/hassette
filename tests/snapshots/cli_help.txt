@@ -341,16 +341,16 @@ Show app dashboard grid.
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette execution --help
-Usage: hassette execution [OPTIONS] UUID [ARGS]
+Usage: hassette execution [OPTIONS] EXECUTION-ID [ARGS]
 
 Show logs for a specific execution.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
-│ *  UUID --uuid      [required]                                                                   │
-│    LIMIT --limit    Maximum number of results to return.                                         │
-│    AUTHOR --author  Filter log lines by who wrote them: 'app', 'framework', or 'all'. Omit for   │
-│                     app lines plus framework lines at ERROR and above. [choices: app, framework, │
-│                     all]                                                                         │
+│ *  EXECUTION-ID --execution-id  [required]                                                       │
+│    LIMIT --limit                Maximum number of results to return.                             │
+│    AUTHOR --author              Filter log lines by who wrote them: 'app', 'framework', or       │
+│                                 'all'. Omit for app lines plus framework lines at ERROR and      │
+│                                 above. [choices: app, framework, all]                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │

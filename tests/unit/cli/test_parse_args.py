@@ -148,10 +148,10 @@ class TestFlagCombinations:
         assert bound.arguments["state"] == "on"
         assert bound.arguments["instance"] == "1"
 
-    def test_execution_uuid_limit(self) -> None:
+    def test_execution_id_limit(self) -> None:
         _cmd, bound, _ = app.parse_args(["execution", "abc-123-def", "--limit", "100"])
 
-        assert bound.arguments["uuid"] == "abc-123-def"
+        assert bound.arguments["execution_id"] == "abc-123-def"
         assert bound.arguments["limit"] == 100
 
     @pytest.mark.parametrize("command", [["log"], ["execution", "abc-123-def"]])
