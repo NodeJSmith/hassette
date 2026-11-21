@@ -6,7 +6,6 @@ async/sync makes direct inheritance awkward, so DDL, TTL resolution, serializati
 key validation live here as free functions that both import and call directly.
 """
 
-import asyncio
 import logging
 import pickle
 from collections.abc import Sequence
@@ -95,22 +94,3 @@ def validate_key(key: str) -> None:
     """
     if not isinstance(key, str) or not key:
         raise ValueError(f"Cache key must be a non-empty string, got {key!r}")
-
-
-def guard_not_in_event_loop(label: str) -> None:
-    """Raise RuntimeError if called from inside a running event loop.
-
-    Shared by :class:`~hassette.cache.sync.SyncCache` and
-    :class:`~hassette.cache.dummy.DummySyncCache` so both sync facades enforce the
-    same loop-safety contract from one implementation instead of two copies that can
-    drift independently. Adapted from the loop-safety guard in ``task_bucket.py``'s
-    ``run_sync()``.
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        pass  # not in a loop -> safe to run synchronously
-    else:
-        raise RuntimeError(
-            f"This sync method ({label}) was called from within an event loop. Use the async method instead."
-        )

@@ -20,13 +20,13 @@ from hassette.cache._helpers import (
     DESERIALIZE_FAILED,
     MISSING,
     deserialize,
-    guard_not_in_event_loop,
     log_checkpoint_outcome,
     resolve_ttl,
     serialize,
     validate_key,
 )
 from hassette.utils.aiosqlite_utils import CHECKPOINT_TRUNCATE_SQL, SQLITE_BUSY_TIMEOUT_MS
+from hassette.utils.loop_guard import guard_not_in_event_loop
 
 logger = logging.getLogger(__name__)
 
