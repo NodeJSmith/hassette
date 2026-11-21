@@ -9,6 +9,7 @@ from tests.e2e.conftest import (
     ANIMATION_SETTLE_MS,
     DESKTOP_VIEWPORT,
     MOBILE_VIEWPORT,
+    click_mobile_drawer_backdrop,
     expand_app_instances,
     open_apps_page_with_running_group,
 )
@@ -131,7 +132,7 @@ def test_mobile_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> No
     # Drawer is open
     expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
     # Click backdrop to close
-    page.locator("[data-testid='mobile-drawer-backdrop']").click()
+    click_mobile_drawer_backdrop(page)
     expect(drawer).to_have_class(re.compile(r"-translate-x-full"))
 
 

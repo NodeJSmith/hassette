@@ -367,6 +367,18 @@ def open_apps_page_with_running_group(page: Page, base_url: str) -> None:
     page.wait_for_timeout(ANIMATION_SETTLE_MS)
 
 
+def click_mobile_drawer_backdrop(page: Page) -> None:
+    """Click the mobile drawer's backdrop at a point the open drawer doesn't cover.
+
+    At ``MOBILE_VIEWPORT`` the open drawer (``--sz-sidebar`` wide) covers the backdrop's
+    center, so Playwright's default center click is intercepted by the drawer whenever it
+    lands after the slide-in transition finishes.
+    """
+    page.locator("[data-testid='mobile-drawer-backdrop']").click(
+        position={"x": MOBILE_VIEWPORT["width"] - 10, "y": MOBILE_VIEWPORT["height"] // 2}
+    )
+
+
 def expand_app_instances(page: Page, app_key: str) -> Locator:
     """Expand a multi-instance app in the sidebar and return its visible instance list.
 
