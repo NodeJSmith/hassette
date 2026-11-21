@@ -10,8 +10,9 @@ Blocking is decided in Python from oasdiff's JSON findings (``id`` + ``level``):
   judges the *old-client/new-server* direction by default, which scores a newly required response
   field as ``info`` (non-breaking). Swapping the argument order flips that same change to
   ``response-required-property-removed`` / ``response-property-became-optional``, both ``error``
-  — a client written against the last release cannot handle a response the new server now
-  requires. Only findings whose ``id`` is in ``REVERSED_BLOCKING_CHECK_IDS`` block this run — a
+  — a client written against HEAD cannot handle a response the old server omits it from. A type
+  HEAD narrowed (``X | None`` -> ``X``) reads the same way, as a widening the old server may still
+  send. Only findings whose ``id`` is in ``REVERSED_BLOCKING_CHECK_IDS`` block this run — a
   named allowlist, so a newer oasdiff that adds checks can't fail it just by existing, and a
   reversed run also flags legitimate additions (like a new endpoint) as "removed", which must not
   block.
@@ -65,11 +66,16 @@ LABEL_REVERSED = "reversed: new client, old server"
 LABEL_FORWARD = "forward: old client, new server"
 
 # Reversed run (new client, old server): only these check ids block, regardless of how many other
-# checks a future oasdiff version adds. Both are always ERR by default.
+# checks a future oasdiff version adds. All are ERR by default. The first two are a field HEAD requires
+# that the release may omit. The last two are a type HEAD narrowed (``X | None`` -> ``X``, ``A | B`` -> ``A``)
+# that the release may still send: Pydantic emits ``X | None`` as ``anyOf [X, null]``, which oasdiff reports
+# as a list-of-types change rather than a nullability one.
 REVERSED_BLOCKING_CHECK_IDS = frozenset(
     {
         "response-property-became-optional",
         "response-required-property-removed",
+        "response-property-list-of-types-widened",
+        "response-property-any-of-added",
     }
 )
 

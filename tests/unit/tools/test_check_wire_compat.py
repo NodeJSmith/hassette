@@ -33,6 +33,7 @@ pytestmark = pytest.mark.skipif(shutil.which("oasdiff") is None, reason="oasdiff
 
 FIXTURES = Path(__file__).parent / "fixtures" / "wire_compat"
 WS_FIXTURES = Path(__file__).parent / "fixtures" / "ws_compat"
+GIT_TIMEOUT_SECONDS = 30
 COMMITTED_WS_SCHEMA = Path(__file__).resolve().parents[3] / "frontend" / "ws-schema.json"
 
 
@@ -57,6 +58,11 @@ def _oasdiff_findings(base: Path, revision: Path) -> list[dict]:
     return json.loads(result.stdout)
 
 
+def _git(repo_dir: Path, *args: str) -> None:
+    """Run ``git <args>`` in ``repo_dir``, failing the test rather than hanging if a hook or signing prompt blocks."""
+    subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True, timeout=GIT_TIMEOUT_SECONDS)
+
+
 def _init_throwaway_repo(repo_dir: Path) -> Path:
     """Create a throwaway git repo at ``repo_dir`` with a committed ``frontend/openapi.json``.
 
@@ -65,11 +71,11 @@ def _init_throwaway_repo(repo_dir: Path) -> Path:
     frontend_dir = repo_dir / "frontend"
     frontend_dir.mkdir()
     (frontend_dir / "openapi.json").write_text("{}")
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo_dir, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_dir, check=True, capture_output=True)
-    subprocess.run(["git", "add", "-A"], cwd=repo_dir, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_dir, check=True, capture_output=True)
+    _git(repo_dir, "init", "-q", "-b", "main")
+    _git(repo_dir, "config", "user.email", "test@example.com")
+    _git(repo_dir, "config", "user.name", "Test")
+    _git(repo_dir, "add", "-A")
+    _git(repo_dir, "commit", "-m", "initial")
     return frontend_dir
 
 
@@ -101,6 +107,15 @@ def test_removed_webhook_fails() -> None:
     prove the check doesn't crash on a finding shaped like this.
     """
     assert _run("removed_webhook") != 0
+
+
+@pytest.mark.parametrize("name", ["became_non_nullable", "union_narrowed"])
+def test_narrowed_response_property_type_fails(name: str) -> None:
+    """A response property whose type HEAD narrowed (``X | None`` or ``X | Y`` to ``X``) is blocked.
+
+    The release may still send the value HEAD dropped, and a client built against HEAD rejects it.
+    """
+    assert _run(name) != 0
 
 
 def test_new_optional_response_property_passes() -> None:
@@ -191,11 +206,11 @@ def test_unreachable_release_tag_fails_with_a_named_message(tmp_path: Path, caps
     """
     frontend_dir = _init_throwaway_repo(tmp_path)
 
-    subprocess.run(["git", "checkout", "-q", "-b", "other"], cwd=tmp_path, check=True, capture_output=True)
+    _git(tmp_path, "checkout", "-q", "-b", "other")
     (frontend_dir / "openapi.json").write_text('{"changed": true}')
-    subprocess.run(["git", "commit", "-a", "-m", "second"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "tag", "v1.0.0"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "checkout", "-q", "main"], cwd=tmp_path, check=True, capture_output=True)
+    _git(tmp_path, "commit", "-a", "-m", "second")
+    _git(tmp_path, "tag", "v1.0.0")
+    _git(tmp_path, "checkout", "-q", "main")
 
     exit_code = main(repo_root=tmp_path)
 
@@ -206,8 +221,8 @@ def test_unreachable_release_tag_fails_with_a_named_message(tmp_path: Path, caps
 def test_highest_reachable_tag_wins(tmp_path: Path) -> None:
     """When multiple `v*` tags are reachable from HEAD, the highest version wins, not tag-creation order."""
     _init_throwaway_repo(tmp_path)
-    subprocess.run(["git", "tag", "v1.0.0"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "tag", "v1.10.0"], cwd=tmp_path, check=True, capture_output=True)
+    _git(tmp_path, "tag", "v1.0.0")
+    _git(tmp_path, "tag", "v1.10.0")
 
     assert resolve_latest_release_tag(tmp_path) == "v1.10.0"
 
@@ -216,7 +231,7 @@ def test_pre_release_and_non_pep440_tags_are_skipped(tmp_path: Path) -> None:
     """Git's version sort ranks v1.1.0rc1 and v1.1.0.dev1 above v1.1.0; only final releases count."""
     _init_throwaway_repo(tmp_path)
     for tag in ("v1.0.0", "v1.1.0", "v1.1.0rc1", "v1.1.0.dev1", "v1.2.0-beta", "vnext"):
-        subprocess.run(["git", "tag", tag], cwd=tmp_path, check=True, capture_output=True)
+        _git(tmp_path, "tag", tag)
 
     assert list_release_tags(tmp_path) == ["v1.1.0", "v1.0.0"]
 
@@ -249,6 +264,8 @@ def test_ws_compatible_change_passes(name: str) -> None:
         "renamed_message_type",
         "removed_enum_value",
         "became_nullable",
+        "became_non_nullable",
+        "union_narrowed",
     ],
 )
 def test_ws_breaking_change_fails(name: str) -> None:
@@ -312,8 +329,8 @@ def test_main_reports_a_schema_missing_at_the_release_tag_and_checks_the_rest(
     """
     frontend_dir = _init_throwaway_repo(tmp_path)
     (frontend_dir / "openapi.json").write_text((FIXTURES / "new_endpoint" / "release.json").read_text())
-    subprocess.run(["git", "commit", "-qam", "real spec"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "tag", "v1.0.0"], cwd=tmp_path, check=True, capture_output=True)
+    _git(tmp_path, "commit", "-qam", "real spec")
+    _git(tmp_path, "tag", "v1.0.0")
     (frontend_dir / "ws-schema.json").write_text(COMMITTED_WS_SCHEMA.read_text())
 
     exit_code = main(repo_root=tmp_path)
