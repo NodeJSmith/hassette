@@ -129,7 +129,7 @@ The API reference lists every class with its full attribute signatures. Domains 
 
 ## Sensor Value Shapes
 
-`SensorState.value` is `str | None`, because the `sensor` domain covers every kind of sensor Home Assistant supports — a door lock's battery percentage and a smart meter's next-reset timestamp are both `sensor.*` entities. Home Assistant metadata can classify a sensor into one of four value shapes: numeric, enum, timestamp, or date. Sensors without sufficient metadata remain `UNKNOWN`. Four state classes narrow `value` to match:
+`SensorState.value` is `str | None`, because the `sensor` domain covers every kind of sensor Home Assistant supports — a door lock's battery percentage and a smart meter's next-reset timestamp are both `sensor.*` entities. Home Assistant metadata can classify a sensor into one of four value shapes: numeric, enum, timestamp, or date. Sensors without enough metadata to classify fit none of the four shapes. They appear only in `self.states.sensor`, as a plain `SensorState`. Four state classes narrow `value` to match:
 
 | Class | `value` type | Matches |
 |---|---|---|
@@ -143,7 +143,10 @@ The API reference lists every class with its full attribute signatures. Domains 
 Two paths reach a narrowed shape. Dependency injection names the class directly — `D` (`hassette.event_handling.dependencies`) tells Hassette what to extract from the event; `D.StateNew[T]` means "give me the new state, converted to `T`" (see [Dependency Injection](../bus/dependency-injection.md)):
 
 ```python
---8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:annotation"
+--8<--
+pages/core-concepts/states/snippets/sensor_shapes.py:imports
+pages/core-concepts/states/snippets/sensor_shapes.py:annotation
+--8<--
 ```
 
 `new.value` is `float | None` here — arithmetic type-checks with a `None` guard, no cast required. `self.states.numeric_sensor` reaches the same shape by iteration:
