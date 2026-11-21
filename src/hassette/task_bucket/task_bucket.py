@@ -18,6 +18,7 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.resources.shutdown_deadline import elapsed_since
 from hassette.types.types import CoroLikeT
 from hassette.utils.func_utils import is_async_callable
+from hassette.utils.loop_guard import guard_not_in_event_loop
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -378,14 +379,10 @@ class TaskBucket(Resource):
 
         # If we're already in an event loop, don't allow blocking calls.
         try:
-            asyncio.get_running_loop()
+            guard_not_in_event_loop(label)
         except RuntimeError:
-            pass  # not in a loop -> safe to block
-        else:
             fn.close()  # close the coroutine to avoid warnings
-            raise RuntimeError(
-                f"This sync method ({label}) was called from within an event loop. Use the async method instead."
-            )
+            raise
 
         fut: Future[R] | None = None
         try:

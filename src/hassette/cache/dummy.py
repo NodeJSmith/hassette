@@ -10,7 +10,8 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar, cast, overload
 
-from hassette.cache._helpers import MISSING, guard_not_in_event_loop, resolve_ttl, validate_key
+from hassette.cache._helpers import MISSING, resolve_ttl, validate_key
+from hassette.utils.loop_guard import guard_not_in_event_loop
 
 T = TypeVar("T")
 
