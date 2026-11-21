@@ -153,7 +153,7 @@ class ErrorContext:
         outcomes = None
         try:
             problem = response.json()
-            detail = problem.get("detail", response.text)
+            detail = problem.get("detail") or response.text
             # An app action's problem body names what it did to each instance; --json passes that through.
             outcomes = problem.get("outcomes")
         except (ValueError, AttributeError):

@@ -485,6 +485,15 @@ class TestHttpErrorsHumanMode:
         captured = capsys.readouterr()
         assert captured.out == ""
 
+    @pytest.mark.parametrize("detail", [None, ""])
+    def test_empty_detail_falls_back_to_response_text(self, detail: str | None) -> None:
+        config = make_host_port_config()
+        transport = make_transport(500, {"detail": detail, "title": "upstream exploded"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        _code, stderr = get_expecting_exit(client, CRASH_ENDPOINT)
+        assert "upstream exploded" in stderr
+        assert "Error 500: None" not in stderr
+
 
 # HTTP error handling (json mode)
 
@@ -506,6 +515,17 @@ class TestHttpErrorsJsonMode:
         # In json mode, error goes to stdout only
         parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
         assert parsed["error"] is True
+
+    @pytest.mark.parametrize("detail", [None, ""])
+    def test_empty_detail_falls_back_to_response_text(
+        self, capsys: pytest.CaptureFixture[str], detail: str | None
+    ) -> None:
+        config = make_host_port_config()
+        transport = make_transport(500, {"detail": detail, "title": "upstream exploded"})
+        client = HassetteCLIClient(config, json_mode=True, transport=transport)
+        parsed = get_json_error(client, capsys, CRASH_ENDPOINT, expect_code=1)
+        assert "upstream exploded" in parsed["detail"]
+        assert parsed["detail"] != "None"
 
 
 # Network errors (connection refused / timeout)
