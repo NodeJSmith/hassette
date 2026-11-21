@@ -11,6 +11,7 @@ from hassette_wire import (
     AppAction,
     AppListResponse,
     AppStatus,
+    IntegrationPlatformName,
     JobSummary,
     LogLevel,
     LogLevelRequest,
@@ -28,6 +29,7 @@ import hassette.scheduler.classes
 import hassette.types
 import hassette.types.enums
 from hassette.cli.commands import app as cli_app
+from hassette.integration.declarations import IntegrationPlatform
 from hassette.types.types import LOG_LEVELS
 from hassette.web.routes import apps as apps_route
 from tests.support.web_job_helpers import make_job_summary
@@ -42,7 +44,7 @@ def action_body(**overrides: Any) -> dict[str, Any]:
 
 
 def app_list_body(status_counts: dict[str, int]) -> dict[str, Any]:
-    return {"total": 0, "status_counts": status_counts, "apps": []}
+    return {"total": 0, "status_counts": status_counts, "apps": [], "boot_id": "boot", "revision": 0}
 
 
 # (model, body builder, field, out-of-vocabulary value) for every newly typed open field.
@@ -144,6 +146,10 @@ def test_resource_role_is_a_hassette_enum_not_a_wire_name() -> None:
 
 def test_server_log_level_names_equal_the_wire_vocabulary() -> None:
     assert set(LOG_LEVELS) == set(get_args(LogLevel))
+
+
+def test_integration_platforms_equal_the_wire_vocabulary() -> None:
+    assert {platform.value for platform in IntegrationPlatform} == set(get_args(IntegrationPlatformName))
 
 
 @pytest.mark.parametrize("past_tense", [cli_app.ACTION_PAST_TENSE, apps_route.ACTION_PAST_TENSE], ids=["cli", "route"])

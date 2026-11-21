@@ -325,3 +325,7 @@ GET /api/executions/{execution_id} removed the required property `logs` from the
 GET /api/executions/{execution_id} removed the required property `logs_truncated` from the response with the `200` status
 GET /api/executions/{execution_id} removed the required property `records` from the response with the `200` status
 GET /api/executions/{execution_id} removed the required property `truncated` from the response with the `200` status
+
+# #4219: GET /api/apps carries boot_id and revision (required); hassette-client's floor moves to API schema 7.
+GET /api/apps removed the required property `boot_id` from the response with the `200` status
+GET /api/apps removed the required property `revision` from the response with the `200` status

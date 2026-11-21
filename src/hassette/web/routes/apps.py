@@ -4,7 +4,7 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable, Sequence
 from logging import getLogger
-from typing import Any
+from typing import Any, assert_never
 
 import tomli_w
 from fastapi import APIRouter, Request
@@ -18,6 +18,7 @@ from hassette_wire import (
     AppSummary,
     DebugCaptureRequest,
     DebugCaptureResponse,
+    EntityCommandResponse,
     InstanceDebugCapture,
     InstanceOutcome,
     ProblemCode,
@@ -26,6 +27,7 @@ from hassette_wire import (
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
+from hassette.integration.declarations import CommandDispatchResult, IntegrationPlatform
 from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
 from hassette.schemas.app_outcomes import OutcomeResult
@@ -87,6 +89,15 @@ STOP_ACTION_CODES = (
 )
 """Codes ``_run_app_action`` raises for ``stop``, which never awaits bootstrap release or checks the
 ``--app`` filter."""
+
+ENTITY_COMMAND_CODES = (
+    *APP_KEY_CODES,
+    ProblemCode.APP_NOT_FOUND,
+    ProblemCode.INSTANCE_NOT_FOUND,
+    ProblemCode.INSTANCE_NOT_RUNNING,
+    ProblemCode.ENTITY_NOT_DECLARED,
+)
+"""Codes ``send_entity_command`` raises."""
 
 ACTION_CODES = (*STOP_ACTION_CODES, ProblemCode.BOOTSTRAP_NOT_RELEASED, ProblemCode.APP_BLOCKED)
 """Codes ``_run_app_action`` raises for ``start`` and ``reload``."""
@@ -379,15 +390,15 @@ async def get_apps(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppListRespo
     (see ``listed_apps``). ``GET /apps/{app_key}`` still answers for any of them.
     """
     db_rows = await telemetry.get_all_app_manifests()
-    manifest_infos = runtime.overlay_listed_manifest_rows(db_rows)
+    listing = runtime.app_listing(runtime.overlay_listed_manifest_rows(db_rows))
 
     full_snapshot = AppFullSnapshot(
-        manifests=tuple(manifest_infos),
+        manifests=listing.manifests,
         only_apps=tuple(runtime.get_registry_only_apps()),
-        total=len(manifest_infos),
-        status_counts=tally_app_statuses(manifest_infos),
+        total=len(listing.manifests),
+        status_counts=tally_app_statuses(listing.manifests),
     )
-    return app_list_response_from(full_snapshot)
+    return app_list_response_from(full_snapshot, boot_id=listing.boot_id, revision=listing.revision)
 
 
 @router.get(
@@ -614,3 +625,95 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
         content=content,
         line_count=len(content.splitlines()),
     )
+
+
+def entity_command_route(path: str) -> Callable[[DecoratedCallable], DecoratedCallable]:
+    """Register a declared-entity command route: a POST answering 202 once the command is dispatched."""
+    return router.post(
+        path, status_code=202, response_model=EntityCommandResponse, responses=problem_responses(*ENTITY_COMMAND_CODES)
+    )
+
+
+@entity_command_route("/apps/{app_key}/instances/{instance_name}/buttons/{key}/press")
+async def press_button(
+    app_key: str, instance_name: str, key: str, hassette: HassetteDep, request: Request
+) -> EntityCommandResponse:
+    """Press a button an app instance declared, running its ``on_press`` handler."""
+    return await send_entity_command(hassette, request, app_key, instance_name, key, IntegrationPlatform.BUTTON, None)
+
+
+@entity_command_route("/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_on")
+async def turn_on_switch(
+    app_key: str, instance_name: str, key: str, hassette: HassetteDep, request: Request
+) -> EntityCommandResponse:
+    """Turn on a switch an app instance declared, running its ``on_toggle`` handler with ``True``."""
+    return await send_entity_command(hassette, request, app_key, instance_name, key, IntegrationPlatform.SWITCH, True)
+
+
+@entity_command_route("/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_off")
+async def turn_off_switch(
+    app_key: str, instance_name: str, key: str, hassette: HassetteDep, request: Request
+) -> EntityCommandResponse:
+    """Turn off a switch an app instance declared, running its ``on_toggle`` handler with ``False``."""
+    return await send_entity_command(hassette, request, app_key, instance_name, key, IntegrationPlatform.SWITCH, False)
+
+
+async def send_entity_command(
+    hassette: HassetteDep,
+    request: Request,
+    app_key: str,
+    instance_name: str,
+    key: str,
+    platform: IntegrationPlatform,
+    value: bool | None,
+) -> EntityCommandResponse:
+    """Dispatch a press or toggle to the owning instance's handler, answering once its command event is published.
+
+    ``IntegrationService.dispatch_command`` alone decides admission. Only after it refuses for ``not_running``
+    does ``command_target_not_found`` look at config, to answer a target that doesn't exist with a 404 rather
+    than "not running".
+    """
+    _validate_app_key(app_key)
+    result = await hassette.integration_service.dispatch_command(app_key, instance_name, key, platform, value)
+    match result:
+        case CommandDispatchResult.DISPATCHED:
+            pass
+        case CommandDispatchResult.NOT_DECLARED:
+            raise WebApiError(
+                ProblemCode.ENTITY_NOT_DECLARED,
+                f"App instance '{app_key}/{instance_name}' declares no {platform} {key!r}",
+            )
+        case CommandDispatchResult.NOT_RUNNING:
+            not_found = command_target_not_found(app_key, instance_name, hassette)
+            if not_found is not None:
+                raise not_found
+            raise WebApiError(
+                ProblemCode.INSTANCE_NOT_RUNNING, f"App instance '{app_key}/{instance_name}' isn't running"
+            )
+        case _:
+            assert_never(result)
+    LOGGER.info(
+        "Sent a %s command for %r of app instance %r (source=%s)",
+        platform,
+        key,
+        f"{app_key}/{instance_name}",
+        peer_address_or_unknown(request),
+    )
+    return EntityCommandResponse(app_key=app_key, instance_name=instance_name, key=key, platform=platform.value)
+
+
+def command_target_not_found(app_key: str, instance_name: str, hassette: HassetteDep) -> WebApiError | None:
+    """The 404 for a refused command whose app or instance doesn't exist, or ``None`` when it exists.
+
+    Runs only after admission refused the command, so it only chooses between a 404 and ``instance_not_running``
+    and never decides whether a command runs. An app exists when it has a manifest or a tracked instance; an
+    instance exists when its app's config names it or the registry still tracks it. Not the pre-dispatch helpers
+    above (``_require_addressable_instance`` and the orphan rules), which check config before anything runs.
+    """
+    registry = hassette.app_handler.registry
+    tracked = registry.get_instances(app_key)
+    if registry.get_manifest(app_key) is None and not tracked:
+        return app_not_found(app_key)
+    if instance_name not in registry.configured_names(app_key) and instance_name not in tracked:
+        return instance_not_found(app_key, instance_name)
+    return None

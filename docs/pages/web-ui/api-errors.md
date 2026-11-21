@@ -45,8 +45,12 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `source_unavailable` | 500 | The app's source file exists but could not be read. |
 | `invalid_token` | 401 | The token sent to `POST /api/auth/session` is wrong. |
 | `job_not_registered` | 409 | The scheduled job has no live registration: never registered, or removed since the caller saw it. |
+| `instance_not_running` | 409 | A button press or switch command targets an app instance that exists but isn't running. |
+| `entity_not_declared` | 409 | A button press or switch command names a key the running instance doesn't declare on that platform. |
 
 The four `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes. `needs_restart` does not clear until Hassette restarts. `action_in_progress` means Hassette is still working on an earlier action for the same app, such as a reload whose request timed out on the client side. Hassette rejects the new action instead of queuing it. Once the app's status shows the earlier action has finished, the same request succeeds.
+
+The two `409` codes on the entity command endpoints (`POST /api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press` and `.../switches/{key}/turn_on` or `/turn_off`) differ in whether a retry can help. `instance_not_running` clears once the instance starts again, for example after a reload finishes. It doesn't clear for a disabled app or one the `--app` filter excludes, since those don't start until their config or the filter changes, so check the app's `status` before retrying. `entity_not_declared` does not clear until the instance's declarations change. An app or instance that doesn't exist at all answers `app_not_found` or `instance_not_found` instead.
 
 ## App action outcomes
 

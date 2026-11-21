@@ -47,6 +47,8 @@ CODE_STATUS: Mapping[ProblemCode, int] = {
     ProblemCode.INVALID_TOKEN: 401,
     ProblemCode.NOT_AUTHENTICATED: 401,
     ProblemCode.JOB_NOT_REGISTERED: 409,
+    ProblemCode.INSTANCE_NOT_RUNNING: 409,
+    ProblemCode.ENTITY_NOT_DECLARED: 409,
     ProblemCode.VALIDATION_FAILED: 422,
     ProblemCode.BODY_TOO_LARGE: 413,
     ProblemCode.NOT_FOUND: 404,
@@ -92,6 +94,8 @@ CODE_DESCRIPTIONS: Mapping[ProblemCode, str] = {
     ProblemCode.SOURCE_UNAVAILABLE: "the app's source file could not be read",
     ProblemCode.INVALID_TOKEN: "the token is wrong",
     ProblemCode.JOB_NOT_REGISTERED: "the job has no live registration",
+    ProblemCode.INSTANCE_NOT_RUNNING: "the app instance exists but isn't running",
+    ProblemCode.ENTITY_NOT_DECLARED: "the instance declares no such entity",
 }
 """OpenAPI response-description clause for each operation-specific code."""
 

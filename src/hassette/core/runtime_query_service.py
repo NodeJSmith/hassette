@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, Final
@@ -32,7 +33,7 @@ from hassette.event_handling.accessors import get_path
 from hassette.events import AnyEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.schemas.app_snapshots import AppManifestInfo
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppListingSnapshot, AppManifestInfo
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
 
@@ -325,6 +326,25 @@ class RuntimeQueryService(Resource):
         See ``listed_apps`` for which removed apps stay listed.
         """
         return listed_apps(self.overlay_manifest_rows(db_rows))
+
+    def app_listing(self, manifests: list[AppManifestInfo]) -> AppListingSnapshot:
+        """Attach each instance's declared entities to the app list's manifests, with the revision they were read at.
+
+        Only ``GET /api/apps`` calls this: the shared overlays stay entity-free, so the other
+        responses carrying instances never hold entity state without a revision beside it. Synchronous, so the
+        entities and ``revision`` are one snapshot.
+        """
+        integration = self.hassette.integration_service
+
+        def with_entities(instance: AppInstanceInfo) -> AppInstanceInfo:
+            entities = tuple(integration.entities(instance.app_key, instance.instance_name))
+            return dataclasses.replace(instance, entities=entities)
+
+        listed = tuple(
+            dataclasses.replace(manifest, instances=tuple(with_entities(instance) for instance in manifest.instances))
+            for manifest in manifests
+        )
+        return AppListingSnapshot(manifests=listed, boot_id=integration.boot_id, revision=integration.revision)
 
     def get_registry_only_apps(self) -> list[str]:
         """Return the exclusive-app filter (``--app`` CLI flag), sorted.

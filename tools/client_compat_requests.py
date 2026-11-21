@@ -19,6 +19,9 @@ from client_compat_live_state import (
     APP_KEY_ESCAPING_APP,
     APP_KEY_FLAGGED_APP,
     APP_KEY_UNREADABLE_APP,
+    BUTTON_KEY,
+    SWITCH_KEY,
+    UNDECLARED_KEY,
     SeedIds,
 )
 from hassette_wire import ProblemCode
@@ -174,6 +177,20 @@ PROBLEM_REQUESTS = [
         problem_code=ProblemCode.JOB_NOT_REGISTERED,
     ),
     FixtureRequest(
+        "problem-instance-not-running",
+        "POST",
+        "/api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press",
+        {"app_key": APP_KEY_MULTI_APP, "instance_name": make_instance_name("MultiApp", 0), "key": BUTTON_KEY},
+        problem_code=ProblemCode.INSTANCE_NOT_RUNNING,
+    ),
+    FixtureRequest(
+        "problem-entity-not-declared",
+        "POST",
+        "/api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press",
+        {"app_key": APP_KEY_MY_APP, "instance_name": MY_APP_INSTANCE_NAME, "key": UNDECLARED_KEY},
+        problem_code=ProblemCode.ENTITY_NOT_DECLARED,
+    ),
+    FixtureRequest(
         "problem-validation-failed",
         "GET",
         "/api/telemetry/executions",
@@ -275,6 +292,24 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
             "/api/apps/{app_key}/instances/{instance_name}/debug",
             my_app_instance,
             body={"enabled": False},
+        ),
+        FixtureRequest(
+            "entity-button-press",
+            "POST",
+            "/api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press",
+            {**my_app_instance, "key": BUTTON_KEY},
+        ),
+        FixtureRequest(
+            "entity-switch-turn-on",
+            "POST",
+            "/api/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_on",
+            {**my_app_instance, "key": SWITCH_KEY},
+        ),
+        FixtureRequest(
+            "entity-switch-turn-off",
+            "POST",
+            "/api/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_off",
+            {**my_app_instance, "key": SWITCH_KEY},
         ),
         FixtureRequest("app-config", "GET", "/api/apps/{app_key}/config", my_app),
         FixtureRequest("app-multi-config", "GET", "/api/apps/{app_key}/config", multi_app),

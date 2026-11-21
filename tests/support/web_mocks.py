@@ -17,6 +17,7 @@ from hassette_wire import BlockingFindingsResponse, ResourceStatus, Unattributed
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.state_proxy_sync import StateCacheFreshness
+from hassette.integration.declarations import CommandDispatchResult, CommittedEntity, IntegrationPlatform
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.summary_models import AppHealthAggregates
@@ -25,7 +26,7 @@ from hassette.web.app import create_fastapi_app
 from hassette.web.auth.trusted_proxies import TrustedProxySet
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 from tests.support.task_buckets import make_closing_task_bucket
-from tests.support.web_manifest_helpers import make_full_snapshot
+from tests.support.web_manifest_helpers import STUB_BOOT_ID, make_full_snapshot
 
 TEST_START_EPOCH = 1704067200.0
 
@@ -286,6 +287,34 @@ def wire_bus_and_scheduler(hassette: MagicMock, *, scheduler_jobs: list[Any] | N
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=scheduler_jobs or [])
 
 
+def wire_integration_service(
+    hassette: MagicMock, *, declared_entities: dict[tuple[str, str], list[CommittedEntity]] | None = None
+) -> None:
+    """Alias ``integration_service`` with the given committed entities per ``(app_key, instance_name)``.
+
+    An instance in ``declared_entities`` counts as running, so ``dispatch_command`` dispatches a command to one
+    of its keys on the right platform and answers ``NOT_DECLARED`` otherwise; every other instance answers
+    ``NOT_RUNNING``, as an instance with no live owner does. ``boot_id`` and ``revision`` are fixed.
+    """
+    entities = declared_entities or {}
+
+    async def dispatch_command(
+        app_key: str, instance_name: str, key: str, platform: IntegrationPlatform, _value: bool | None
+    ) -> CommandDispatchResult:
+        if (app_key, instance_name) not in entities:
+            return CommandDispatchResult.NOT_RUNNING
+        declared = {(e.declaration.key, e.declaration.platform) for e in entities[app_key, instance_name]}
+        if (key, platform) not in declared:
+            return CommandDispatchResult.NOT_DECLARED
+        return CommandDispatchResult.DISPATCHED
+
+    service = hassette.integration_service = hassette._integration_service
+    service.entities = MagicMock(side_effect=lambda app_key, name: entities.get((app_key, name), []))
+    service.boot_id = STUB_BOOT_ID
+    service.revision = 0
+    service.dispatch_command = AsyncMock(side_effect=dispatch_command)
+
+
 def wire_database(hassette: MagicMock) -> None:
     """Alias ``database_service``; ``submit()`` returns no rows."""
     hassette.database_service = hassette._database_service
@@ -317,6 +346,8 @@ def create_hassette_stub(
     # Scheduler — jobs returned by get_all_jobs(), i.e. the live registry (_jobs_by_id), not
     # just heap-resident jobs; include waiting/completed/manual jobs here to test enrichment.
     scheduler_jobs: list[Any] | None = None,
+    # Integration — committed entities by (app_key, instance_name)
+    declared_entities: dict[tuple[str, str], list[CommittedEntity]] | None = None,
 ) -> MagicMock:
     """Build a fully-wired MagicMock Hassette stub for web/API test fixtures.
 
@@ -364,6 +395,7 @@ def create_hassette_stub(
     wire_bootstrap_coordinator(hassette, released=bootstrap_released)
     wire_app_handler(hassette, manifests=manifests, old_snapshot=old_snapshot, app_action_mocks=app_action_mocks)
     wire_bus_and_scheduler(hassette, scheduler_jobs=scheduler_jobs)
+    wire_integration_service(hassette, declared_entities=declared_entities)
     hassette.runtime_query_service = hassette._runtime_query_service
     wire_database(hassette)
     wire_telemetry_stubs(hassette)

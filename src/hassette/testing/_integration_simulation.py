@@ -9,7 +9,7 @@ from hassette.testing._simulation import DEFAULT_SIMULATE_TIMEOUT
 
 if TYPE_CHECKING:
     from hassette.app.app import App
-    from hassette.core.integration_service import CommittedEntity
+    from hassette.integration.declarations import CommittedEntity
     from hassette.testing._harness import HassetteHarness
 
 

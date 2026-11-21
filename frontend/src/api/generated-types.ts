@@ -330,6 +330,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Press Button
+         * @description Press a button an app instance declared, running its ``on_press`` handler.
+         */
+        post: operations["press_button_api_apps__app_key__instances__instance_name__buttons__key__press_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_on": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn On Switch
+         * @description Turn on a switch an app instance declared, running its ``on_toggle`` handler with ``True``.
+         */
+        post: operations["turn_on_switch_api_apps__app_key__instances__instance_name__switches__key__turn_on_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn Off Switch
+         * @description Turn off a switch an app instance declared, running its ``on_toggle`` handler with ``False``.
+         */
+        post: operations["turn_off_switch_api_apps__app_key__instances__instance_name__switches__key__turn_off_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/session": {
         parameters: {
             query?: never;
@@ -1206,10 +1266,21 @@ export interface components {
              * @default false
              */
             debug_capture: boolean;
+            /**
+             * Entities
+             * @description The Home Assistant entities the instance declares, in key order, with their last committed state. Filled
+             *     only by ``GET /api/apps`` (``[]`` for an instance that declares nothing); ``None`` on every other response,
+             *     meaning not included rather than none. A stopped instance keeps its last declared entities, which are usable
+             *     only while ``status`` is ``running``.
+             */
+            entities?: components["schemas"]["DeclaredEntity"][] | null;
         };
         /**
          * AppListResponse
          * @description Response for ``GET /api/apps``: every app with status counts.
+         *
+         *     ``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other
+         *     listings. An instance's availability follows its ``status``, not ``revision``.
          */
         AppListResponse: {
             /** Total */
@@ -1222,6 +1293,20 @@ export interface components {
             apps: components["schemas"]["AppSummary"][];
             /** Only Apps */
             only_apps?: string[];
+            /**
+             * Boot Id
+             * @description Identifies this run of hassette; it changes on every restart. ``revision`` values are comparable only
+             *     between responses carrying the same ``boot_id``: on a new one, discard every revision seen before.
+             */
+            boot_id: string;
+            /**
+             * Revision
+             * @description Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration
+             *     commit and entity state change, skipping values. The listing reflects every declaration and value change up to
+             *     this revision, so a client may apply it to an instance whose last applied revision is equal or older. It doesn't
+             *     order availability: starting or stopping an instance changes its ``status``, not ``revision``.
+             */
+            revision: number;
         };
         /**
          * AppSource
@@ -1566,6 +1651,96 @@ export interface components {
              * @description Each targeted instance, configured instances in config order first.
              */
             instances: components["schemas"]["InstanceDebugCapture"][];
+        };
+        /**
+         * DeclaredEntity
+         * @description A Home Assistant button, switch or sensor an app instance declares through ``self.integration``.
+         *
+         *     Nested in ``AppInstance.entities`` on ``GET /api/apps``. Every platform shares one flat shape so a client
+         *     that meets a platform it doesn't know can skip that entity and keep the rest: ``unit``, ``device_class``,
+         *     ``state_class`` and ``options`` are set for a sensor only.
+         */
+        DeclaredEntity: {
+            /**
+             * Key
+             * @description The entity's key: lowercase letters, digits and ``_``, unique within its instance.
+             */
+            key: string;
+            /**
+             * Platform
+             * @description ``button``, ``switch`` or ``sensor``.
+             * @enum {string}
+             */
+            platform: "button" | "switch" | "sensor";
+            /**
+             * Name
+             * @description The entity's display name.
+             */
+            name: string;
+            /**
+             * Default Entity Id
+             * @description The entity id the app suggests, applied only when the entity is first created in Home Assistant.
+             */
+            default_entity_id?: string | null;
+            /**
+             * Unit
+             * @description A sensor's unit of measurement.
+             */
+            unit?: string | null;
+            /**
+             * Device Class
+             * @description A sensor's Home Assistant device class.
+             */
+            device_class?: string | null;
+            /**
+             * State Class
+             * @description A sensor's Home Assistant state class.
+             */
+            state_class?: string | null;
+            /**
+             * Options
+             * @description An enum sensor's allowed values.
+             */
+            options?: string[] | null;
+            /**
+             * Value
+             * @description A switch's on/off state or a sensor's value; ``None`` for a button and for a sensor that is unknown. A
+             *     timestamp sensor's value is an ISO 8601 string with offset, a date sensor's an ISO 8601 date.
+             */
+            value?: number | string | boolean | null;
+            /**
+             * Attributes
+             * @description The state attributes the app last set with the value.
+             */
+            attributes?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * EntityCommandResponse
+         * @description Response (202) for a button press or switch turn-on/off sent to an app instance's declared entity.
+         *
+         *     ``status`` is ``"accepted"`` once the command event was published to the instance's handler. That is not
+         *     proof the handler ran: its execution mode may drop the command, which shows only in the handler's telemetry.
+         */
+        EntityCommandResponse: {
+            /**
+             * Status
+             * @default accepted
+             * @constant
+             */
+            status: "accepted";
+            /** App Key */
+            app_key: string;
+            /** Instance Name */
+            instance_name: string;
+            /** Key */
+            key: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "button" | "switch" | "sensor";
         };
         /**
          * Execution
@@ -2357,7 +2532,7 @@ export interface components {
          *     status, is a breaking change and is flagged as one; adding a code is not.
          * @enum {string}
          */
-        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "needs_restart" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
+        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "needs_restart" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "instance_not_running" | "entity_not_declared" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
         /**
          * ProblemDetail
          * @description RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error.
@@ -3430,6 +3605,186 @@ export interface operations {
             };
             /** @description `source_unavailable`: the app's source file could not be read */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    press_button_api_apps__app_key__instances__instance_name__buttons__key__press_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+                instance_name: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityCommandResponse"];
+                };
+            };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `instance_not_running`: the app instance exists but isn't running; `entity_not_declared`: the instance declares no such entity */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    turn_on_switch_api_apps__app_key__instances__instance_name__switches__key__turn_on_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+                instance_name: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityCommandResponse"];
+                };
+            };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `instance_not_running`: the app instance exists but isn't running; `entity_not_declared`: the instance declares no such entity */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    turn_off_switch_api_apps__app_key__instances__instance_name__switches__key__turn_off_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+                instance_name: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityCommandResponse"];
+                };
+            };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `instance_not_running`: the app instance exists but isn't running; `entity_not_declared`: the instance declares no such entity */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

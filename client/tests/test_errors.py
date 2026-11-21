@@ -44,6 +44,8 @@ CODE_STATUS: dict[ProblemCode, int] = {
     ProblemCode.PATH_TRAVERSAL: 403,
     ProblemCode.SOURCE_UNAVAILABLE: 500,
     ProblemCode.JOB_NOT_REGISTERED: 409,
+    ProblemCode.INSTANCE_NOT_RUNNING: 409,
+    ProblemCode.ENTITY_NOT_DECLARED: 409,
 }
 """The status the server sends each class-mapped code with."""
 

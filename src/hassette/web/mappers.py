@@ -21,13 +21,16 @@ from hassette_wire import (
     AppListResponse,
     AppSummary,
     ConnectedData,
+    DeclaredEntity,
     InstanceOutcome,
     ListenerKind,
     ListenerSummary,
     ReadinessResponse,
     SystemStatusResponse,
 )
+from whenever import Date, Instant
 
+from hassette.integration.declarations import CommittedEntity
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
@@ -43,16 +46,48 @@ TOPIC_KIND_MAP: dict[str, ListenerKind] = {
 #: Live counts for a listener with no live guard (e.g. retired).
 NO_LIVE_COUNTS = LiveCounts(0, 0, 0)
 
+CONVERTED_INSTANCE_FIELDS = frozenset({"needs_restart", "entities"})
+"""``AppInstance`` fields ``app_instance_from`` converts rather than copies."""
+
 
 def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     """Convert a single ``AppInstanceInfo`` to ``AppInstance``.
 
     Every ``AppInstance`` field has a same-named attribute on ``AppInstanceInfo``. This copies each
-    same-named attribute listed in ``AppInstance.model_fields``, except ``needs_restart``, whose
-    timestamp is converted by ``NeedsRestartInfo.to_wire``. The source's extra ``error`` attribute is ignored.
+    same-named attribute listed in ``AppInstance.model_fields``, except the ones in ``CONVERTED_INSTANCE_FIELDS``:
+    ``needs_restart``, whose timestamp is converted by ``NeedsRestartInfo.to_wire``, and ``entities``, converted
+    by ``declared_entity_from``. The source's extra ``error`` attribute is ignored.
     """
-    fields = {name: getattr(instance, name) for name in AppInstance.model_fields if name != "needs_restart"}
-    return AppInstance(**fields, needs_restart=instance.needs_restart.to_wire() if instance.needs_restart else None)
+    fields = {
+        name: getattr(instance, name) for name in AppInstance.model_fields if name not in CONVERTED_INSTANCE_FIELDS
+    }
+    return AppInstance(
+        **fields,
+        needs_restart=instance.needs_restart.to_wire() if instance.needs_restart else None,
+        entities=None if instance.entities is None else [declared_entity_from(entity) for entity in instance.entities],
+    )
+
+
+def declared_entity_from(entity: CommittedEntity) -> DeclaredEntity:
+    """Convert a declared entity and its state to ``DeclaredEntity``.
+
+    A timestamp sensor's ``Instant`` becomes its ISO 8601 string with offset and a date sensor's ``Date`` its ISO
+    date, the form ``encode_value`` (``hassette.integration.declarations``) stores. Attributes are already a JSON
+    object.
+    """
+    declaration, value = entity.declaration, entity.state.value
+    return DeclaredEntity(
+        key=declaration.key,
+        platform=declaration.platform.value,
+        name=declaration.name,
+        default_entity_id=declaration.default_entity_id,
+        unit=declaration.unit,
+        device_class=declaration.device_class,
+        state_class=declaration.state_class,
+        options=None if declaration.options is None else list(declaration.options),
+        value=value.format_iso() if isinstance(value, Instant | Date) else value,
+        attributes=dict(entity.state.attributes),
+    )
 
 
 def instance_outcome_from(outcome: CoreInstanceOutcome) -> InstanceOutcome:
@@ -92,8 +127,8 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
     # dup-ignore-end
 
 
-def app_list_response_from(full: AppFullSnapshot) -> AppListResponse:
-    """Convert an ``AppFullSnapshot`` to ``AppListResponse``."""
+def app_list_response_from(full: AppFullSnapshot, *, boot_id: str, revision: int) -> AppListResponse:
+    """Convert an ``AppFullSnapshot`` to ``AppListResponse``, with the entity revision its instances were read at."""
     return AppListResponse(
         total=full.total,
         # Not dict(full.status_counts): dict keys are invariant, so pyright rejects dict[AppStatus, int]
@@ -101,6 +136,8 @@ def app_list_response_from(full: AppFullSnapshot) -> AppListResponse:
         status_counts=dict(full.status_counts.items()),
         apps=[app_summary_from(manifest) for manifest in full.manifests],
         only_apps=list(full.only_apps),
+        boot_id=boot_id,
+        revision=revision,
     )
 
 

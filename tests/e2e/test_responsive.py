@@ -12,6 +12,7 @@ from tests.e2e.conftest import (
     MOBILE_VIEWPORT,
     NARROW_DESKTOP_VIEWPORT,
     SMALL_MOBILE_VIEWPORT,
+    click_mobile_drawer_backdrop,
 )
 
 pytestmark = pytest.mark.e2e
@@ -79,7 +80,7 @@ def test_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
     page.locator("[data-testid='hamburger']").click()
     drawer = page.locator("[data-testid='mobile-drawer']")
     expect(drawer).to_have_class(re.compile(r"\btranslate-x-0\b"))
-    page.locator("[data-testid='mobile-drawer-backdrop']").click()
+    click_mobile_drawer_backdrop(page)
     expect(drawer).to_have_class(re.compile(r"-translate-x-full"))
 
 

@@ -19,7 +19,7 @@ from hassette.utils.app_utils import load_app_class_from_manifest
 from hassette.web.mappers import app_list_response_from
 from tests.support.app_manifests import make_test_app_manifest
 from tests.support.factories import make_change_set
-from tests.support.web_manifest_helpers import make_manifest_db_row
+from tests.support.web_manifest_helpers import STUB_BOOT_ID, make_manifest_db_row
 
 GATED_KEY = "gated_init"
 MULTI_KEY = "multi_instance"
@@ -188,7 +188,9 @@ async def test_app_list_reports_capture_for_each_instance(handler: AppHandler) -
 
     infos = listed_apps(overlay_runtime_state([make_manifest_db_row(MULTI_KEY)], handler.registry))
     response = app_list_response_from(
-        AppFullSnapshot(manifests=tuple(infos), total=len(infos), status_counts=tally_app_statuses(infos))
+        AppFullSnapshot(manifests=tuple(infos), total=len(infos), status_counts=tally_app_statuses(infos)),
+        boot_id=STUB_BOOT_ID,
+        revision=0,
     )
 
     (summary,) = response.apps
