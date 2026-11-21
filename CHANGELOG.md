@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.66.0](https://github.com/NodeJSmith/hassette/compare/v0.65.0...v0.66.0) (2026-11-21)
+
+
+### Features
+
+* let app instances declare Home Assistant buttons, switches and sensors ([#4284](https://github.com/NodeJSmith/hassette/issues/4284)) ([8eb723d](https://github.com/NodeJSmith/hassette/commit/8eb723dc43d884b9d224ad9e4cc4d7e98fe033ba))
+
+
+### Bug Fixes
+
+* accurate integration handle-closed error for reads and failed commits ([#4379](https://github.com/NodeJSmith/hassette/issues/4379)) ([f2d1fa5](https://github.com/NodeJSmith/hassette/commit/f2d1fa5239ef91f54bb52d6a5f97ad7dffab3f81))
+* correct hassette.testing docstrings and messages naming the wrong mechanism ([#4360](https://github.com/NodeJSmith/hassette/issues/4360)) ([2440cbb](https://github.com/NodeJSmith/hassette/commit/2440cbb31e8ffdd04df24a65b2afc4e9aa2ceec9)), closes [#4261](https://github.com/NodeJSmith/hassette/issues/4261)
+* drop blank strings nested inside request params, not just top-level ones ([#4293](https://github.com/NodeJSmith/hassette/issues/4293)) ([c0055e6](https://github.com/NodeJSmith/hassette/commit/c0055e60f2308e88694a63a180416b66e6d411d4))
+* end /ws connections on client disconnect, surface real errors, ignore non-object messages ([#4333](https://github.com/NodeJSmith/hassette/issues/4333)) ([6da714d](https://github.com/NodeJSmith/hassette/commit/6da714d0cf79aefd80209bafe13fd0fd0c29b96c))
+* keep a fresh cache value when expired-entry cleanup runs concurrently ([#4375](https://github.com/NodeJSmith/hassette/issues/4375)) ([69a33d8](https://github.com/NodeJSmith/hassette/commit/69a33d87bf7b8b54ec75858d97b268fdef086990))
+* keep a replaced bus listener's name tracked when the old one is removed late ([#4368](https://github.com/NodeJSmith/hassette/issues/4368)) ([1936f62](https://github.com/NodeJSmith/hassette/commit/1936f623ce6e632f1b8b323c401f5410760ff0f2))
+* make ErrorContext.domain_label and EntityShapeError._build_message abstract ([#4345](https://github.com/NodeJSmith/hassette/issues/4345)) ([c7c934b](https://github.com/NodeJSmith/hassette/commit/c7c934bdd08d4ebb5fbf11fdd85ba7aa3e84296d))
+* point app load errors at user code in directories whose path contains 'hassette' ([#4302](https://github.com/NodeJSmith/hassette/issues/4302)) ([d96f484](https://github.com/NodeJSmith/hassette/commit/d96f484dd5fa3bc50d73e0df1384d6d656c4e6fb))
+* record a raising _on_children_stopped() as a FAILED shutdown outcome ([#4275](https://github.com/NodeJSmith/hassette/issues/4275)) ([2534d83](https://github.com/NodeJSmith/hassette/commit/2534d83f1b2ddd389247c852bd55c14a589c1d4f))
+* reject every IPv6 base_url, and stop rejecting "::" outside the host ([#4306](https://github.com/NodeJSmith/hassette/issues/4306)) ([9304ca5](https://github.com/NodeJSmith/hassette/commit/9304ca564c9da5628ce7f2718ba3dbf582764d5f))
+* reject invalid options, default_entity_id and names on integration entities ([#4305](https://github.com/NodeJSmith/hassette/issues/4305)) ([767c4dd](https://github.com/NodeJSmith/hassette/commit/767c4dd2ec2f6b4db68eea7306fc06ef0f085f16))
+* report and cache app load failures when class_name isn't a class ([#4311](https://github.com/NodeJSmith/hassette/issues/4311)) ([82e67fa](https://github.com/NodeJSmith/hassette/commit/82e67faf60241745de606cbed41f3733043bc04d))
+* restore harness global state when startup fails partway ([#4264](https://github.com/NodeJSmith/hassette/issues/4264)) ([f76ba1b](https://github.com/NodeJSmith/hassette/commit/f76ba1b71723425f0ace6017080b2a34b274c5aa))
+* show EntityNotInViewError's message without KeyError's extra quoting ([#4343](https://github.com/NodeJSmith/hassette/issues/4343)) ([1140abc](https://github.com/NodeJSmith/hassette/commit/1140abc65923f7a46ce9ad6357bb1cc8b59cb503))
+* show partial handlers as partial(name) in short names ([#4307](https://github.com/NodeJSmith/hassette/issues/4307)) ([3a25ce4](https://github.com/NodeJSmith/hassette/commit/3a25ce4cc79ab036d6c77322f8ef0f41dde83a58))
+* show the entity name in listener handler summaries for state-change listeners ([#4313](https://github.com/NodeJSmith/hassette/issues/4313)) ([38c70dc](https://github.com/NodeJSmith/hassette/commit/38c70dcdc389d7e5737d8084c3220d259be282f8))
+
+
+### Refactoring
+
+* **cli:** reuse shared constants and formatters instead of duplicated literals ([#4381](https://github.com/NodeJSmith/hassette/issues/4381)) ([1803f19](https://github.com/NodeJSmith/hassette/commit/1803f19b566828188674dd57ea4d6a3e86e4e281))
+* derive RecordingApi helper dispatch tables from HelperClient ([#4356](https://github.com/NodeJSmith/hassette/issues/4356)) ([b809c45](https://github.com/NodeJSmith/hassette/commit/b809c45660a8bd024ef7d1f8de6dd4e9f447318c))
+* inline single-use test harness wrappers and drop dead guards ([#4328](https://github.com/NodeJSmith/hassette/issues/4328)) ([0d65c04](https://github.com/NodeJSmith/hassette/commit/0d65c049cbf547296836cbaf5ed7d5b502f9ca72))
+* remove small duplications in the date, request and dependency-graph helpers ([#4372](https://github.com/NodeJSmith/hassette/issues/4372)) ([ad518af](https://github.com/NodeJSmith/hassette/commit/ad518af97cf8a4e47f7667fb4bb4ac7d7141088c))
+* **scheduler:** deduplicate job comparison and registration helpers ([#4285](https://github.com/NodeJSmith/hassette/issues/4285)) ([eccd441](https://github.com/NodeJSmith/hassette/commit/eccd4418a0d2d148fb06d28f05dbf97c8fc088a7))
+* share one event-loop guard between sync cache facades and run_sync ([#4376](https://github.com/NodeJSmith/hassette/issues/4376)) ([faecee1](https://github.com/NodeJSmith/hassette/commit/faecee1a33e9e5cfb4e3529328bb2b7ff6446cfd))
+* share partial-match and never-called logic in RecordingApi assertions ([#4340](https://github.com/NodeJSmith/hassette/issues/4340)) ([b3b5e6e](https://github.com/NodeJSmith/hassette/commit/b3b5e6e4b551bbdaa45030f86db3788c4ab6fc9c))
+* stop re-deriving app_config_cls when loading app classes ([#4358](https://github.com/NodeJSmith/hassette/issues/4358)) ([8c02d4c](https://github.com/NodeJSmith/hassette/commit/8c02d4c4fa33edb4308affae01fbd03a75bf5349))
+* **testing:** share mock CommandExecutor wiring between harness bus and scheduler ([#4335](https://github.com/NodeJSmith/hassette/issues/4335)) ([9141689](https://github.com/NodeJSmith/hassette/commit/9141689e4d20bd1a1db9fb74f17f2827b0533755))
+* tidy readability nits in the api entity, service-call and write-target modules ([#4351](https://github.com/NodeJSmith/hassette/issues/4351)) ([456db17](https://github.com/NodeJSmith/hassette/commit/456db177d523b8c996679f3645ef19adaba7e197))
+* tidy state_manager.py style and literal constants ([#4321](https://github.com/NodeJSmith/hassette/issues/4321)) ([70e2c64](https://github.com/NodeJSmith/hassette/commit/70e2c64e2771749850328b9bd0b44ab6a419ed98))
+* type lifecycle helpers as LifecycleMixin and share cross-thread redispatch ([#4258](https://github.com/NodeJSmith/hassette/issues/4258)) ([32860be](https://github.com/NodeJSmith/hassette/commit/32860be4300b9f99120651e92cc2f00f443dbc62))
+* type the source-capture frame walk as inspect.FrameInfo ([#4369](https://github.com/NodeJSmith/hassette/issues/4369)) ([48f034f](https://github.com/NodeJSmith/hassette/commit/48f034f12ac1cef91514037929fdc8ed5cf30217))
+* **web:** derive the default-deny gate's paths from the single API prefix ([#4323](https://github.com/NodeJSmith/hassette/issues/4323)) ([a541576](https://github.com/NodeJSmith/hassette/commit/a541576f6655e12d371c55168d538c83d77ae3d2))
+
+
+### Documentation
+
+* clarify that self.states.get is forgiving while state views are strict ([#4337](https://github.com/NodeJSmith/hassette/issues/4337)) ([328adb8](https://github.com/NodeJSmith/hassette/commit/328adb8d250d4568ed21431d461c1a322163b568))
+* clarify which ticks run in the on-grid scheduler example ([#4272](https://github.com/NodeJSmith/hassette/issues/4272)) ([eb1d7e7](https://github.com/NodeJSmith/hassette/commit/eb1d7e72f77b25debff3e16a170a7ef021607cb4))
+* correct bus docstrings on omitted name= and the timer cancel guard ([#4370](https://github.com/NodeJSmith/hassette/issues/4370)) ([a3a957f](https://github.com/NodeJSmith/hassette/commit/a3a957f837e7a422400e3f48353161174db0f066))
+* correct the claim that Hassette restarts failed services ([#4352](https://github.com/NodeJSmith/hassette/issues/4352)) ([7799bb7](https://github.com/NodeJSmith/hassette/commit/7799bb7e510a701ee108d7453da13e9ceb3fcb47))
+* correct the forgotten-await warning description in migration async basics ([#4316](https://github.com/NodeJSmith/hassette/issues/4316)) ([9740f78](https://github.com/NodeJSmith/hassette/commit/9740f78424fd2ef948dbdcf0b1ffbb4907b8f8e2))
+* show a complete DI example and explain unclassified sensors on the States page ([#4354](https://github.com/NodeJSmith/hassette/issues/4354)) ([9f7f079](https://github.com/NodeJSmith/hassette/commit/9f7f0796450ec8fc1273da35fb0c60a2581253c6))
+* show required name= on scheduler rows in the AppDaemon migration quick reference ([#4361](https://github.com/NodeJSmith/hassette/issues/4361)) ([07ec2f6](https://github.com/NodeJSmith/hassette/commit/07ec2f6d402b5d969fa84fb9f59a8e702925c191))
+* show the Bus.emit sender alongside the D.EventData receiver example ([#4349](https://github.com/NodeJSmith/hassette/issues/4349)) ([3458831](https://github.com/NodeJSmith/hassette/commit/34588313f522bb74dbad80fa439959a14e44f340))
+
 ## [0.65.0](https://github.com/NodeJSmith/hassette/compare/v0.64.0...v0.65.0) (2026-11-17)
 
 Messages sent from Home Assistant with the hass-hassette integration's `hassette.send` action now arrive as typed events: subscribe with `bus.on_hassette_message`, get the message's data as your own model with `D.MessageData[T]`, and test with `harness.simulate_hassette_message`. Custom events fired from HA scripts and automations convert into pydantic models and dataclasses through `D.EventData` too.
