@@ -15,14 +15,19 @@ def configure(tz: str | None) -> None:
     _configured_tz = tz
 
 
+# whenever types its tz parameters as ``str | SYSTEM_TZ``; the sentinel is a value, so the annotation stays a string
+# and pyright, which doesn't model sentinel types yet, needs the ignore.
+def active_tz() -> "str | SYSTEM_TZ":  # pyright: ignore[reportInvalidTypeForm]
+    """Return the configured timezone, or ``SYSTEM_TZ`` (the system process timezone) when none is set."""
+    return SYSTEM_TZ if _configured_tz is None else _configured_tz
+
+
 def convert_utc_timestamp_to_tz(timestamp: int | float) -> ZonedDateTime:
     """Convert a UTC timestamp to a ZonedDateTime in the configured timezone.
 
     Uses the configured timezone if set, otherwise the system process timezone.
     """
-    if _configured_tz is not None:
-        return Instant.from_timestamp(timestamp).to_tz(_configured_tz)
-    return Instant.from_timestamp(timestamp).to_tz(SYSTEM_TZ)
+    return Instant.from_timestamp(timestamp).to_tz(active_tz())
 
 
 @overload
@@ -40,9 +45,7 @@ def convert_datetime_str_to_tz(value: str | ZonedDateTime | None) -> ZonedDateTi
     """
     if value is None or isinstance(value, ZonedDateTime):
         return value
-    if _configured_tz is not None:
-        return OffsetDateTime.parse_iso(value).to_tz(_configured_tz)
-    return OffsetDateTime.parse_iso(value).to_tz(SYSTEM_TZ)
+    return OffsetDateTime.parse_iso(value).to_tz(active_tz())
 
 
 def assume_tz(dt: PlainDateTime) -> ZonedDateTime:
@@ -50,9 +53,7 @@ def assume_tz(dt: PlainDateTime) -> ZonedDateTime:
 
     Uses the configured timezone if set, otherwise the system process timezone.
     """
-    if _configured_tz is not None:
-        return dt.assume_tz(_configured_tz, disambiguation="compatible")
-    return dt.assume_tz(SYSTEM_TZ, disambiguation="compatible")
+    return dt.assume_tz(active_tz(), disambiguation="compatible")
 
 
 def now() -> ZonedDateTime:
@@ -60,9 +61,7 @@ def now() -> ZonedDateTime:
 
     Uses the configured timezone if set, otherwise the system process timezone.
     """
-    if _configured_tz is not None:
-        return ZonedDateTime.now(_configured_tz)
-    return ZonedDateTime.now(SYSTEM_TZ)
+    return ZonedDateTime.now(active_tz())
 
 
 def try_parse_iso(value: object) -> OffsetDateTime | None:
