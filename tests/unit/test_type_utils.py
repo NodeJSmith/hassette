@@ -5,7 +5,12 @@ from typing_extensions import TypeAliasType, TypeVar
 
 from hassette import STATE_REGISTRY
 from hassette.events import HassStateDict
-from hassette.utils.type_utils import get_pretty_actual_type_from_value, unwrap_type_alias
+from hassette.utils.type_utils import (
+    get_pretty_actual_type_from_value,
+    normalize_annotation,
+    normalize_for_isinstance,
+    unwrap_type_alias,
+)
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -118,6 +123,15 @@ def test_unwrap_type_alias_stops_on_cyclic_aliases():
     x.__value__, y.__value__ = y, x
 
     assert unwrap_type_alias(x) in (x, y)
+
+
+def test_normalization_stops_on_three_alias_cycle():
+    """`type X = Y; type Y = Z; type Z = X` must not restart the expansion budget forever."""
+    x, y, z = CyclicAlias(), CyclicAlias(), CyclicAlias()
+    x.__value__, y.__value__, z.__value__ = y, z, x
+
+    assert normalize_annotation(x) in (x, y, z)
+    assert normalize_for_isinstance(x) in (x, y, z)
 
 
 def test_unwrap_type_alias_stops_on_ever_growing_aliases():

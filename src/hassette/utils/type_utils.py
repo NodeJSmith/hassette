@@ -2,9 +2,10 @@ import inspect
 import typing
 from collections.abc import Callable, Iterable
 from contextlib import suppress
-from functools import lru_cache
+from functools import lru_cache, reduce
 from logging import getLogger
-from types import UnionType
+from operator import or_
+from types import NoneType, UnionType
 from typing import Annotated, Any, ForwardRef, TypeVar, TypeVarTuple, Union, Unpack, get_args, get_origin
 
 from pydantic._internal._typing_extra import try_eval_type
@@ -14,7 +15,8 @@ LOGGER = getLogger(__name__)
 MAX_ALIAS_DEPTH = 64
 """Alias expansions `unwrap_type_alias` performs before treating the alias as cyclic."""
 
-NoneType = type(None)
+ELEMENT_CONTAINERS: tuple[Any, ...] = (list, set, frozenset)
+"""Single-element-type containers `get_normalized_actual_type_from_value` describes as `container[elem]`."""
 
 
 def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
@@ -25,7 +27,6 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
             out.extend(it)
         else:
             out.append(it)
-    # optional: dedupe while preserving order
     seen: set[type] = set()
     uniq: list[type] = []
     for tp in out:
@@ -110,17 +111,11 @@ def unwrap_type_alias(tp: Any) -> Any:
 @lru_cache(maxsize=256)
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     """Normalize a type annotation to something usable in isinstance()."""
-    tp = unwrap_type_alias(tp)
+    tp = normalize_annotation(tp, constructible=False)
 
-    # Unwrap Annotated[T, ...]
-    if get_origin(tp) is Annotated:
-        return normalize_for_isinstance(get_args(tp)[0])
-
-    # typing.Any
     if tp is Any:
         return object
 
-    # TypeVar
     if isinstance(tp, TypeVar):
         if tp.__constraints__:
             return flatten_types(normalize_for_isinstance(c) for c in tp.__constraints__)
@@ -128,15 +123,10 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
             return normalize_for_isinstance(tp.__bound__)
         return object
 
-    # PEP 604 union: A | B
-    if isinstance(tp, UnionType):
+    if is_union(tp):
         return flatten_types(normalize_for_isinstance(arg) for arg in get_args(tp))
 
     origin = get_origin(tp)
-
-    # typing.Union[A, B]
-    if origin is Union:
-        return flatten_types(normalize_for_isinstance(arg) for arg in get_args(tp))
 
     # Parameterized generic: list[int], Sequence[str], Mapping[K,V], etc.
     if origin is not None:
@@ -152,9 +142,7 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
             return origin
         return object
 
-    # Base case: should already be a runtime class or tuple of them
     if isinstance(tp, tuple):
-        # If someone passed a tuple of types already
         return flatten_types(normalize_for_isinstance(x) for x in tp)
 
     if isinstance(tp, type):
@@ -261,9 +249,12 @@ def normalize_annotation(tp: Any, *, constructible: bool = True) -> Any:
 
     while True:
         alias_value = unwrap_type_alias(tp)
-        if alias_value is not tp:
+        # An alias still standing after unwrap_type_alias's expansion budget is cyclic; re-expanding it
+        # would restart that budget forever, so stop here.
+        if alias_value is not tp and not is_type_alias(alias_value) and not is_type_alias(get_origin(alias_value)):
             tp = unwrap_annotated(alias_value)
             continue
+        tp = alias_value
 
         origin = get_origin(tp)
         if origin is None:
@@ -304,48 +295,23 @@ def is_annotated_type(annotation: Any) -> bool:
 
 def make_union(types: set[Any]) -> Any:
     """Create a PEP604 union from a set of type annotations."""
-    # Flatten nested unions
     flat: set[Any] = set()
     for t in types:
-        if isinstance(t, UnionType):
+        if is_union(t):
             flat.update(get_args(t))
         else:
-            # Handle both A|B and typing.Union[...] via get_origin
-            origin = get_origin(t)
-            if origin is UnionType:
-                flat.update(get_args(t))
-            else:
-                flat.add(t)
+            flat.add(t)
 
-    # Also flatten typing.Union if any slipped in
-    really_flat: set[Any] = set()
-    for t in flat:
-        origin = get_origin(t)
-        if origin is None:
-            really_flat.add(t)
-        else:
-            # PEP604 unions report origin types.UnionType in 3.10+ via get_origin?
-            # But typing.Union reports origin typing.Union.
-            if str(origin).endswith("typing.Union"):
-                really_flat.update(get_args(t))
-            else:
-                really_flat.add(t)
-
-    # Dedupe / stable
-    if not really_flat:
+    if not flat:
         return object
-    if len(really_flat) == 1:
-        return next(iter(really_flat))
+    if len(flat) == 1:
+        return next(iter(flat))
 
-    # Build A | B | C
-    out = None
-    for t in sorted(really_flat, key=type_sort_key):
-        out = t if out is None else (out | t)
-    return out
+    return reduce(or_, sorted(flat, key=type_sort_key))
 
 
 def type_sort_key(tp: Any) -> tuple[int, str]:
-    """Stable-ish ordering: None first, then builtins, then by name."""
+    """Deterministic ordering: None first, then builtins, then by name."""
     if tp is NoneType:
         return (0, "None")
     if isinstance(tp, type):
@@ -355,14 +321,12 @@ def type_sort_key(tp: Any) -> tuple[int, str]:
 
 def get_normalized_actual_type_from_value(value: Any) -> Any:
     """Return a normalized annotation describing the runtime structure of value."""
-    # None
     if value is None:
         return NoneType
 
     if value is Any:
         return Any
 
-    # dict
     if isinstance(value, dict):
         if not value:
             return dict[Any, Any]
@@ -370,46 +334,30 @@ def get_normalized_actual_type_from_value(value: Any) -> Any:
         val_ann = make_union({get_normalized_actual_type_from_value(v) for v in value.values()})
         return dict[key_ann, val_ann]
 
-    # list / set / frozenset
-    if isinstance(value, list):
-        if not value:
-            return list[Any]
-        elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
-        return list[elem_ann]
+    for container in ELEMENT_CONTAINERS:
+        if isinstance(value, container):
+            if not value:
+                return container[Any]
+            elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
+            return container[elem_ann]
 
-    if isinstance(value, set):
-        if not value:
-            return set[Any]
-        elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
-        return set[elem_ann]
-
-    if isinstance(value, frozenset):
-        if not value:
-            return frozenset[Any]
-        elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
-        return frozenset[elem_ann]
-
-    # tuple (optional but often handy)
     if isinstance(value, tuple):
         if not value:
             return tuple[()]
         elem_anns = tuple(get_normalized_actual_type_from_value(v) for v in value)
         return tuple[elem_anns]
 
-    # leaf type
     return type(value)
 
 
 def format_annotation(tp: Any) -> str:
     """Format a normalized annotation into a clean string."""
-    # NoneType
     if tp is NoneType:
         return "None"
 
     if tp is Any:
         return "Any"
 
-    # PEP604 union
     if isinstance(tp, UnionType):
         parts = [format_annotation(a) for a in get_args(tp)]
         # Keep None first for readability: None | str
@@ -430,14 +378,12 @@ def format_annotation(tp: Any) -> str:
             return f"{name}[{inner}]"
         return name
 
-    # plain class/type
     if isinstance(tp, type):
         # builtins: str, int, dict, etc.
         if tp.__module__ == "builtins":
             return tp.__name__
         return f"{tp.__module__}.{tp.__qualname__}"
 
-    # fallback
     return str(tp)
 
 
