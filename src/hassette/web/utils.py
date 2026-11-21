@@ -1,13 +1,21 @@
-"""Overlay live scheduler-registry state onto persisted ``JobSummary`` rows for the web layer."""
+"""Overlay live runtime state onto persisted telemetry rows for the web layer.
+
+Jobs get live scheduler-registry state; listeners get live bus execution counts.
+"""
 
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from hassette_wire import JobSummary
+from hassette_wire import JobSummary, ListenerSummary
+
+from hassette.web.mappers import listener_summary_from
 
 if TYPE_CHECKING:
+    from hassette import Hassette
     from hassette.core.scheduler_service import SchedulerService
+    from hassette.core.telemetry.query_service import TelemetryQueryService
     from hassette.scheduler.classes import Job
+    from hassette.web.dependencies import TelemetryFilters
 
 LOGGER = getLogger(__name__)
 
@@ -79,3 +87,18 @@ async def enrich_jobs_with_live_data(
         LOGGER.warning("Failed to fetch live scheduler jobs for %s; returning DB rows only", context, exc_info=True)
         return db_jobs
     return enrich_jobs_with_live(db_jobs, live_jobs)
+
+
+async def listener_summaries(
+    telemetry: "TelemetryQueryService",
+    hassette: "Hassette",
+    app_key: str | None,
+    filters: "TelemetryFilters",
+) -> list[ListenerSummary]:
+    """Return persisted listener summaries merged with the bus service's live execution counts.
+
+    ``app_key=None`` lists every app; any string, including ``""``, filters to that key.
+    """
+    rows = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs())
+    live_counts = hassette.bus_service.live_execution_counts()
+    return [listener_summary_from(row, live_counts) for row in rows]

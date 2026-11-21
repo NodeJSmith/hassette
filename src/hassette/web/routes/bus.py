@@ -7,7 +7,7 @@ from hassette_wire import ListenerSummary, ProblemCode
 
 from hassette.web.dependencies import HassetteDep, TelemetryDep, TelemetryFiltersDep
 from hassette.web.errors import problem_responses
-from hassette.web.mappers import listener_summary_from
+from hassette.web.utils import listener_summaries
 
 router = APIRouter(tags=["bus"])
 
@@ -24,9 +24,4 @@ async def get_listener_metrics(
     app_key: Annotated[str | None, Query()] = None,
 ) -> list[ListenerSummary]:
     """Return per-listener invocation metrics, optionally scoped to one app, merged with live execution counts."""
-    # Guard: app_key="" (empty string) must NOT fall through to the all-apps path.
-    # The unified get_listener_summary uses `if app_key is not None` internally,
-    # so only a genuine None triggers the full-table scan.
-    summaries = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs())
-    live_counts = hassette.bus_service.live_execution_counts()
-    return [listener_summary_from(row, live_counts) for row in summaries]
+    return await listener_summaries(telemetry, hassette, app_key, filters)
