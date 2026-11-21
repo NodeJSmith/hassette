@@ -22,7 +22,7 @@ A `Delivery` (`src/hassette/bus/delivery.py`) is one event reaching one listener
 
 Registration is synchronous with the DB — `sub.listener.db_id` is a valid integer as soon as the awaited registration call returns.
 
-`name=` is required on `on_state_change`, `on_attribute_change`, `on_call_service`, and `on` — omitting it raises `ListenerNameRequiredError` at call time. `wait_for` is the exception: its `name` is optional and auto-generated when omitted.
+`name=` is required on `on_state_change`, `on_attribute_change`, `on_call_service`, and `on` — omitting it raises `TypeError`; an empty string raises `ListenerNameRequiredError` at call time. `wait_for` is the exception: its `name` is optional and auto-generated when omitted.
 
 ## `wait_for`
 
