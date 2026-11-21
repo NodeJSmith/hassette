@@ -20,38 +20,19 @@ from pydantic import BaseModel
 from slugify import slugify as _py_slugify
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.api.helpers import dispatch_on_domain, dispatch_on_params_type
+from hassette.api.helpers import (
+    CREATE_DISPATCH,
+    DOMAIN_DISPATCH,
+    UPDATE_DISPATCH,
+    dispatch_on_domain,
+    dispatch_on_params_type,
+)
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import CommandRejectedError, EntityNotFoundError
 from hassette.models.entities.base import BaseEntity
-from hassette.models.helpers import (
-    CounterRecord,
-    CreateCounterParams,
-    CreateInputBooleanParams,
-    CreateInputButtonParams,
-    CreateInputDatetimeParams,
-    CreateInputNumberParams,
-    CreateInputSelectParams,
-    CreateInputTextParams,
-    CreateTimerParams,
-    InputBooleanRecord,
-    InputButtonRecord,
-    InputDatetimeRecord,
-    InputNumberRecord,
-    InputSelectRecord,
-    InputTextRecord,
-    TimerRecord,
-    UpdateCounterParams,
-    UpdateInputBooleanParams,
-    UpdateInputButtonParams,
-    UpdateInputDatetimeParams,
-    UpdateInputNumberParams,
-    UpdateInputSelectParams,
-    UpdateInputTextParams,
-    UpdateTimerParams,
-)
+from hassette.models.helpers import InputSelectRecord
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
@@ -79,54 +60,46 @@ SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
-# Dispatch table mapping each Record class to (domain, deep_copy).
-# ``deep_copy`` — True for record types with nested mutable fields (e.g. InputSelectRecord's
-# options list) to prevent aliasing between stored and returned records.
+if frozenset(DOMAIN_DISPATCH) != SUPPORTED_HELPER_DOMAINS:
+    raise ValueError(
+        "SUPPORTED_HELPER_DOMAINS must enumerate the same helper domains as HelperClient's DOMAIN_DISPATCH"
+    )
+
+# Record types with nested mutable fields (e.g. InputSelectRecord's options list), deep-copied
+# on store/return to prevent aliasing between stored and returned records. The only
+# recorder-specific fact; every other helper table below is derived from hassette.api.helpers.
+DEEP_COPY_RECORD_TYPES: frozenset[type] = frozenset({InputSelectRecord})
+
+# Maps each Record class to (domain, deep_copy).
 RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
-    InputBooleanRecord: ("input_boolean", False),
-    InputNumberRecord: ("input_number", False),
-    InputTextRecord: ("input_text", False),
-    InputSelectRecord: ("input_select", True),
-    InputDatetimeRecord: ("input_datetime", False),
-    InputButtonRecord: ("input_button", False),
-    CounterRecord: ("counter", False),
-    TimerRecord: ("timer", False),
+    record_type: (domain, record_type in DEEP_COPY_RECORD_TYPES) for domain, record_type in DOMAIN_DISPATCH.items()
 }
 
-if frozenset(domain for domain, _ in RECORD_TYPE_TO_DOMAIN.values()) != SUPPORTED_HELPER_DOMAINS:
-    raise ValueError("RECORD_TYPE_TO_DOMAIN and SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains")
+# Domain string -> Record type. Used by RecordingHelperClient.list()/delete(), which take a
+# domain string rather than a params instance.
+DOMAIN_TO_RECORD_TYPE: dict[str, type] = dict(DOMAIN_DISPATCH)
 
-# Reverse of RECORD_TYPE_TO_DOMAIN — domain string -> Record type. Used by
-# RecordingHelperClient.list()/delete(), which take a domain string rather than a
-# params instance.
-DOMAIN_TO_RECORD_TYPE: dict[str, type] = {
-    domain: record_type for record_type, (domain, _) in RECORD_TYPE_TO_DOMAIN.items()
-}
-
-# Maps Create*Params type -> Record type. Used by RecordingHelperClient.create() to
-# dispatch on type(params), mirroring HelperClient.CREATE_DISPATCH.
+# Create*Params type -> Record type. Used by RecordingHelperClient.create() to dispatch on type(params).
 CREATE_PARAMS_TO_RECORD_TYPE: dict[type, type] = {
-    CreateInputBooleanParams: InputBooleanRecord,
-    CreateInputNumberParams: InputNumberRecord,
-    CreateInputTextParams: InputTextRecord,
-    CreateInputSelectParams: InputSelectRecord,
-    CreateInputDatetimeParams: InputDatetimeRecord,
-    CreateInputButtonParams: InputButtonRecord,
-    CreateCounterParams: CounterRecord,
-    CreateTimerParams: TimerRecord,
+    params_type: record_type for params_type, (_domain, record_type) in CREATE_DISPATCH.items()
 }
 
-# Maps Update*Params type -> Record type. Used by RecordingHelperClient.update() to
-# dispatch on type(params), mirroring HelperClient.UPDATE_DISPATCH.
+# Update*Params type -> Record type. Used by RecordingHelperClient.update() to dispatch on type(params).
 UPDATE_PARAMS_TO_RECORD_TYPE: dict[type, type] = {
-    UpdateInputBooleanParams: InputBooleanRecord,
-    UpdateInputNumberParams: InputNumberRecord,
-    UpdateInputTextParams: InputTextRecord,
-    UpdateInputSelectParams: InputSelectRecord,
-    UpdateInputDatetimeParams: InputDatetimeRecord,
-    UpdateInputButtonParams: InputButtonRecord,
-    UpdateCounterParams: CounterRecord,
-    UpdateTimerParams: TimerRecord,
+    params_type: record_type for params_type, (_domain, record_type, _id_key) in UPDATE_DISPATCH.items()
+}
+
+# Valid assertion field names for helper CRUD method names like "create_input_boolean".
+# update_* also accepts helper_id; delete_* takes only helper_id.
+HELPER_METHOD_FIELDS: dict[str, frozenset[str]] = {
+    **{
+        f"create_{domain}": frozenset(params_type.model_fields) for params_type, (domain, _r) in CREATE_DISPATCH.items()
+    },
+    **{
+        f"update_{domain}": frozenset(params_type.model_fields) | {"helper_id"}
+        for params_type, (domain, _r, _k) in UPDATE_DISPATCH.items()
+    },
+    **{f"delete_{domain}": frozenset({"helper_id"}) for domain in DOMAIN_DISPATCH},
 }
 
 
@@ -861,29 +834,6 @@ class RecordingApi(Resource):
         hint = f" Did you mean {', '.join(repr(name) for name in suggestions)}?" if suggestions else ""
         raise ValueError(f"Unknown recorded API method {method!r}.{hint}")
 
-    @staticmethod
-    def _resolve_helper_method_fields(method: str) -> set[str]:
-        """Resolve valid assertion fields for helper CRUD method names like 'create_input_boolean'."""
-        lookup: dict[str, type] = {}
-        for params_type, record_type in CREATE_PARAMS_TO_RECORD_TYPE.items():
-            domain, _ = RECORD_TYPE_TO_DOMAIN[record_type]
-            lookup[f"create_{domain}"] = params_type
-        for params_type, record_type in UPDATE_PARAMS_TO_RECORD_TYPE.items():
-            domain, _ = RECORD_TYPE_TO_DOMAIN[record_type]
-            lookup[f"update_{domain}"] = params_type
-        for domain, _ in RECORD_TYPE_TO_DOMAIN.values():
-            lookup[f"delete_{domain}"] = type(None)
-
-        params_type = lookup.get(method)
-        if params_type is None or params_type is type(None):
-            if method.startswith("delete_"):
-                return {"helper_id"}
-            return set()
-        fields = set(params_type.model_fields)
-        if method.startswith("update_"):
-            fields.add("helper_id")
-        return fields
-
     @classmethod
     def _validate_expected_kwargs(cls, method: str, expected: dict[str, Any]) -> None:
         """Reject unknown assertion keys when the recording signature is closed."""
@@ -903,7 +853,7 @@ class RecordingApi(Resource):
                 else:
                     valid_names.add(parameter.name)
         else:
-            valid_names = cls._resolve_helper_method_fields(method)
+            valid_names = set(HELPER_METHOD_FIELDS.get(method, frozenset()))
             if not valid_names:
                 return
 
