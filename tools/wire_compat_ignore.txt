@@ -12,6 +12,13 @@
 # change, oasdiff stops reporting it and the line goes inert — clear this file
 # back to empty after that release ships.
 #
+# WS message findings use the location `GET /__ws__/server-messages`, the fake
+# operation the check wraps frontend/ws-schema.json in. The check prints these
+# lines like any other. A removed WS message type prints as "added
+# `#/components/schemas/<Name>WsMessage` to the response body `oneOf` list": the
+# reversed run diffs HEAD against the release, so the type only the release has
+# reads as an addition.
+#
 # This file intentionally starts empty (comment lines only; oasdiff's
 # --err-ignore parser treats any non-matching line as inert, so the header
 # above is safe to keep).

@@ -1,8 +1,9 @@
 #!/usr/bin/env -S uv run
 """Pre-push / CI check: enforce wire compatibility against the latest release.
 
-Runs ``oasdiff breaking`` twice against HEAD's ``frontend/openapi.json`` and the same file as it
-existed at the latest ``v*`` git tag reachable from HEAD, in both version-skew directions.
+Checks two contracts against the same files as they existed at the latest ``v*`` git tag reachable
+from HEAD: the HTTP API (``frontend/openapi.json``) and the WebSocket messages the server pushes
+(``frontend/ws-schema.json``). Each runs ``oasdiff breaking`` twice, once per version-skew direction.
 Blocking is decided in Python from oasdiff's JSON findings (``id`` + ``level``):
 
 - **Reversed (new client, old server):** ``oasdiff breaking <HEAD> <last-release>``. oasdiff
@@ -20,11 +21,17 @@ Blocking is decided in Python from oasdiff's JSON findings (``id`` + ``level``):
   hazard hassette-client's lenient parsing owns, not this check. A *removed* response enum value is
   raised to ERR (``SEVERITY_OVERRIDES``), so an enum rename blocks here.
 
-Both runs take ``--err-ignore tools/wire_compat_ignore.txt`` for deliberate, reviewed breaks (see
+The WS schema is JSON Schema, not OpenAPI, so ``wrap_ws_schema`` turns each copy into an OpenAPI
+document with one fake operation (``WS_MESSAGES_PATH``) that responds with the message union. The WS
+policy is the HTTP one plus a rule for message types: adding one passes and removing one blocks (see
+``WS_BASE_LACKS_MESSAGE_TYPE_CHECK_ID``).
+
+All runs take ``--err-ignore tools/wire_compat_ignore.txt`` for deliberate, reviewed breaks (see
 that file's header for the override format). A failing run prints, for each blocking finding, the
 exact line to paste into that file.
 
-See ``design/research/2026-09-29-wire-compat-enforcement/research.md`` and
+See ``design/research/2026-09-29-wire-compat-enforcement/research.md``,
+``design/research/2026-11-21-ws-schema-compat/prior-art.md`` and
 ``design/specs/116-wire-models-to-hassette-wire/design.md`` ("Wire-compatibility check") for the
 full rationale.
 """
@@ -34,6 +41,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +52,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_DIR = REPO_ROOT / "tools"
 DEFAULT_IGNORE_FILE = TOOLS_DIR / "wire_compat_ignore.txt"
 OPENAPI_RELATIVE_PATH = "frontend/openapi.json"
+WS_SCHEMA_RELATIVE_PATH = "frontend/ws-schema.json"
+WS_MESSAGES_PATH = "/__ws__/server-messages"
 
 GIT_TIMEOUT_SECONDS = 30
 OASDIFF_TIMEOUT_SECONDS = 60
@@ -76,6 +87,75 @@ FORWARD_ALLOWED_ERR_CHECK_IDS = frozenset(
 SEVERITY_OVERRIDES = {
     "response-property-enum-value-removed": "ERR",
 }
+
+# oasdiff reports a union branch the base lacks as "added". In the forward run (base = release) that's a
+# message type HEAD added, allowed because a WS client ignores types it doesn't recognize (the rule lives in
+# the ``hassette_wire`` package docstring). In the reversed run (base = HEAD) it's a type HEAD dropped, which
+# blocks.
+WS_BASE_LACKS_MESSAGE_TYPE_CHECK_ID = "response-body-one-of-added"
+
+
+@dataclass(frozen=True)
+class Contract:
+    """One wire contract: the committed schema file and the policy that decides which findings block."""
+
+    name: str
+    relative_path: str
+    reversed_blocking_check_ids: frozenset[str]
+    forward_allowed_err_check_ids: frozenset[str]
+    to_openapi: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    """Converts the committed file to an OpenAPI document; None when it already is one."""
+
+
+def wrap_ws_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Return an OpenAPI 3.1 document whose one operation responds with the WS message union.
+
+    ``schema`` is ``frontend/ws-schema.json``: a root ``oneOf`` over the message models, with the models
+    under ``$defs``. They move to ``components.schemas`` (refs rewritten to match) and the root becomes
+    ``components.schemas.WsServerMessage``, referenced from a fake ``GET`` response: oasdiff never diffs a
+    component no operation reaches, and a response is the direction WS messages flow.
+    """
+    union = rewrite_defs_references(schema)
+    schemas = union.pop("$defs", {})
+    schemas["WsServerMessage"] = union
+    media = {"application/json": {"schema": {"$ref": "#/components/schemas/WsServerMessage"}}}
+    return {
+        "openapi": "3.1.0",
+        "info": {"title": "hassette WebSocket server messages", "version": "1"},
+        "paths": {WS_MESSAGES_PATH: {"get": {"responses": {"200": {"description": "A WS message", "content": media}}}}},
+        "components": {"schemas": schemas},
+    }
+
+
+def rewrite_defs_references(node: Any) -> Any:
+    """Copy ``node``, pointing every ``#/$defs/X`` reference at ``#/components/schemas/X``.
+
+    Matches string values rather than ``$ref`` keys, because the discriminator's ``mapping`` values are
+    references too.
+    """
+    if isinstance(node, dict):
+        return {key: rewrite_defs_references(value) for key, value in node.items()}
+    if isinstance(node, list):
+        return [rewrite_defs_references(item) for item in node]
+    if isinstance(node, str) and node.startswith("#/$defs/"):
+        return "#/components/schemas/" + node.removeprefix("#/$defs/")
+    return node
+
+
+HTTP_CONTRACT = Contract(
+    name="HTTP",
+    relative_path=OPENAPI_RELATIVE_PATH,
+    reversed_blocking_check_ids=REVERSED_BLOCKING_CHECK_IDS,
+    forward_allowed_err_check_ids=FORWARD_ALLOWED_ERR_CHECK_IDS,
+)
+WS_CONTRACT = Contract(
+    name="WS",
+    relative_path=WS_SCHEMA_RELATIVE_PATH,
+    reversed_blocking_check_ids=REVERSED_BLOCKING_CHECK_IDS | {WS_BASE_LACKS_MESSAGE_TYPE_CHECK_ID},
+    forward_allowed_err_check_ids=FORWARD_ALLOWED_ERR_CHECK_IDS | {WS_BASE_LACKS_MESSAGE_TYPE_CHECK_ID},
+    to_openapi=wrap_ws_schema,
+)
+CONTRACTS = (HTTP_CONTRACT, WS_CONTRACT)
 
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -122,10 +202,14 @@ def resolve_latest_release_tag(repo_root: Path) -> str | None:
 
 def extract_tagged_openapi(repo_root: Path, tag: str, dest_dir: Path) -> Path:
     """Extract ``frontend/openapi.json`` as it existed at ``tag`` into ``dest_dir``."""
-    result = run_git(repo_root, "show", f"{tag}:{OPENAPI_RELATIVE_PATH}")
+    return extract_tagged_file(repo_root, tag, OPENAPI_RELATIVE_PATH, dest_dir / "openapi-release.json")
+
+
+def extract_tagged_file(repo_root: Path, tag: str, relative_path: str, dest_path: Path) -> Path:
+    """Write ``relative_path`` as it existed at ``tag`` to ``dest_path``."""
+    result = run_git(repo_root, "show", f"{tag}:{relative_path}")
     if result.returncode != 0:
-        raise RuntimeError(f"git show {tag}:{OPENAPI_RELATIVE_PATH} failed: {result.stderr.strip()}")
-    dest_path = dest_dir / "openapi-release.json"
+        raise RuntimeError(f"git show {tag}:{relative_path} failed: {result.stderr.strip()}")
     dest_path.write_text(result.stdout)
     return dest_path
 
@@ -185,21 +269,21 @@ def describe_finding_location(finding: dict[str, Any]) -> str:
     return "components"
 
 
-def select_reversed_blocking_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Findings that block the reversed run: only ``REVERSED_BLOCKING_CHECK_IDS`` at ERR level."""
+def select_reversed_blocking_findings(findings: list[dict[str, Any]], contract: Contract) -> list[dict[str, Any]]:
+    """Findings that block the reversed run: only the contract's reversed blocking ids, at ERR level."""
     return [
         finding
         for finding in findings
-        if finding["id"] in REVERSED_BLOCKING_CHECK_IDS and finding["level"] == ERR_LEVEL
+        if finding["id"] in contract.reversed_blocking_check_ids and finding["level"] == ERR_LEVEL
     ]
 
 
-def select_forward_blocking_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Findings that block the forward run: every ERR-level finding except ``FORWARD_ALLOWED_ERR_CHECK_IDS``."""
+def select_forward_blocking_findings(findings: list[dict[str, Any]], contract: Contract) -> list[dict[str, Any]]:
+    """Findings that block the forward run: every ERR-level finding except the contract's allowed ids."""
     return [
         finding
         for finding in findings
-        if finding["level"] == ERR_LEVEL and finding["id"] not in FORWARD_ALLOWED_ERR_CHECK_IDS
+        if finding["level"] == ERR_LEVEL and finding["id"] not in contract.forward_allowed_err_check_ids
     ]
 
 
@@ -218,33 +302,14 @@ def print_blocking_findings(findings: list[dict[str, Any]], label: str) -> None:
         print(format_ignore_line(finding))
 
 
-def main(
-    repo_root: Path = REPO_ROOT,
-    head_openapi_path: Path | None = None,
-    release_openapi_path: Path | None = None,
-    ignore_file: Path = DEFAULT_IGNORE_FILE,
-) -> int:
-    """Run both directions of the wire-compat check.
+def main(repo_root: Path = REPO_ROOT, ignore_file: Path = DEFAULT_IGNORE_FILE) -> int:
+    """Check every contract in ``CONTRACTS`` against the latest ``v*`` tag reachable from HEAD.
 
-    ``head_openapi_path`` overrides HEAD's ``frontend/openapi.json`` path. ``release_openapi_path``
-    overrides the "last release" spec directly, bypassing git-tag resolution and ``git show``
-    entirely. Tests supply both to drive this with fixture pairs without a real git history. In
-    the normal invocation both are None: HEAD's committed ``frontend/openapi.json`` is used, and
-    the "last release" spec is extracted from the latest ``v*`` tag reachable from HEAD via git.
+    Every contract runs even after one fails, so a single push reports all of its breaks.
     """
     if shutil.which("oasdiff") is None:
         print("oasdiff not found on PATH. Install via `mise install` (see mise.toml).", file=sys.stderr)
         return 1
-
-    resolved_head_path = head_openapi_path if head_openapi_path is not None else repo_root / OPENAPI_RELATIVE_PATH
-    if not resolved_head_path.exists():
-        print(f"HEAD OpenAPI spec not found: {resolved_head_path}", file=sys.stderr)
-        return 1
-
-    if release_openapi_path is not None:
-        return _run_both_directions(
-            resolved_head_path, release_openapi_path, ignore_file, label=str(release_openapi_path)
-        )
 
     tag = resolve_latest_release_tag(repo_root)
     if tag is None:
@@ -255,38 +320,59 @@ def main(
         )
         return 1
 
+    exit_code = 0
     with tempfile.TemporaryDirectory() as tmp:
-        release_openapi_path = extract_tagged_openapi(repo_root, tag, Path(tmp))
-        return _run_both_directions(resolved_head_path, release_openapi_path, ignore_file, label=tag)
+        for contract in CONTRACTS:
+            head_path = repo_root / contract.relative_path
+            if not head_path.exists():
+                print(f"HEAD {contract.name} schema not found: {head_path}", file=sys.stderr)
+                exit_code = 1
+                continue
+            try:
+                release_path = extract_tagged_file(
+                    repo_root, tag, contract.relative_path, Path(tmp) / f"{contract.name}-release.json"
+                )
+            except RuntimeError as exc:
+                print(f"{contract.name} schema not readable at {tag}: {exc}", file=sys.stderr)
+                exit_code = 1
+                continue
+            exit_code |= check_contract(contract, head_path, release_path, ignore_file, tag=tag)
+    return exit_code
 
 
-def _run_both_directions(head_openapi_path: Path, release_openapi_path: Path, ignore_file: Path, label: str) -> int:
-    """Run the reversed and forward oasdiff checks and report the combined result."""
-    reversed_findings = run_oasdiff(
-        head_openapi_path,
-        release_openapi_path,
-        ignore_file,
-        label=LABEL_REVERSED,
-    )
-    reversed_blocking = select_reversed_blocking_findings(reversed_findings)
+def check_contract(contract: Contract, head_path: Path, release_path: Path, ignore_file: Path, tag: str) -> int:
+    """Run the reversed and forward oasdiff checks for one contract; return 0 if nothing blocks, else 1.
 
-    forward_findings = run_oasdiff(
-        release_openapi_path,
-        head_openapi_path,
-        ignore_file,
-        label=LABEL_FORWARD,
-    )
-    forward_blocking = select_forward_blocking_findings(forward_findings)
+    Tests call this directly with fixture pairs, bypassing tag resolution.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        if (to_openapi := contract.to_openapi) is not None:
+            head_path = write_openapi(to_openapi, head_path, Path(tmp) / "head.json")
+            release_path = write_openapi(to_openapi, release_path, Path(tmp) / "release.json")
+
+        reversed_label = f"{contract.name} {LABEL_REVERSED}"
+        reversed_findings = run_oasdiff(head_path, release_path, ignore_file, label=reversed_label)
+        reversed_blocking = select_reversed_blocking_findings(reversed_findings, contract)
+
+        forward_label = f"{contract.name} {LABEL_FORWARD}"
+        forward_findings = run_oasdiff(release_path, head_path, ignore_file, label=forward_label)
+        forward_blocking = select_forward_blocking_findings(forward_findings, contract)
 
     if not reversed_blocking and not forward_blocking:
-        print(f"Wire compatibility check passed against {label}.")
+        print(f"{contract.name} wire compatibility check passed against {tag}.")
         return 0
 
     if reversed_blocking:
-        print_blocking_findings(reversed_blocking, label=LABEL_REVERSED)
+        print_blocking_findings(reversed_blocking, label=reversed_label)
     if forward_blocking:
-        print_blocking_findings(forward_blocking, label=LABEL_FORWARD)
+        print_blocking_findings(forward_blocking, label=forward_label)
     return 1
+
+
+def write_openapi(to_openapi: Callable[[dict[str, Any]], dict[str, Any]], source: Path, dest: Path) -> Path:
+    """Write ``to_openapi`` applied to the JSON in ``source`` to ``dest``."""
+    dest.write_text(json.dumps(to_openapi(json.loads(source.read_text()))))
+    return dest
 
 
 if __name__ == "__main__":
