@@ -103,6 +103,29 @@ def test_set_with_positive_ttl_expires_after_deadline(sync_cache: SyncCache) -> 
         assert sync_cache.get("key") is None
 
 
+def test_expired_entry_cleanup_keeps_same_value_rewritten_in_between(sync_cache: SyncCache) -> None:
+    """A set() of the same value between get()'s read and its stale-row delete survives.
+
+    The rewrite pickles to the same bytes, so only the new expires_at tells the rows apart.
+    """
+    base_time = 1_000_000.0
+    original_delete_stale = sync_cache._delete_stale
+
+    def set_then_delete_stale(key: str, value_blob: bytes, expires_at: float | None) -> None:
+        sync_cache.set(key, "value", ttl=60)
+        original_delete_stale(key, value_blob, expires_at)
+
+    with patch("hassette.cache.sync.time") as mock_time:
+        mock_time.time.return_value = base_time
+        sync_cache.set("key", "value", ttl=60)
+
+        mock_time.time.return_value = base_time + 61
+        with patch.object(sync_cache, "_delete_stale", side_effect=set_then_delete_stale):
+            assert sync_cache.get("key") is None
+
+        assert sync_cache.get("key") == "value"
+
+
 def test_default_ttl_applies_when_no_per_call_ttl(async_cache: AsyncCache) -> None:
     """SyncCache uses the instance default_ttl when no per-call TTL is given."""
     sync = SyncCache(async_cache.db_path, default_ttl=30)

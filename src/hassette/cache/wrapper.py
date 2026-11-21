@@ -164,13 +164,18 @@ class AsyncCache:
         """
         await close_connection_pair(self, self.CONN_ATTRS, logger)
 
-    async def _delete_stale(self, key: str, value_blob: bytes) -> None:
-        """Delete a cache row only if it still holds the observed value blob.
+    async def _delete_stale(self, key: str, value_blob: bytes, expires_at: float | None) -> None:
+        """Delete a cache row only if it is still the exact row this reader observed.
 
         Prevents a concurrent writer's fresh value from being removed when this
-        reader observes a stale or corrupt entry.
+        reader observes a stale or corrupt entry. Matching on ``expires_at`` as well as
+        the blob matters because a rewrite of the same value pickles to identical bytes;
+        every ``set()`` writes a new ``expires_at``, so the pair identifies the row.
         """
-        await self._write_conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
+        await self._write_conn.execute(
+            "DELETE FROM cache_entries WHERE key = ? AND value = ? AND expires_at IS ?",
+            (key, value_blob, expires_at),
+        )
 
     # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class
     @overload
@@ -196,12 +201,12 @@ class AsyncCache:
 
         value_blob, expires_at = row
         if expires_at is not None and expires_at < time.time():
-            await self._delete_stale(key, value_blob)
+            await self._delete_stale(key, value_blob, expires_at)
             return default
 
         result = deserialize(value_blob, key)
         if result is DESERIALIZE_FAILED:
-            await self._delete_stale(key, value_blob)
+            await self._delete_stale(key, value_blob, expires_at)
             return default
         # deserialize() returns the unpickled value untyped (object) since the cache layer
         # never validates what callers stored -- trust the caller's T at this boundary.

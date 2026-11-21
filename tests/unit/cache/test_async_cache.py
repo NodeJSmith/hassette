@@ -5,6 +5,7 @@ import contextlib
 import sqlite3
 from collections.abc import AsyncIterator
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -121,6 +122,29 @@ async def test_set_ttl_expires_value(cache: AsyncCache) -> None:
     assert await cache.get("short-lived") == "value"
     await asyncio.sleep(1.2)
     assert await cache.get("short-lived") is None
+
+
+async def test_expired_entry_cleanup_keeps_same_value_rewritten_in_between(cache: AsyncCache) -> None:
+    """A set() of the same value between get()'s read and its stale-row delete survives.
+
+    The rewrite pickles to the same bytes, so only the new expires_at tells the rows apart.
+    """
+    base_time = 1_000_000.0
+    original_delete_stale = cache._delete_stale
+
+    async def set_then_delete_stale(key: str, value_blob: bytes, expires_at: float | None) -> None:
+        await cache.set(key, "value", ttl=60)
+        await original_delete_stale(key, value_blob, expires_at)
+
+    with patch("hassette.cache.wrapper.time") as mock_time:
+        mock_time.time.return_value = base_time
+        await cache.set("key", "value", ttl=60)
+
+        mock_time.time.return_value = base_time + 61
+        with patch.object(cache, "_delete_stale", side_effect=set_then_delete_stale):
+            assert await cache.get("key") is None
+
+        assert await cache.get("key") == "value"
 
 
 async def test_set_ttl_zero_deletes_existing_and_does_not_store(cache: AsyncCache) -> None:
