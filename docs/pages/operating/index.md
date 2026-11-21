@@ -161,7 +161,7 @@ Both keys accept only a positive number of seconds, so `hassette.toml` can't tur
 
 **Pool saturation.** When all workers in the sync-handler pool are blocked, new sync work queues up and no sync handlers or jobs fire until a slot opens. Hassette logs a rate-limited WARNING as the pool approaches its ceiling (default: 75% occupied, at most once every 30s — both configurable). The recourse is to raise `lifecycle.sync_executor_max_workers`, fix the slow handler, or convert it to `async`. See [Sync-handler pool configuration](#sync-handler-pool) below.
 
-**Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Catching `TimeoutError` in handler bodies without re-raising it defeats the timeout mechanism.
+**Catching cancellation internally.** When the deadline fires, Hassette cancels the handler, which raises `asyncio.CancelledError` inside it. A handler that swallows `CancelledError` keeps running, and the record shows `status='success'`. A bare `except:` or `except BaseException:` swallows it too. Handlers that catch these re-raise `CancelledError` so the timeout takes effect. Catching `TimeoutError` doesn't interfere with the timeout.
 
 **`TimeoutError` raised by your own code.** Only Hassette's own deadline expiring records `timed_out`. A `TimeoutError` that your handler or job raises itself — from `bus.wait_for`, an HTTP client timeout, or `asyncio.timeout()` in your code — is recorded as `error` with a traceback, like any other exception.
 
@@ -274,7 +274,7 @@ When the telemetry database is unavailable at startup or becomes unreachable at 
 
 Three signals show that the database is degraded:
 
-- **Logs.** Each failed database health check logs an ERROR such as `Failed to update heartbeat with no write progress since the previous attempt (failure 1/3)`.
+- **Logs.** A failed database health check with no write progress since the previous attempt logs an ERROR such as `Failed to update heartbeat with no write progress since the previous attempt (failure 1/3)`. A failure while other writes still complete logs a WARNING and doesn't count toward the limit.
 - **Telemetry status.** `/api/telemetry/status` returns HTTP 503 with `{"degraded": true}`, and `hassette telemetry` reports the same. The `status` field of `/api/health` ignores the database, so database monitoring polls this endpoint instead.
 - **Web UI.** The status bar shows a degraded indicator, and the Diagnostics page shows a [telemetry panel](../web-ui/diagnostics.md#telemetry-health) with a degraded banner.
 
