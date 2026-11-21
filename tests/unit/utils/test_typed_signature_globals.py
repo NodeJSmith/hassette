@@ -3,7 +3,7 @@
 import functools
 import inspect
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
@@ -87,4 +87,19 @@ def test_annotation_that_fails_to_evaluate_raises_type_error(annotation: str) ->
 
     handler.__annotations__["x"] = annotation
     with pytest.raises(TypeError, match="Could not resolve annotations"):
+        get_typed_signature(handler)
+
+
+def test_forward_refs_nested_inside_a_string_annotation_resolve() -> None:
+    sig = get_typed_signature(handlers.handle_nested_quotes)
+    assert sig.parameters["x"].annotation == list[handlers.Payload]
+    assert sig.parameters["y"].annotation == Optional[handlers.Payload]  # noqa: UP045
+
+
+def test_nested_forward_ref_that_fails_to_evaluate_raises_type_error() -> None:
+    def handler(x: Any) -> None:
+        pass
+
+    handler.__annotations__["x"] = list["1/0"]
+    with pytest.raises(TypeError, match="Could not resolve annotation"):
         get_typed_signature(handler)

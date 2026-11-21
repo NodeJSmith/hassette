@@ -4,6 +4,7 @@
 """
 
 import functools
+from typing import Optional
 
 
 class Payload:
@@ -28,3 +29,7 @@ class CallableHandler:
 
 
 partial_handler = functools.partial(handle_two, "prefix")
+
+
+def handle_nested_quotes(x: 'list["Payload"]', y: 'Optional["Payload"]') -> None:  # noqa: UP045
+    """Annotations as `from __future__ import annotations` writes them when the source quotes an inner name."""

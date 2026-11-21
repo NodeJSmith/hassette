@@ -173,7 +173,9 @@ def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
         # eval_str runs eval() on each annotation string, so a bad one can raise anything (NameError, SyntaxError, ...).
         raise TypeError(f"Could not resolve annotations of {call!r}: {exc}") from exc
 
-    # Only strings from an explicit __signature__ are still unresolved here; eval_str has resolved the rest.
+    # eval_str resolves top-level strings but not forward refs nested inside them (list["Payload"]), and never touches
+    # an explicit __signature__. Both are resolved here against call's own globals: exact for a plain function or
+    # bound method. A partial or callable instance has no __globals__, so nested refs on those stay unresolved.
     globalns = getattr(call, "__globals__", {})
     typed_params = [
         inspect.Parameter(
@@ -191,11 +193,14 @@ def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
 def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     """Resolve a string or ``ForwardRef`` annotation against the given globals.
 
+    Forward references nested in a generic (``list["Payload"]``) are resolved too, where the globals allow; a nested
+    name the globals lack is left in place.
+
     Returns:
         The resolved annotation, ``None`` for a ``None`` annotation, or the input unchanged if it is already a type.
 
     Raises:
-        TypeError: If the forward reference cannot be resolved.
+        TypeError: If a top-level forward reference cannot be resolved, or a nested one fails to evaluate.
     """
     if isinstance(annotation, str):
         annotation = ForwardRef(annotation)
@@ -207,6 +212,11 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
 
         if isinstance(annotation, ForwardRef):
             raise TypeError(f"Could not resolve ForwardRef annotation: {annotation}")
+    elif get_args(annotation):
+        try:
+            annotation, _ = try_eval_type(annotation, globalns, globalns)
+        except Exception as exc:
+            raise TypeError(f"Could not resolve annotation {annotation!r}: {exc}") from exc
 
     return annotation
 
