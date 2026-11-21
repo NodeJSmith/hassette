@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from dataclasses import dataclass
 from logging import getLogger
 
 import anyio
@@ -23,6 +24,13 @@ _DISCONNECT_ERRORS = (
 )
 
 
+@dataclass
+class WsConnectionState:
+    """Per-connection state shared by the reader and sender tasks."""
+
+    subscribe_logs: bool = False
+
+
 def _is_disconnect(exc: BaseException) -> bool:
     """Check if an exception represents a normal WebSocket disconnect.
 
@@ -37,7 +45,7 @@ def _is_disconnect(exc: BaseException) -> bool:
     return False
 
 
-async def _read_client(websocket: WebSocket, ws_state: dict, scope: anyio.CancelScope) -> None:
+async def _read_client(websocket: WebSocket, state: WsConnectionState, scope: anyio.CancelScope) -> None:
     """Read messages from the client and handle ping/pong and subscriptions.
 
     Cancels ``scope`` when reading stops for any reason, so a client disconnect ends the whole
@@ -55,10 +63,7 @@ async def _read_client(websocket: WebSocket, ws_state: dict, scope: anyio.Cancel
                 sub_data = data.get("data", {})
                 if not isinstance(sub_data, dict):
                     sub_data = {}
-                # A client may still send `min_log_level` (harmless, silently ignored) —
-                # log_hint carries no level, so filtering happens client-side after the hint
-                # triggers a `/logs/recent` refetch instead.
-                ws_state["subscribe_logs"] = sub_data.get("logs", False)
+                state.subscribe_logs = bool(sub_data.get("logs", False))
     except Exception as exc:
         if _is_disconnect(exc):
             return
@@ -68,18 +73,16 @@ async def _read_client(websocket: WebSocket, ws_state: dict, scope: anyio.Cancel
         scope.cancel()
 
 
-async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state: dict) -> None:
+async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, state: WsConnectionState) -> None:
     """Send messages from the broadcast queue to the client."""
     try:
         while True:
             message = await queue.get()
             if message is None:
                 break  # shutdown sentinel
-            # Filter log_hint messages based on subscription. log_hint carries no level, so
-            # min_log_level filtering has moved client-side, after the `/logs/recent` refetch
-            # the hint triggers.
+            # log_hint carries no level; clients filter by level after the /logs/recent refetch it triggers.
             msg_type = message.get("type")
-            if msg_type == "log_hint" and not ws_state.get("subscribe_logs", False):
+            if msg_type == "log_hint" and not state.subscribe_logs:
                 continue
             await websocket.send_json(message)
     except Exception as exc:
@@ -102,15 +105,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     runtime = websocket.app.state.hassette.runtime_query_service
     queue = await runtime.register_ws_client()
-    ws_state: dict = {"subscribe_logs": False}
+    state = WsConnectionState()
     try:
         # Send initial connection info (includes uptime_seconds for time-window filtering)
         status = runtime.get_system_status()
         connected = connected_data_from(status)
         await websocket.send_json({"type": "connected", "data": connected.model_dump(), "timestamp": time.time()})
         async with anyio.create_task_group() as tg:
-            tg.start_soon(_read_client, websocket, ws_state, tg.cancel_scope)
-            tg.start_soon(_send_from_queue, websocket, queue, ws_state)
+            tg.start_soon(_read_client, websocket, state, tg.cancel_scope)
+            tg.start_soon(_send_from_queue, websocket, queue, state)
     except BaseException as exc:  # noqa: ASYNC103 — disconnect errors are intentionally suppressed below
         if isinstance(exc, asyncio.CancelledError):
             raise
