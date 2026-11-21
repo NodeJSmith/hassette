@@ -413,13 +413,12 @@ class BusSyncFacade(BusSyncEventShortcuts):
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus and persist cancellation to the database.
 
-        Pops the natural key from the in-memory registry, removes the listener from routing
-        (via BusService), and — when ``db_id`` is set — spawns ``mark_listener_cancelled``
-        on ``bus_service.task_bucket`` so the write survives resource shutdown, mirroring
-        ``Scheduler.remove_job``.
+        Pops the natural key from the in-memory registry while it still maps to this listener (an if_exists="replace"
+        may have re-pointed it), removes the listener from routing (via BusService), and spawns
+        ``mark_listener_cancelled`` via ``_spawn_mark_cancelled``, mirroring ``Scheduler.remove_job``.
 
         BusService.remove_listener also fires _on_listener_removed, but that callback only
-        spawns mark_listener_cancelled when the key is still present (once-fire path). Because
+        spawns mark_listener_cancelled while the key still maps to the listener (once-fire path). Because
         this method pops the key first, the callback's spawn is skipped — avoiding a double write.
         """
         return self._bus.remove_listener(listener)

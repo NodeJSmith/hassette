@@ -210,3 +210,57 @@ async def test_callback_no_op_when_key_already_gone(bus: "Bus") -> None:
         spawn_spy.assert_not_called()
     finally:
         bus.bus_service.task_bucket.spawn = original_spawn
+
+
+# late removal of a replaced listener keeps the replacement tracked
+
+
+async def register_and_replace(bus: "Bus", cancelled_db_ids: list[int]) -> "tuple[Listener, Listener]":
+    """Register a once-listener, then replace it under the same name; return (old, new) listeners.
+
+    Must run inside `capture_bus_spawns`; the replace's own mark_listener_cancelled write is awaited here.
+    """
+    _, old = await register_once_listener(bus)
+    sub_new = await bus.on(topic="test.topic", handler=handler_b, name=ONCE_NAME, once=True, if_exists="replace")
+    assert cancelled_db_ids == [], "spawned writes run only when awaited"
+    return old, sub_new.listener
+
+
+@pytest.mark.parametrize("late_removal", ["once_fire", "stale_cancel"])
+async def test_late_removal_of_replaced_listener_keeps_replacement(bus: "Bus", late_removal: str) -> None:
+    """A once-listener's handler re-arms itself with if_exists='replace'; the old listener's late removal is a no-op.
+
+    once_fire: BusService._dispatch's finally removes the old listener after the handler returned, firing the
+    removal callback. stale_cancel: a leftover Subscription for the old listener calls Bus.remove_listener.
+    Either way the key must still map to the replacement, so if_exists='error' keeps raising, and the
+    replacement's row is never marked cancelled. The once-fire path also skips a second write for the old row.
+    """
+    next_db_id = 0
+    cancelled_db_ids: list[int] = []
+
+    async def mock_add(listener: "Listener") -> int:
+        nonlocal next_db_id
+        next_db_id += 1
+        listener.mark_registered(next_db_id)
+        return next_db_id
+
+    async def mock_mark_cancelled(db_id: int) -> None:
+        cancelled_db_ids.append(db_id)
+
+    with capture_bus_spawns(bus, add_listener=mock_add, mark_listener_cancelled=mock_mark_cancelled) as spawned:
+        old, new = await register_and_replace(bus, cancelled_db_ids)
+        if late_removal == "once_fire":
+            invoke_removal_callback(bus, old)
+        else:
+            bus.remove_listener(old)
+
+        for coro in spawned:
+            await coro
+
+        assert bus._registered_listeners[listener_key(bus, name=ONCE_NAME)] is new
+        with pytest.raises(DuplicateListenerError):
+            await bus.on(topic="test.topic", handler=handler_a, name=ONCE_NAME, once=True)
+
+    assert new.db_id not in cancelled_db_ids
+    if late_removal == "once_fire":
+        assert cancelled_db_ids == [old.db_id]
