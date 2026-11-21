@@ -147,7 +147,7 @@ async def test_set_after_the_instance_stopped_raises() -> None:
         await harness.app.shutdown()
         with pytest.raises(IntegrationHandleClosedError):
             await temp.set(30)
-        with pytest.raises(IntegrationHandleClosedError):
+        with pytest.raises(IntegrationHandleClosedError, match=r"Cannot use 'temp'.*has stopped or its declarations"):
             _ = temp.value
 
 
