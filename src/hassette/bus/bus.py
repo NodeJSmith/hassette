@@ -205,10 +205,9 @@ class Bus(Resource):
         The spawn guard (key must still map to this listener) prevents a double write when Bus.remove_listener
         already popped the key and spawned it, and keeps a replacement's key when a replaced listener is removed late.
 
-        Accepted trade-off: during shutdown, remove_all_listeners clears _registered_listeners
-        before delegating to remove_listeners_by_owner, so a once-listener that fires concurrently
-        with teardown finds was_present=False and skips its removed_at write. This loses only a
-        telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
+        Accepted trade-off: during shutdown, remove_all_listeners clears _registered_listeners before
+        remove_listeners_by_owner runs, so a once-listener firing concurrently with teardown finds its key gone and
+        skips its removed_at write. Only a telemetry write in a narrow teardown window is lost (no routing impact).
         """
         # wait_for cleanup: fires on every removal path; `not fut.done()` skips futures a once-fire already resolved.
         # Sync-facade removals run this on a worker thread: the dict pops are GIL-atomic, but Future.cancel() isn't
@@ -232,7 +231,7 @@ class Bus(Resource):
             return
         natural_key = self._listener_natural_key(listener)
         if self._registered_listeners.get(natural_key) is listener:
-            del self._registered_listeners[natural_key]
+            self._registered_listeners.pop(natural_key, None)
             self._spawn_mark_cancelled(listener)
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:
@@ -417,19 +416,20 @@ class Bus(Resource):
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus and persist cancellation to the database.
 
-        Pops the natural key from the in-memory registry while it still maps to this listener (an if_exists="replace"
-        may have re-pointed it), removes the listener from routing (via BusService), and spawns
-        ``mark_listener_cancelled`` via ``_spawn_mark_cancelled``, mirroring ``Scheduler.remove_job``.
+        Pops the natural key while it still maps to this listener, removes the listener from routing (via BusService),
+        and spawns ``mark_listener_cancelled``, mirroring ``Scheduler.remove_job``. A superseded listener (its key now
+        maps to an if_exists="replace" replacement) skips that write: the upsert gave the replacement the same DB row.
 
-        BusService.remove_listener also fires _on_listener_removed, but that callback only
-        spawns mark_listener_cancelled while the key still maps to the listener (once-fire path). Because
-        this method pops the key first, the callback's spawn is skipped — avoiding a double write.
+        BusService.remove_listener also fires _on_listener_removed, which only spawns the write while the key still
+        maps to the listener, so popping the key first here avoids a double write.
         """
         natural_key = self._listener_natural_key(listener)
-        if self._registered_listeners.get(natural_key) is listener:
-            del self._registered_listeners[natural_key]
+        current = self._registered_listeners.get(natural_key)
+        if current is listener:
+            self._registered_listeners.pop(natural_key, None)
         self.bus_service.remove_listener(listener)
-        self._spawn_mark_cancelled(listener)
+        if current is None or current is listener:
+            self._spawn_mark_cancelled(listener)
 
     def _spawn_mark_cancelled(self, listener: "Listener") -> None:
         """Spawn ``mark_listener_cancelled`` on the BusService task bucket (outlives this Bus) if ``db_id`` is set."""
