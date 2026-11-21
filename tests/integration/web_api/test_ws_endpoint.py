@@ -22,7 +22,7 @@ from hassette.web.app import create_fastapi_app
 from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
-from hassette.web.routes.ws import _read_client, websocket_endpoint
+from hassette.web.routes.ws import WsConnectionState, _read_client, websocket_endpoint
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
@@ -276,10 +276,9 @@ class TestWebSocketEdgeCases:
         mock_ws = AsyncMock()
         mock_ws.receive_json = AsyncMock(side_effect=json.JSONDecodeError("bad", "", 0))
 
-        ws_state: dict = {}
         scope = anyio.CancelScope()
         with pytest.raises(json.JSONDecodeError):
-            await _read_client(mock_ws, ws_state, scope)
+            await _read_client(mock_ws, WsConnectionState(), scope)
         assert scope.cancel_called, "a reader error must end the connection's task group"
 
     async def test_client_disconnect_unregisters_without_further_broadcasts(
