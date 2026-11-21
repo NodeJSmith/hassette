@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "PingWsMessage": {
+      "properties": {
+        "type": {
+          "const": "ping",
+          "title": "Type",
+          "type": "string"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "timestamp"
+      ],
+      "title": "PingWsMessage",
+      "type": "object"
+    },
+    "Status": {
+      "enum": [
+        "running",
+        "stopped"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "StatusWsMessage": {
+      "properties": {
+        "type": {
+          "const": "status",
+          "title": "Type",
+          "type": "string"
+        },
+        "app_key": {
+          "title": "App Key",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "type",
+        "app_key",
+        "status"
+      ],
+      "title": "StatusWsMessage",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "ping": "#/$defs/PingWsMessage",
+      "status": "#/$defs/StatusWsMessage"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/StatusWsMessage"
+    },
+    {
+      "$ref": "#/$defs/PingWsMessage"
+    }
+  ]
+}

@@ -3,8 +3,8 @@
 ## Version Skew on New Fields
 Is every field added to a served model optional with a default, so a newer
 client can still parse an older server's response? `tools/check_wire_compat.py`
-enforces this for HTTP models through `frontend/openapi.json` only — for a model
-in `ws.py`, nothing checks it, so read the diff.
+enforces this for HTTP models through `frontend/openapi.json` and for WS models
+through `frontend/ws-schema.json`.
 
 ## Package Isolation
 Does any module import something other than the standard library, `pydantic`,

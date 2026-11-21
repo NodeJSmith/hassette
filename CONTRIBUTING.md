@@ -169,9 +169,10 @@ A PR that deliberately breaks the wire contract adds one line per reported chang
 `tools/wire_compat_ignore.txt`, copied from the compatibility check's output. Clear those lines
 out once the release that ships the break goes out — the file should stay empty otherwise.
 
-The automated compatibility check (`tools/check_wire_compat.py`) covers the HTTP contract
-(`openapi.json`) only. WS payloads follow the same rules but have no automated cross-release
-check yet — a WS-breaking change relies on review, not CI.
+The automated compatibility check (`tools/check_wire_compat.py`) covers both the HTTP contract
+(`openapi.json`) and the WS messages (`ws-schema.json`). WS adds one rule: a new message type
+passes, because a WS client must ignore a message type it doesn't recognize, but removing or
+renaming one fails.
 
 ## Documentation
 
