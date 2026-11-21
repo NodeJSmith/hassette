@@ -29,10 +29,10 @@ client opts in by passing it. The published JSON schemas describe what the serve
 list these fields as closed sets even though a lenient client accepts more. ``SourceTier``,
 ``LogLevel`` and ``LogAuthor`` are closed: adding a value to any of them is a breaking change.
 
-The automated wire-compatibility check enforces these rules for the HTTP contract only. WS
-payloads follow the same rules by convention, but nothing currently verifies a WS change against
-the last release the way `openapi.json` is checked — a WS-breaking change must be caught by
-review, not CI.
+The automated wire-compatibility check enforces these rules for both the HTTP contract and the WS
+messages. The WS messages carry one more rule: a client must ignore a message whose ``type`` it
+doesn't recognize, because a newer server may send message types an older client has never seen.
+That is what makes adding a message type compatible; removing or renaming one is a breaking change.
 """
 
 from hassette_wire.apps import (
