@@ -13,4 +13,4 @@ class InitDefiningMixin:
 
 
 class InvalidInheritanceApp(InitDefiningMixin, App[AppConfig]):
-    """App that lists an ``__init__``-defining base before App, which validate_app rejects."""
+    """App that lists an ``__init__``-defining base before App, which validate_init_method rejects."""

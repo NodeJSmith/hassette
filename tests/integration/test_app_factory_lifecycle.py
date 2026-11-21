@@ -701,7 +701,7 @@ class TestAppRestartPreservesChildren:
 
 
 class TestInvalidInheritanceBlocksLoad:
-    """An InvalidInheritanceError from validate_app fails the class load instead of being swallowed."""
+    """An InvalidInheritanceError from validate_init_method fails the class load instead of being swallowed."""
 
     def test_precheck_fails_for_invalid_inheritance(self, test_config: "HassetteConfig"):
         """run_apps_pre_check reports the app as failed and blocks startup."""
