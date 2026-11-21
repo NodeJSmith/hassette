@@ -26,7 +26,9 @@ Without `HASSETTE_DOCKER_INSTALL_DEPS`, Hassette installs no `requirements.txt` 
 The `uv_cache` volume keeps downloaded packages across restarts.
 Only the first startup is slow.
 
-Restart the container — the install runs during startup, and you can watch it with `docker compose logs -f hassette`. Your packages are then available:
+Apply the compose change with `docker compose up -d`. A plain restart keeps the old
+environment, so it never sees the new variable. The install runs during startup,
+and you can watch it with `docker compose logs -f hassette`. Your packages are then available:
 
 ```python
 --8<-- "pages/getting-started/docker/snippets/deps-app-using-package.py"
@@ -72,6 +74,9 @@ the project at `/apps` and point the apps directory inside it with
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/deps-project-mount-compose.yml"
 ```
+
+Apply the change with `docker compose up -d`, which recreates the container
+with the new mount and environment.
 
 To skip the search, set `HASSETTE_DOCKER_PROJECT_DIR` to the directory and
 mount it.
