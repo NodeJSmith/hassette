@@ -6,7 +6,16 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import AliasChoices, Field, PrivateAttr, SecretStr, ValidationError, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     InitSettingsSource,
@@ -60,8 +69,8 @@ TOKEN_MEDIUM_THRESHOLD = 12
 TOKEN_SHORT_PREFIX_LENGTH = 3
 TOKEN_LONG_PREFIX_LENGTH = 6
 
-PYDANTIC_INSTANCE_STATE = ("__dict__", "__pydantic_fields_set__", "__pydantic_extra__", "__pydantic_private__")
-"""Every attribute pydantic keeps a model instance's state in; `HassetteConfig.reload` swaps all of them."""
+PYDANTIC_INSTANCE_STATE = BaseModel.__slots__
+"""Pydantic's own instance-state slots, which `HassetteConfig.reload` swaps wholesale."""
 
 
 @dataclass(frozen=True)
