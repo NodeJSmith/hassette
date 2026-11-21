@@ -23,6 +23,9 @@ from hassette.schemas.app_snapshots import (
 )
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
+STUB_BOOT_ID = "0123456789abcdef0123456789abcdef"
+"""The ``boot_id`` stub listings and the stub ``IntegrationService`` report."""
+
 
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppSummary]) -> dict[AppStatus, int]:
     """Count manifests by status.
@@ -172,4 +175,6 @@ def make_app_list_response(
         total=len(apps),
         # items(), not the dict itself: dict keys are invariant, so dict[AppStatus, int] can't widen to OpenAppStatus.
         status_counts=dict(counts.items()),
+        boot_id=STUB_BOOT_ID,
+        revision=0,
     )

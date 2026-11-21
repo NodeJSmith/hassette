@@ -22,7 +22,7 @@ Where each new piece lives:
 - **Wire models:** `DeclaredEntity` (shape D6) in `wire/src/hassette_wire/apps.py`, carried as
   `AppInstance.entities`; `boot_id` and `revision` on `AppListResponse` (D4); `EntityCommandResponse`,
   the command route's 202 body (D1); `IntegrationPlatformName` (`Literal["button", "switch", "sensor"]`)
-  and its `OpenIntegrationPlatform` alias in `wire/src/hassette_wire/literals.py`, typing `platform` on
+  and its `OpenIntegrationPlatformName` alias in `wire/src/hassette_wire/literals.py`, typing `platform` on
   both models (D6); two new `ProblemCode`s (D3) in `wire/src/hassette_wire/problems.py`;
   the schema version bump (Posture) in `wire/src/hassette_wire/health.py`.
 - **Domain snapshot:** in `src/hassette/schemas/app_snapshots.py`, a frozen `DeclaredEntityInfo`
@@ -351,8 +351,18 @@ holding against current code:
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- Command routes register through one `entity_command_route(path)` helper in `routes/apps.py`, so the three routes can't disagree on status, response model or declared codes.
+- A timestamp sensor's value goes on the wire as `Instant.format_iso()` (`2024-01-01T12:30:00Z`), the same string `encode_value` stores; `Z` is the ISO 8601 UTC offset, so it meets parent D12's "with offset".
+- The web test stub's `IntegrationService` (`wire_integration_service` in `tests/support/web_mocks.py`) derives `dispatch_command`'s result from its declared entities: an instance in the map counts as running. Integration tests and the client compat fixtures share this one fake instead of each scripting results.
+- The INFO line on dispatch isn't pinned by a test: `tests/TESTING.md`'s no-caplog rule, and `trigger_job`'s identical line isn't pinned either.
+- The client compat fixtures declare one entity per platform on `my_app`'s instance (`DECLARED_ENTITIES` in `tools/client_compat_live_state.py`), so the listing fixtures fill every `DeclaredEntity` field for the released client to parse.
+- `docs/pages/core-concepts/apps/integration-entities.md` is unchanged: it never says where declared entities can be seen.
+- The open alias is `OpenIntegrationPlatformName`, not the Summary's `OpenIntegrationPlatform`: the wire's `Open<Type>` alias must name its literal (`test_open_alias_marker_names_its_own_type`), and naming the literal `IntegrationPlatform` would collide with hassette's own `IntegrationPlatform` enum.
+- `tools/check_wire_compat.py` reports D4's required `boot_id`/`revision` as a break for a new client talking to an older server, which the API schema floor bump already accepts. Following the repo's convention for every ignore-file entry, the two lines go in `tools/wire_compat_ignore.txt` and the PR is titled `feat!` with a `BREAKING CHANGE:` footer naming the client's new floor. Giving the fields defaults would have reversed D4.
+- A parity test pins the wire's `IntegrationPlatformName` to hassette's `IntegrationPlatform` enum (`tests/unit/test_wire_vocabulary_typing.py`), since the open alias would otherwise hide a fourth platform missing from the wire.

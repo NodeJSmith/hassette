@@ -330,7 +330,7 @@ class RuntimeQueryService(Resource):
     def app_listing(self, manifests: list[AppManifestInfo]) -> AppListingSnapshot:
         """Attach each instance's declared entities to the app list's manifests, with the revision they were read at.
 
-        Only ``GET /api/apps`` calls this (spec 158 D5): the shared overlays stay entity-free, so the other
+        Only ``GET /api/apps`` calls this: the shared overlays stay entity-free, so the other
         responses carrying instances never hold entity state without a revision beside it. Synchronous, so the
         entities and ``revision`` are one snapshot.
         """

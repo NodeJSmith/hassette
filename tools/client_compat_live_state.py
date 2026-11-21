@@ -20,17 +20,21 @@ from unittest.mock import AsyncMock, MagicMock
 
 from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
 from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
-from whenever import ZonedDateTime
+from whenever import Instant, ZonedDateTime
 
+from hassette.core.integration_service import CommittedEntity
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
+from hassette.integration.declarations import Declaration, EntityState, IntegrationPlatform
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, NeedsRestartInfo
 from hassette.types.enums import BlockReason
 from hassette.utils.stack_frames import encode_frames
 from tests.e2e.mock_fixtures import build_manifests
-from tests.e2e.mock_fixtures.constants import APP_KEY_MULTI_APP
+from tests.e2e.mock_fixtures.constants import APP_KEY_MULTI_APP, APP_KEY_MY_APP
+from tests.e2e.mock_fixtures.manifests import MY_APP_INSTANCE_NAME
 from tests.support.factories import make_execution_record
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest
+from tests.support.web_mocks import wire_integration_service
 
 APP_KEY_DEGRADED_APP = "degraded_app"
 """A live app with one instance in every ``ResourceStatus``."""
@@ -53,6 +57,46 @@ APP_KEY_ESCAPING_APP = "escaping_app"
 APP_KEY_UNREADABLE_APP = "unreadable_app"
 """A live app whose source path fails to resolve, so reading its source answers ``source_unavailable``
 (:func:`wire_source_paths`)."""
+
+BUTTON_KEY = "doorbell"
+"""A button ``my_app``'s instance declares, which the button-press fixture presses."""
+
+SWITCH_KEY = "guest_mode"
+"""A switch ``my_app``'s instance declares, which the switch fixtures turn on and off."""
+
+UNDECLARED_KEY = "no_such_entity"
+"""A key ``my_app``'s instance doesn't declare, so pressing it answers ``entity_not_declared``."""
+
+DECLARED_ENTITIES: Mapping[tuple[str, str], list[CommittedEntity]] = {
+    (APP_KEY_MY_APP, MY_APP_INSTANCE_NAME): [
+        CommittedEntity(Declaration(BUTTON_KEY, IntegrationPlatform.BUTTON, "Doorbell"), EntityState()),
+        CommittedEntity(
+            Declaration(SWITCH_KEY, IntegrationPlatform.SWITCH, "Guest mode", default_entity_id="switch.guest_mode"),
+            EntityState(value=True),
+        ),
+        CommittedEntity(
+            Declaration(
+                "battery",
+                IntegrationPlatform.SENSOR,
+                "Battery",
+                unit="%",
+                device_class="battery",
+                state_class="measurement",
+            ),
+            EntityState(value=87, attributes={"charging": False}),
+        ),
+        CommittedEntity(
+            Declaration("last_seen", IntegrationPlatform.SENSOR, "Last seen", device_class="timestamp"),
+            EntityState(value=Instant.from_utc(2024, 1, 1, 12)),
+        ),
+        CommittedEntity(
+            Declaration("mode", IntegrationPlatform.SENSOR, "Mode", device_class="enum", options=("home", "away")),
+            EntityState(value="home"),
+        ),
+    ],
+}
+"""``my_app``'s instance declares one entity of each platform, so the listing carries every ``DeclaredEntity``
+field; every other instance declares nothing, which the stub treats as not running (``instance_not_running``)."""
 
 OUTSIDE_APP_DIR = Path("/etc/hostname")
 """Where :data:`APP_KEY_ESCAPING_APP`'s source path resolves. Any absolute path outside the app directory makes
@@ -262,6 +306,21 @@ def wire_app_outcomes(hassette: MagicMock, manifests: Iterable[AppManifestInfo])
     wire_source_paths(hassette)
     wire_framework_services(hassette)
     wire_app_filter(hassette, by_key)
+    wire_declared_entities(hassette, by_key)
+
+
+def wire_declared_entities(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
+    """Serve :data:`DECLARED_ENTITIES` and make every live instance addressable by the entity command routes.
+
+    The command routes ask the registry whether a refused target exists, so its configured names come from the
+    live apps and it tracks no other instances; that lets another live instance answer ``instance_not_running``.
+    """
+    wire_integration_service(hassette, declared_entities=dict(DECLARED_ENTITIES))
+    registry = hassette._app_handler.registry
+    registry.configured_names.side_effect = lambda app_key: (
+        [info.instance_name for info in by_key[app_key].instances] if app_key in by_key else []
+    )
+    registry.get_instances.return_value = {}
 
 
 def wire_framework_services(hassette: MagicMock) -> None:

@@ -86,7 +86,7 @@ OpenAcceptedStatus = Annotated[AcceptedStatus | UnknownValue, LenientValue("Acce
 IntegrationPlatformName = Literal["button", "switch", "sensor"]
 """The Home Assistant platform an app-declared entity is created on."""
 
-OpenIntegrationPlatform = Annotated[IntegrationPlatformName | UnknownValue, LenientValue("IntegrationPlatformName")]
+OpenIntegrationPlatformName = Annotated[IntegrationPlatformName | UnknownValue, LenientValue("IntegrationPlatformName")]
 
 LivenessStatus = Literal["live"]
 """The ``status`` of a liveness probe answer."""

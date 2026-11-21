@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
-from hassette_wire.literals import OpenAcceptedStatus, OpenAppAction, OpenInstanceResult, OpenIntegrationPlatform
+from hassette_wire.literals import OpenAcceptedStatus, OpenAppAction, OpenInstanceResult, OpenIntegrationPlatformName
 
 
 class NeedsRestart(BaseModel):
@@ -37,7 +37,7 @@ class DeclaredEntity(BaseModel):
 
     key: str
     """The entity's key: lowercase letters, digits and ``_``, unique within its instance."""
-    platform: OpenIntegrationPlatform
+    platform: OpenIntegrationPlatformName
     """``button``, ``switch`` or ``sensor``."""
     name: str
     """The entity's display name."""
@@ -270,4 +270,4 @@ class EntityCommandResponse(BaseModel):
     app_key: str
     instance_name: str
     key: str
-    platform: OpenIntegrationPlatform
+    platform: OpenIntegrationPlatformName

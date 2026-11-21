@@ -30,7 +30,7 @@ from hassette.web.mappers import (
     listener_summary_from,
     readiness_response_from,
 )
-from tests.support.web_manifest_helpers import make_app_instance_info, make_full_snapshot, make_manifest
+from tests.support.web_manifest_helpers import STUB_BOOT_ID, make_app_instance_info, make_full_snapshot, make_manifest
 from tests.support.web_telemetry_helpers import make_listener_summary_row
 
 
@@ -117,7 +117,7 @@ def test_app_list_response_from_builds_nested_instances():
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
     full = make_full_snapshot([manifest])
 
-    result = app_list_response_from(full)
+    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
 
     assert isinstance(result, AppListResponse)
     assert len(result.apps) == 1
@@ -133,7 +133,7 @@ def test_app_list_response_from_coerces_resource_status_enum():
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst], instance_count=1)
     full = make_full_snapshot([manifest])
 
-    result = app_list_response_from(full)
+    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
 
     assert result.apps[0].instances[0].status == ResourceStatus.RUNNING
     assert isinstance(result.apps[0].instances[0].status, str)
@@ -160,7 +160,7 @@ def test_app_list_response_from_passes_manifest_field_through(
     manifest = make_manifest("app_a", **manifest_kwargs)
     full = make_full_snapshot([manifest])
 
-    result = app_list_response_from(full)
+    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
 
     assert getattr(result.apps[0], response_attr) == expected
 
@@ -176,7 +176,7 @@ def test_app_list_response_from_preserves_counts():
     ]
     full = make_full_snapshot(manifests)
 
-    result = app_list_response_from(full)
+    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
 
     assert result.total == 5
     assert result.status_counts[AppStatus.RUNNING] == 1

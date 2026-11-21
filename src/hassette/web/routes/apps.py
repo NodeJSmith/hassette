@@ -669,9 +669,9 @@ async def send_entity_command(
 ) -> EntityCommandResponse:
     """Dispatch a press or toggle to the owning instance's handler, answering once its command event is published.
 
-    ``IntegrationService.dispatch_command`` alone decides admission (spec 158 D2). Only after it refuses for
-    ``not_running`` does ``missing_command_target`` look at config, to answer a target that doesn't exist with a
-    404 rather than "not running".
+    ``IntegrationService.dispatch_command`` alone decides admission. Only after it refuses for ``not_running``
+    does ``command_target_not_found`` look at config, to answer a target that doesn't exist with a 404 rather
+    than "not running".
     """
     _validate_app_key(app_key)
     result = await hassette.integration_service.dispatch_command(app_key, instance_name, key, platform, value)
@@ -681,9 +681,10 @@ async def send_entity_command(
             f"App instance '{app_key}/{instance_name}' declares no {platform} {key!r}",
         )
     if result is CommandDispatchResult.NOT_RUNNING:
-        raise missing_command_target(app_key, instance_name, hassette) or WebApiError(
-            ProblemCode.INSTANCE_NOT_RUNNING, f"App instance '{app_key}/{instance_name}' isn't running"
-        )
+        not_found = command_target_not_found(app_key, instance_name, hassette)
+        if not_found is not None:
+            raise not_found
+        raise WebApiError(ProblemCode.INSTANCE_NOT_RUNNING, f"App instance '{app_key}/{instance_name}' isn't running")
     LOGGER.info(
         "Sent %s command to '%s' of app instance '%s/%s' (source=%s)",
         platform,
@@ -695,13 +696,13 @@ async def send_entity_command(
     return EntityCommandResponse(app_key=app_key, instance_name=instance_name, key=key, platform=platform.value)
 
 
-def missing_command_target(app_key: str, instance_name: str, hassette: HassetteDep) -> WebApiError | None:
-    """The 404 for a command whose app or instance doesn't exist, or ``None`` when it exists but isn't running.
+def command_target_not_found(app_key: str, instance_name: str, hassette: HassetteDep) -> WebApiError | None:
+    """The 404 for a refused command whose app or instance doesn't exist, or ``None`` when it exists.
 
-    Runs only after admission refused the command, so it never decides whether a command runs. An app exists
-    when it has a manifest or a tracked instance; an instance exists when its app's config names it or the
-    registry still tracks it. Deliberately not the pre-dispatch helpers above (``_require_addressable_instance``
-    and the orphan rules): checking config before admission is the ordering spec 158 D2 rejected.
+    Runs only after admission refused the command, so it only chooses between a 404 and ``instance_not_running``
+    and never decides whether a command runs. An app exists when it has a manifest or a tracked instance; an
+    instance exists when its app's config names it or the registry still tracks it. Not the pre-dispatch helpers
+    above (``_require_addressable_instance`` and the orphan rules), which check config before anything runs.
     """
     registry = hassette.app_handler.registry
     tracked = registry.get_instances(app_key)

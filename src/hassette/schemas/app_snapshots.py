@@ -77,8 +77,8 @@ class AppInstanceInfo:
     """Whether debug capture is on for this instance (spec 148). Held for a stopped instance too, whose levels
     apply when it starts."""
     entities: tuple[DeclaredEntityInfo, ...] | None = None
-    """The instance's declared entities in key order, attached only for the app list (spec 158 D5); ``None``
-    everywhere else, meaning not included."""
+    """The instance's declared entities in key order, attached only for the app list, the one response carrying
+    the revision they were read at; ``None`` everywhere else, meaning not included."""
 
 
 @dataclass(frozen=True)
@@ -194,25 +194,27 @@ def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, 
     return counts
 
 
-__all__ = [
-    "APP_STATUS_KEYS",
-    "AppFullSnapshot",
-    "AppInstanceInfo",
-    "AppManifestInfo",
-    "AppStatusSnapshot",
-    "NeedsRestartInfo",
-    "is_failed_info",
-    "tally_app_statuses",
-]
-
-
 @dataclass(frozen=True)
 class AppListingSnapshot:
     """The app list's manifests with each instance's declared entities, and the revision they were read at.
 
-    Built in one synchronous step, so ``revision`` covers every entity it carries (spec 158 D4).
+    Built in one synchronous step, so ``revision`` covers every entity it carries.
     """
 
     manifests: tuple[AppManifestInfo, ...]
     boot_id: str
     revision: int
+
+
+__all__ = [
+    "APP_STATUS_KEYS",
+    "AppFullSnapshot",
+    "AppInstanceInfo",
+    "AppListingSnapshot",
+    "AppManifestInfo",
+    "AppStatusSnapshot",
+    "DeclaredEntityInfo",
+    "NeedsRestartInfo",
+    "is_failed_info",
+    "tally_app_statuses",
+]

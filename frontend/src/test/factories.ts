@@ -87,6 +87,8 @@ export function createAppList(overrides: Partial<AppListResponse> = {}): AppList
     status_counts: { ...ZERO_STATUS_COUNTS, running: 1 },
     apps: [createAppSummary()],
     only_apps: [],
+    boot_id: "0123456789abcdef0123456789abcdef",
+    revision: 0,
     ...overrides,
   } satisfies AppListResponse;
 }

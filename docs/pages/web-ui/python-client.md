@@ -63,6 +63,8 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_app(app_key)` | `GET /api/apps/{app_key}` |
 | `action(app_key, action, *, instance=None)` | `POST /api/apps/{app_key}/{action}` or `POST /api/apps/{app_key}/instances/{instance}/{action}` |
 | `set_debug_capture(app_key, enabled, *, instance=None)` | `PUT /api/apps/{app_key}/debug` or `PUT /api/apps/{app_key}/instances/{instance}/debug` |
+| `press_button(app_key, instance, key)` | `POST /api/apps/{app_key}/instances/{instance}/buttons/{key}/press` |
+| `set_switch(app_key, instance, key, on)` | `POST /api/apps/{app_key}/instances/{instance}/switches/{key}/turn_on` or `.../turn_off` |
 | `get_app_config(app_key)` | `GET /api/apps/{app_key}/config` |
 | `get_app_source(app_key)` | `GET /api/apps/{app_key}/source` |
 | `get_app_grid()` | `GET /api/telemetry/app-grid` |
@@ -88,6 +90,8 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_config()` | `GET /api/config` |
 
 `app_key` is the app's key from `hassette.toml`. `action` is `"start"`, `"stop"` or `"reload"`. An app configured with several instances acts on all of them unless you pass `instance=` with one instance's name.
+
+`press_button()` and `set_switch()` send a command to a button or switch an app instance declares through `self.integration`, and return as soon as it reaches the entity's handler, not once the handler has run. Commands are accepted while the instance is running, and may be accepted briefly around its start and stop. Each instance's declared entities, with their current state, are in `get_apps()`'s `AppInstance.entities`; every other method that returns instances leaves `entities` as `None`. The listing's `boot_id` and `revision` say how fresh those entities are: `revision` goes up with every change, and comparing two revisions only makes sense when both listings carry the same `boot_id`.
 
 `POST /api/auth/session` has no method. It trades a token for a browser session cookie, which a client sending its token on every request doesn't need.
 
@@ -130,7 +134,7 @@ Each error response from Hassette carries a [problem `code`](api-errors.md), a m
 | `AuthenticationError` | 401: a missing or wrong token |
 | `ForbiddenError` → `PathTraversalError` | 403 |
 | `NotFoundError` → `AppNotFoundError`, `InstanceNotFoundError`, `SourceNotFoundError` | 404 |
-| `ConflictError` → `BootstrapNotReleasedError`, `AppBlockedError`, `ActionInProgressError`, `NeedsRestartError`, `JobNotRegisteredError` | 409 |
+| `ConflictError` → `BootstrapNotReleasedError`, `AppBlockedError`, `ActionInProgressError`, `NeedsRestartError`, `JobNotRegisteredError`, `InstanceNotRunningError`, `EntityNotDeclaredError` | 409 |
 | `RequestValidationError` | 422: the server rejected a parameter |
 | `ServerError` → `ActionFailedError`, `SourceUnavailableError` | 5xx |
 | `GatewayError` | 502 or 504 from a proxy in front of Hassette |
@@ -155,9 +159,9 @@ A `base_url` that points somewhere outside the API, such as the web UI's root pa
 The client never retries. The exception class tells you whether a retry can help:
 
 - **Worth retrying with backoff:** `BootstrapNotReleasedError`, raised when apps can't start yet because Hassette hasn't connected to Home Assistant and loaded its initial state, and `ServiceUnavailableError` on a read. Any failure on a read (a `get_*` method) is also safe to retry.
-- **Outcome unknown on a write:** `HassetteTimeoutError`, `HassetteConnectionError`, `GatewayError`, `UnexpectedResponseError`, `ServiceUnavailableError` (Hassette never answers a write with 503, so it came from a proxy), and any `ServerError` other than `ActionFailedError` (an unexpected server error can happen partway through). The server may or may not have received an `action()` or `trigger_job()`, or may still be working on it: a proxy can give up with a 502 or 504 while Hassette is still reloading the app. A connection error can also be permanent, such as a TLS certificate problem or a bad URL.
+- **Outcome unknown on a write:** `HassetteTimeoutError`, `HassetteConnectionError`, `GatewayError`, `UnexpectedResponseError`, `ServiceUnavailableError` (Hassette never answers a write with 503, so it came from a proxy), and any `ServerError` other than `ActionFailedError` (an unexpected server error can happen partway through). The server may or may not have received an `action()`, `trigger_job()`, `press_button()` or `set_switch()`, or may still be working on it: a proxy can give up with a 502 or 504 while Hassette is still reloading the app. A connection error can also be permanent, such as a TLS certificate problem or a bad URL.
 
-`ActionFailedError` is different: the action ran and failed on at least one instance, and its `problem` says why. `problem.detail` names each instance that didn't succeed, and `problem.outcomes` lists what the action did to every instance. Before sending a write again after one of those, check whether it already happened. `start` and `stop` are safe to send again, since starting a running app or stopping a stopped one does nothing, unless an instance needs a restart. `reload` and `trigger_job()` aren't: each one sent again reloads the app or runs the job a second time, so check the app's status or the job's executions first.
+`ActionFailedError` is different: the action ran and failed on at least one instance, and its `problem` says why. `problem.detail` names each instance that didn't succeed, and `problem.outcomes` lists what the action did to every instance. Before sending a write again after one of those, check whether it already happened. `start` and `stop` are safe to send again, since starting a running app or stopping a stopped one does nothing, unless an instance needs a restart. `reload`, `trigger_job()` and `press_button()` aren't: each one sent again reloads the app, runs the job, or presses the button a second time, so check the app's status or the handler's executions first.
 
 `NeedsRestartError` from `action()` means an instance the action targeted needs a Hassette restart, so nothing was done to it. The app's other instances were still acted on, as `problem.outcomes` shows. Retrying won't help until Hassette restarts. It subclasses `ConflictError`, so code that retries every `ConflictError` should catch `NeedsRestartError` first. See [Instances that need a restart](../operating/index.md#instances-that-need-a-restart).
 
@@ -219,7 +223,7 @@ pages/web-ui/snippets/python_client_skew.py:check
 Against a server that's too old, it prints a message like:
 
 ```text
-hassette server 0.40.0 reports no API schema, older than 6, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
+hassette server 0.40.0 reports no API schema, older than 7, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
 ```
 
 The message names the two fixes: upgrade Hassette, or pin `hassette-client` to the release matching the server.
@@ -258,7 +262,7 @@ logger:
 
 ## Parsing saved responses
 
-`parse_response(model, body)`, also exported from `hassette_client`, parses a JSON body exactly the way the client's methods do. It checks saved responses against a client release without a running server.
+`parse_response(response_type, payload)`, also exported from `hassette_client`, parses a JSON body exactly the way the client's methods do. It checks saved responses against a client release without a running server.
 
 This example parses a `get_health()` response saved as `health.json`, then prints the server's status:
 
@@ -266,7 +270,7 @@ This example parses a `get_health()` response saved as `health.json`, then print
 --8<-- "pages/web-ui/snippets/python_client_parse.py"
 ```
 
-`body` is the raw JSON as `str` or `bytes`, not a decoded dict. Pass the model the matching method returns, or a type built from one, such as `list[Execution]`.
+`payload` is the raw JSON as `str` or `bytes`, not a decoded dict. Pass the model the matching method returns, or a type built from one, such as `list[Execution]`.
 
 ## Next steps
 

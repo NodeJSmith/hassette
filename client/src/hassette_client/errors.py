@@ -306,6 +306,20 @@ class JobNotRegisteredError(ConflictError):
     """409 ``job_not_registered``: the scheduled job has no live registration."""
 
 
+class InstanceNotRunningError(ConflictError):
+    """409 ``instance_not_running``: the app instance exists but isn't running, so it took no command.
+
+    Worth retrying once the instance is running again, such as after a reload.
+    """
+
+
+class EntityNotDeclaredError(ConflictError):
+    """409 ``entity_not_declared``: the running instance declares no entity with this key on this platform.
+
+    Not retryable until the instance's declarations change.
+    """
+
+
 class RequestValidationError(HassetteHTTPError):
     """422: a path, query or body value failed the server's validation.
 
@@ -361,6 +375,8 @@ CODE_ERRORS: Mapping[ProblemCode, type[HassetteHTTPError]] = {
     ProblemCode.PATH_TRAVERSAL: PathTraversalError,
     ProblemCode.SOURCE_UNAVAILABLE: SourceUnavailableError,
     ProblemCode.JOB_NOT_REGISTERED: JobNotRegisteredError,
+    ProblemCode.INSTANCE_NOT_RUNNING: InstanceNotRunningError,
+    ProblemCode.ENTITY_NOT_DECLARED: EntityNotDeclaredError,
 }
 """The problem codes that raise their own class. Every other code resolves by status."""
 

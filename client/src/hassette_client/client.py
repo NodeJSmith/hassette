@@ -17,6 +17,7 @@ from hassette_wire import (
     ConfigSchemaResponse,
     DebugCaptureRequest,
     DebugCaptureResponse,
+    EntityCommandResponse,
     Execution,
     ExecutionDetailResponse,
     ExecutionKind,
@@ -187,6 +188,53 @@ class HassetteClient:
         path = app_target_path(app_key, instance)
         body = DebugCaptureRequest(enabled=enabled)
         return await self._transport.request("PUT", f"{path}/debug", DebugCaptureResponse, body=body)
+
+    async def press_button(self, app_key: str, instance: str, key: str) -> EntityCommandResponse:
+        """Press a button an app instance declared through ``self.integration``, running its ``on_press`` handler.
+
+        The server answers as soon as the press is dispatched to the handler, not once it has run. Commands are
+        accepted while the instance is running, and may be accepted briefly around its start and stop. After a
+        timeout or connection error the outcome is unknown, and sending it again may press the button twice.
+
+        Args:
+            app_key: The app that declares the button.
+            instance: The instance that declares it.
+            key: The button's key.
+
+        Raises:
+            InvalidAppKeyError: ``app_key`` isn't a valid app key.
+            AppNotFoundError: No app with this key exists.
+            InstanceNotFoundError: The app has no instance named ``instance``.
+            InstanceNotRunningError: The instance exists but isn't running.
+            EntityNotDeclaredError: The instance declares no button with this key.
+        """
+        path = f"{app_target_path(app_key, instance)}/buttons/{path_segment(key)}/press"
+        return await self._transport.request("POST", path, EntityCommandResponse)
+
+    async def set_switch(self, app_key: str, instance: str, key: str, on: bool) -> EntityCommandResponse:
+        """Turn on or off a switch an app instance declared through ``self.integration``.
+
+        Runs the switch's ``on_toggle`` handler with ``on``; the handler sets the switch's state itself. The
+        server answers as soon as the command is dispatched to the handler, not once it has run. Commands are
+        accepted while the instance is running, and may be accepted briefly around its start and stop. Sending it
+        again after a timeout or connection error runs the handler again with the same ``on``.
+
+        Args:
+            app_key: The app that declares the switch.
+            instance: The instance that declares it.
+            key: The switch's key.
+            on: ``True`` to turn it on, ``False`` to turn it off.
+
+        Raises:
+            InvalidAppKeyError: ``app_key`` isn't a valid app key.
+            AppNotFoundError: No app with this key exists.
+            InstanceNotFoundError: The app has no instance named ``instance``.
+            InstanceNotRunningError: The instance exists but isn't running.
+            EntityNotDeclaredError: The instance declares no switch with this key.
+        """
+        verb = "turn_on" if on else "turn_off"
+        path = f"{app_target_path(app_key, instance)}/switches/{path_segment(key)}/{verb}"
+        return await self._transport.request("POST", path, EntityCommandResponse)
 
     async def get_app_config(self, app_key: str) -> AppConfigResponse:
         """Get an app's configuration, with secret fields masked.

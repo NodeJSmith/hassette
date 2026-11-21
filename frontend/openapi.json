@@ -1145,6 +1145,312 @@
         }
       }
     },
+    "/api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Press Button",
+        "description": "Press a button an app instance declared, running its ``on_press`` handler.",
+        "operationId": "press_button_api_apps__app_key__instances__instance_name__buttons__key__press_post",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Name"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`instance_not_running`: the app instance exists but isn't running; `entity_not_declared`: the instance declares no such entity",
+            "x-problem-codes": [
+              "instance_not_running",
+              "entity_not_declared"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_on": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Turn On Switch",
+        "description": "Turn on a switch an app instance declared, running its ``on_toggle`` handler with ``True``.",
+        "operationId": "turn_on_switch_api_apps__app_key__instances__instance_name__switches__key__turn_on_post",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Name"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`instance_not_running`: the app instance exists but isn't running; `entity_not_declared`: the instance declares no such entity",
+            "x-problem-codes": [
+              "instance_not_running",
+              "entity_not_declared"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/instances/{instance_name}/switches/{key}/turn_off": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Turn Off Switch",
+        "description": "Turn off a switch an app instance declared, running its ``on_toggle`` handler with ``False``.",
+        "operationId": "turn_off_switch_api_apps__app_key__instances__instance_name__switches__key__turn_off_post",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Name"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityCommandResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`instance_not_running`: the app instance exists but isn't running; `entity_not_declared`: the instance declares no such entity",
+            "x-problem-codes": [
+              "instance_not_running",
+              "entity_not_declared"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/session": {
       "post": {
         "tags": [
@@ -3689,6 +3995,21 @@
             "title": "Debug Capture",
             "description": "Whether debug capture is on: the instance and the framework loggers it owns log at ``DEBUG``, and every line\nis stored. Set by ``PUT /api/apps/{app_key}/debug``; it ends when turned off or when hassette restarts. Held for a\nstopped instance too, whose levels apply when it starts. Fresh only when read: no WebSocket event reports a\nchange, so a client caching app state refetches ``GET /api/apps`` to see it.",
             "default": false
+          },
+          "entities": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DeclaredEntity"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entities",
+            "description": "The Home Assistant entities the instance declares, in key order, with their last committed state. Filled\nonly by ``GET /api/apps`` (``[]`` for an instance that declares nothing); ``None`` on every other response,\nmeaning not included rather than none. A stopped instance keeps its last declared entities, which are usable\nonly while ``status`` is ``running``."
           }
         },
         "type": "object",
@@ -3730,15 +4051,27 @@
             },
             "type": "array",
             "title": "Only Apps"
+          },
+          "boot_id": {
+            "type": "string",
+            "title": "Boot Id",
+            "description": "Identifies this run of hassette; it changes on every restart. ``revision`` values are comparable only\nbetween responses carrying the same ``boot_id``: on a new one, discard every revision seen before."
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision",
+            "description": "Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration\ncommit and entity state change, skipping values. The listing reflects every change up to this revision, so a\nclient may apply it to an instance whose last applied revision is equal or older."
           }
         },
         "type": "object",
         "required": [
           "total",
-          "apps"
+          "apps",
+          "boot_id",
+          "revision"
         ],
         "title": "AppListResponse",
-        "description": "Response for ``GET /api/apps``: every app with status counts."
+        "description": "Response for ``GET /api/apps``: every app with status counts.\n\n``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other\nlistings and WebSocket entity messages."
       },
       "AppSource": {
         "properties": {
@@ -4335,6 +4668,168 @@
         ],
         "title": "DebugCaptureResponse",
         "description": "Response for a ``PUT .../debug``: the capture state of each instance it targeted.\n\nAn app-wide ``enabled: true`` targets every configured instance. An app-wide ``enabled: false`` targets every\nconfigured instance plus any other name still captured. ``instance_name`` is the server-confirmed instance for an\ninstance-scoped request, ``None`` for an app-wide one."
+      },
+      "DeclaredEntity": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "The entity's key: lowercase letters, digits and ``_``, unique within its instance."
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "button",
+              "switch",
+              "sensor"
+            ],
+            "title": "Platform",
+            "description": "``button``, ``switch`` or ``sensor``."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The entity's display name."
+          },
+          "default_entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Entity Id",
+            "description": "The entity id the app suggests, applied only when the entity is first created in Home Assistant."
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit",
+            "description": "A sensor's unit of measurement."
+          },
+          "device_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Class",
+            "description": "A sensor's Home Assistant device class."
+          },
+          "state_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Class",
+            "description": "A sensor's Home Assistant state class."
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options",
+            "description": "An enum sensor's allowed values."
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "A switch's on/off state or a sensor's value; ``None`` for a button and for a sensor that is unknown. A\ntimestamp sensor's value is an ISO 8601 string with offset, a date sensor's an ISO 8601 date."
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "description": "The state attributes the app last set with the value."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "platform",
+          "name"
+        ],
+        "title": "DeclaredEntity",
+        "description": "A Home Assistant button, switch or sensor an app instance declares through ``self.integration``.\n\nNested in ``AppInstance.entities`` on ``GET /api/apps``. Every platform shares one flat shape so a client\nthat meets a platform it doesn't know can skip that entity and keep the rest: ``unit``, ``device_class``,\n``state_class`` and ``options`` are set for a sensor only."
+      },
+      "EntityCommandResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "accepted",
+            "title": "Status",
+            "default": "accepted"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "instance_name": {
+            "type": "string",
+            "title": "Instance Name"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "button",
+              "switch",
+              "sensor"
+            ],
+            "title": "Platform"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "instance_name",
+          "key",
+          "platform"
+        ],
+        "title": "EntityCommandResponse",
+        "description": "Response (202) for a button press or switch turn-on/off sent to an app instance's declared entity.\n\n``status`` is ``\"accepted\"`` once the command event was published to the instance's handler. That is not\nproof the handler ran: its execution mode may drop the command, which shows only in the handler's telemetry."
       },
       "Execution": {
         "properties": {
@@ -5824,6 +6319,8 @@
           "invalid_token",
           "not_authenticated",
           "job_not_registered",
+          "instance_not_running",
+          "entity_not_declared",
           "validation_failed",
           "body_too_large",
           "not_found",

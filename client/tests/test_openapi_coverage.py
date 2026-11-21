@@ -79,6 +79,11 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
         lambda c: c.set_debug_capture("my_app", True),
         lambda c: c.set_debug_capture("my_app", False, instance="instance_0"),
     ],
+    "press_button": [lambda c: c.press_button("my_app", "instance_0", "doorbell")],
+    "set_switch": [
+        lambda c: c.set_switch("my_app", "instance_0", "guest_mode", True),
+        lambda c: c.set_switch("my_app", "instance_0", "guest_mode", False),
+    ],
     "get_app_config": [lambda c: c.get_app_config("my_app")],
     "get_app_source": [lambda c: c.get_app_source("my_app")],
     "get_recent_logs": [

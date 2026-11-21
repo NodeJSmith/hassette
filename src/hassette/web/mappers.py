@@ -57,7 +57,9 @@ def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     ``needs_restart``, whose timestamp is converted by ``NeedsRestartInfo.to_wire``, and ``entities``, converted
     by ``declared_entity_from``. The source's extra ``error`` attribute is ignored.
     """
-    fields = {name: getattr(instance, name) for name in AppInstance.model_fields if name not in CONVERTED_INSTANCE_FIELDS}
+    fields = {
+        name: getattr(instance, name) for name in AppInstance.model_fields if name not in CONVERTED_INSTANCE_FIELDS
+    }
     return AppInstance(
         **fields,
         needs_restart=instance.needs_restart.to_wire() if instance.needs_restart else None,
@@ -69,7 +71,8 @@ def declared_entity_from(entity: DeclaredEntityInfo) -> DeclaredEntity:
     """Convert a declared entity and its state to ``DeclaredEntity``.
 
     A timestamp sensor's ``Instant`` becomes its ISO 8601 string with offset and a date sensor's ``Date`` its ISO
-    date, the form spec 157 stores them in. Attributes are already a JSON object.
+    date, the form ``encode_value`` (``hassette.integration.declarations``) stores. Attributes are already a JSON
+    object.
     """
     declaration, value = entity.declaration, entity.state.value
     return DeclaredEntity(

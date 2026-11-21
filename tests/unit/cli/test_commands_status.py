@@ -1,6 +1,6 @@
 """Unit tests for hassette status, telemetry, and dashboard commands."""
 
-from hassette_wire import AppInstance, AppListResponse, AppStatus, NeedsRestart, ResourceStatus
+from hassette_wire import AppInstance, AppStatus, NeedsRestart, ResourceStatus
 
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
@@ -8,7 +8,7 @@ from hassette.cli.commands.status import (
     cmd_status,
     cmd_telemetry,
 )
-from tests.support.web_manifest_helpers import make_app_summary
+from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.support.web_response_helpers import (
     make_app_activity,
     make_app_grid_entry,
@@ -45,7 +45,7 @@ def app_list_with_flag() -> dict:
         make_app_summary(app_key="stuck_app", status=AppStatus.FAILED, instances=[flagged]),
         make_app_summary(app_key="ok_app", instances=[healthy]),
     ]
-    return AppListResponse(total=2, apps=apps).model_dump(mode="json")
+    return make_app_list_response(apps).model_dump(mode="json")
 
 
 # cmd_status
@@ -106,7 +106,7 @@ class TestCmdStatus:
 
     def test_no_restart_section_when_nothing_is_flagged(self, cli_client_factory: CLIClientFactory) -> None:
         status_data = make_system_status_response()
-        apps = AppListResponse(total=1, apps=[make_app_summary()]).model_dump(mode="json")
+        apps = make_app_list_response([make_app_summary()]).model_dump(mode="json")
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/health", 200, status_data.model_dump()), ("GET", "/api/apps", 200, apps)]
         )

@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import AppInstance, AppListResponse, AppStatus, ExecutionStatus, NeedsRestart, ResourceStatus
+from hassette_wire import AppInstance, AppStatus, ExecutionStatus, NeedsRestart, ResourceStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -21,7 +21,7 @@ from hassette.cli.commands.app import (
 from hassette.cli.context import CLIContext
 from hassette.cli.formatters import now_epoch
 from hassette.const.misc import SECONDS_PER_HOUR
-from tests.support.web_manifest_helpers import make_app_summary
+from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.support.web_response_helpers import (
     make_app_activity,
     make_app_config_response,
@@ -312,7 +312,7 @@ class TestCmdAppHealth:
             app_key="my-app", instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING
         )
         app_summary = make_app_summary(app_key="my-app", instances=[instance_resp])
-        app_list = AppListResponse(total=1, status_counts={AppStatus.RUNNING: 1}, apps=[app_summary])
+        app_list = make_app_list_response([app_summary])
         client = cli_client_factory.build_with_routes(
             [
                 ("GET", APPS_ENDPOINT, 200, app_list.model_dump()),
