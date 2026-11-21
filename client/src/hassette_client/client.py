@@ -192,7 +192,7 @@ class HassetteClient:
     async def press_button(self, app_key: str, instance: str, key: str) -> EntityCommandResponse:
         """Press a button an app instance declared through ``self.integration``, running its ``on_press`` handler.
 
-        The server answers as soon as the press is dispatched to the handler, not once it has run. Commands are
+        The server answers as soon as the press's command event is published, not once the handler has run. Commands are
         accepted while the instance is running, and may be accepted briefly around its start and stop. After a
         timeout or connection error the outcome is unknown, and sending it again may press the button twice.
 
@@ -215,7 +215,7 @@ class HassetteClient:
         """Turn on or off a switch an app instance declared through ``self.integration``.
 
         Runs the switch's ``on_toggle`` handler with ``on``; the handler sets the switch's state itself. The
-        server answers as soon as the command is dispatched to the handler, not once it has run. Commands are
+        server answers as soon as the command event is published, not once the handler has run. Commands are
         accepted while the instance is running, and may be accepted briefly around its start and stop. Sending it
         again after a timeout or connection error runs the handler again with the same ``on``.
 
