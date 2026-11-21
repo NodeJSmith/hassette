@@ -270,7 +270,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def env_files(self) -> set[Path]:
         """Return the existing ``.env`` files this config reads."""
-        return filter_paths_to_unique_existing(list(self._locations.env_files))
+        return filter_paths_to_unique_existing(self._locations.env_files)
 
     @property
     def toml_files(self) -> set[Path]:
