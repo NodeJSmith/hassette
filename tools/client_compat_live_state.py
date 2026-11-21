@@ -22,9 +22,8 @@ from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
 from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
 from whenever import Instant, ZonedDateTime
 
-from hassette.core.integration_service import CommittedEntity
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
-from hassette.integration.declarations import Declaration, EntityState, IntegrationPlatform
+from hassette.integration.declarations import CommittedEntity, Declaration, EntityState, IntegrationPlatform
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, NeedsRestartInfo
 from hassette.types.enums import BlockReason

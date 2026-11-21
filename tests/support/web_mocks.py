@@ -15,10 +15,9 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette_wire import BlockingFindingsResponse, ResourceStatus, UnattributedBlockingResponse
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.core.integration_service import CommittedEntity
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.state_proxy_sync import StateCacheFreshness
-from hassette.integration.declarations import CommandDispatchResult, IntegrationPlatform
+from hassette.integration.declarations import CommandDispatchResult, CommittedEntity, IntegrationPlatform
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.summary_models import AppHealthAggregates

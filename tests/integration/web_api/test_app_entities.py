@@ -7,8 +7,13 @@ import pytest
 from httpx2 import AsyncClient
 from whenever import Date, Instant
 
-from hassette.core.integration_service import CommittedEntity
-from hassette.integration.declarations import CommandDispatchResult, Declaration, EntityState, IntegrationPlatform
+from hassette.integration.declarations import (
+    CommandDispatchResult,
+    CommittedEntity,
+    Declaration,
+    EntityState,
+    IntegrationPlatform,
+)
 from hassette.testing._harness_resources import HarnessIntegrationService
 from tests.integration.conftest import make_manifest_mock
 from tests.support.web_manifest_helpers import STUB_BOOT_ID

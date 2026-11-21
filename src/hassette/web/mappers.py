@@ -30,8 +30,9 @@ from hassette_wire import (
 )
 from whenever import Date, Instant
 
+from hassette.integration.declarations import CommittedEntity
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, DeclaredEntityInfo
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import Topic
@@ -67,7 +68,7 @@ def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     )
 
 
-def declared_entity_from(entity: DeclaredEntityInfo) -> DeclaredEntity:
+def declared_entity_from(entity: CommittedEntity) -> DeclaredEntity:
     """Convert a declared entity and its state to ``DeclaredEntity``.
 
     A timestamp sensor's ``Instant`` becomes its ISO 8601 string with offset and a date sensor's ``Date`` its ISO

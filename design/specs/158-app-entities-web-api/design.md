@@ -366,3 +366,7 @@ holding against current code:
 - The open alias is `OpenIntegrationPlatformName`, not the Summary's `OpenIntegrationPlatform`: the wire's `Open<Type>` alias must name its literal (`test_open_alias_marker_names_its_own_type`), and naming the literal `IntegrationPlatform` would collide with hassette's own `IntegrationPlatform` enum.
 - `tools/check_wire_compat.py` reports D4's required `boot_id`/`revision` as a break for a new client talking to an older server, which the API schema floor bump already accepts. Following the repo's convention for every ignore-file entry, the two lines go in `tools/wire_compat_ignore.txt` and the PR is titled `feat!` with a `BREAKING CHANGE:` footer naming the client's new floor. Giving the fields defaults would have reversed D4.
 - A parity test pins the wire's `IntegrationPlatformName` to hassette's `IntegrationPlatform` enum (`tests/unit/test_wire_vocabulary_typing.py`), since the open alias would otherwise hide a fourth platform missing from the wire.
+
+## Addendum
+
+- 2026-11-21: The Summary's `DeclaredEntityInfo` wasn't kept. It copied `CommittedEntity` field for field, so `CommittedEntity` moved from `core/integration_service.py` to `hassette.integration.declarations` (beside `Declaration` and `EntityState`, which `schemas` and `web` may import), and `AppInstanceInfo.entities` holds it directly. The listing join no longer converts anything. Found by the ship-time clean-code gate.

@@ -20,6 +20,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.events.hassette import IntegrationCommandEvent
 from hassette.integration.declarations import (
     CommandDispatchResult,
+    CommittedEntity,
     Declaration,
     EntityState,
     IntegrationPlatform,
@@ -43,14 +44,6 @@ InstanceKey: typing.TypeAlias = tuple[str, str]
 
 EntityKey: typing.TypeAlias = tuple[str, IntegrationPlatform]
 """``(key, platform)``, an entity's identity within its instance."""
-
-
-@dataclass(frozen=True, slots=True)
-class CommittedEntity:
-    """A committed declaration and its current state."""
-
-    declaration: Declaration
-    state: EntityState
 
 
 @dataclass(frozen=True, slots=True)

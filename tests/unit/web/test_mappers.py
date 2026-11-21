@@ -20,7 +20,7 @@ from hassette_wire import (
 from pydantic import ValidationError
 from whenever import ZonedDateTime
 
-from hassette.schemas.app_snapshots import NeedsRestartInfo
+from hassette.schemas.app_snapshots import AppManifestInfo, NeedsRestartInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
@@ -110,14 +110,17 @@ def test_listener_summary_row_fields_are_subset_of_wire_model():
     assert not missing, f"ListenerSummaryRow fields not present on ListenerSummary: {missing}"
 
 
+def list_response(manifests: list[AppManifestInfo]) -> AppListResponse:
+    """The listing ``app_list_response_from`` builds for ``manifests``, at a fixed boot and revision."""
+    return app_list_response_from(make_full_snapshot(manifests), boot_id=STUB_BOOT_ID, revision=0)
+
+
 def test_app_list_response_from_builds_nested_instances():
     """Verify nested AppInstance objects are built correctly."""
     inst0 = make_app_instance_info(app_key="app_a", instance_name="app_a.0", status=ResourceStatus.RUNNING)
     inst1 = make_app_instance_info(app_key="app_a", instance_name="app_a.1", status=ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
-    full = make_full_snapshot([manifest])
-
-    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
+    result = list_response([manifest])
 
     assert isinstance(result, AppListResponse)
     assert len(result.apps) == 1
@@ -131,9 +134,7 @@ def test_app_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
     inst = make_app_instance_info(app_key="app_a", instance_name="app_a.0", status=ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst], instance_count=1)
-    full = make_full_snapshot([manifest])
-
-    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
+    result = list_response([manifest])
 
     assert result.apps[0].instances[0].status == ResourceStatus.RUNNING
     assert isinstance(result.apps[0].instances[0].status, str)
@@ -158,9 +159,7 @@ def test_app_list_response_from_passes_manifest_field_through(
     the boolean cases are plain identity pass-through.
     """
     manifest = make_manifest("app_a", **manifest_kwargs)
-    full = make_full_snapshot([manifest])
-
-    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
+    result = list_response([manifest])
 
     assert getattr(result.apps[0], response_attr) == expected
 
@@ -174,9 +173,7 @@ def test_app_list_response_from_preserves_counts():
         make_manifest("app_d", status=AppStatus.DISABLED),
         make_manifest("app_e", status=AppStatus.BLOCKED),
     ]
-    full = make_full_snapshot(manifests)
-
-    result = app_list_response_from(full, boot_id=STUB_BOOT_ID, revision=0)
+    result = list_response(manifests)
 
     assert result.total == 5
     assert result.status_counts[AppStatus.RUNNING] == 1

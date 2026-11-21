@@ -693,11 +693,10 @@ async def send_entity_command(
         case _:
             assert_never(result)
     LOGGER.info(
-        "Sent %s command to '%s' of app instance '%s/%s' (source=%s)",
+        "Sent a %s command for %r of app instance %r (source=%s)",
         platform,
         key,
-        app_key,
-        instance_name,
+        f"{app_key}/{instance_name}",
         peer_address_or_unknown(request),
     )
     return EntityCommandResponse(app_key=app_key, instance_name=instance_name, key=key, platform=platform.value)

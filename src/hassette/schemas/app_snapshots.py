@@ -15,7 +15,7 @@ from whenever import ZonedDateTime
 
 if TYPE_CHECKING:
     # hassette.integration imports config, which imports app, which imports the events that import this module.
-    from hassette.integration.declarations import Declaration, EntityState
+    from hassette.integration.declarations import CommittedEntity
 
 APP_STATUS_KEYS = tuple(AppStatus)
 
@@ -44,14 +44,6 @@ class NeedsRestartInfo:
 
 
 @dataclass(frozen=True)
-class DeclaredEntityInfo:
-    """One entity an app instance declares through ``self.integration``, with its committed state."""
-
-    declaration: "Declaration"
-    state: "EntityState"
-
-
-@dataclass(frozen=True)
 class AppInstanceInfo:
     """Snapshot of a single app instance for status queries."""
 
@@ -76,7 +68,7 @@ class AppInstanceInfo:
     debug_capture: bool = False
     """Whether debug capture is on for this instance (spec 148). Held for a stopped instance too, whose levels
     apply when it starts."""
-    entities: tuple[DeclaredEntityInfo, ...] | None = None
+    entities: tuple["CommittedEntity", ...] | None = None
     """The instance's declared entities in key order, attached only for the app list, the one response carrying
     the revision they were read at; ``None`` everywhere else, meaning not included."""
 
@@ -213,7 +205,6 @@ __all__ = [
     "AppListingSnapshot",
     "AppManifestInfo",
     "AppStatusSnapshot",
-    "DeclaredEntityInfo",
     "NeedsRestartInfo",
     "is_failed_info",
     "tally_app_statuses",

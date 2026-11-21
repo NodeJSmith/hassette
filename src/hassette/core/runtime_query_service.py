@@ -33,7 +33,7 @@ from hassette.event_handling.accessors import get_path
 from hassette.events import AnyEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.schemas.app_snapshots import AppListingSnapshot, AppManifestInfo, DeclaredEntityInfo
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppListingSnapshot, AppManifestInfo
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
 
@@ -335,20 +335,13 @@ class RuntimeQueryService(Resource):
         entities and ``revision`` are one snapshot.
         """
         integration = self.hassette.integration_service
+
+        def with_entities(instance: AppInstanceInfo) -> AppInstanceInfo:
+            entities = tuple(integration.entities(instance.app_key, instance.instance_name))
+            return dataclasses.replace(instance, entities=entities)
+
         listed = tuple(
-            dataclasses.replace(
-                manifest,
-                instances=tuple(
-                    dataclasses.replace(
-                        instance,
-                        entities=tuple(
-                            DeclaredEntityInfo(entity.declaration, entity.state)
-                            for entity in integration.entities(instance.app_key, instance.instance_name)
-                        ),
-                    )
-                    for instance in manifest.instances
-                ),
-            )
+            dataclasses.replace(manifest, instances=tuple(with_entities(instance) for instance in manifest.instances))
             for manifest in manifests
         )
         return AppListingSnapshot(manifests=listed, boot_id=integration.boot_id, revision=integration.revision)

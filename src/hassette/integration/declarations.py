@@ -85,6 +85,14 @@ class EntityState:
     attributes: Mapping[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class CommittedEntity:
+    """A committed declaration and its current state."""
+
+    declaration: Declaration
+    state: EntityState
+
+
 def default_state(declaration: Declaration) -> EntityState:
     """The state of an entity with nothing stored: a switch's ``initial`` (off by default), a sensor's unknown."""
     if declaration.platform is IntegrationPlatform.SWITCH:
