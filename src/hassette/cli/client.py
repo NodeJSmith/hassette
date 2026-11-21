@@ -54,6 +54,11 @@ def telemetry_app_path(app_key: str, resource: str) -> str:
     return f"{TELEMETRY_APP_PATH}/{quote(app_key, safe='')}/{resource}"
 
 
+def execution_path(execution_id: str) -> str:
+    """The detail path of execution ``execution_id``, the id percent-encoded whole so it can't change the route."""
+    return f"/api/executions/{quote(execution_id, safe='')}"
+
+
 def query_params(**values: Any) -> dict[str, Any]:
     """Build a query-parameter dict from CLI flags, dropping every flag left unset.
 
