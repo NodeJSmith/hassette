@@ -77,12 +77,12 @@ class SyncCache:
 
         value_blob, expires_at = row
         if expires_at is not None and expires_at < time.time():
-            self._delete_stale(key, value_blob)
+            self._delete_stale(key, value_blob, expires_at)
             return default
 
         result = deserialize(value_blob, key)
         if result is DESERIALIZE_FAILED:
-            self._delete_stale(key, value_blob)
+            self._delete_stale(key, value_blob, expires_at)
             return default
         # deserialize() returns the unpickled value untyped (object) since the cache layer
         # never validates what callers stored -- trust the caller's T at this boundary.
@@ -113,15 +113,18 @@ class SyncCache:
         finally:
             conn.close()
 
-    def _delete_stale(self, key: str, value_blob: bytes) -> None:
-        """Delete a cache row only if it still holds the observed value blob.
+    def _delete_stale(self, key: str, value_blob: bytes, expires_at: float | None) -> None:
+        """Delete a cache row only if it is still the exact row this reader observed.
 
         Prevents a concurrent writer's fresh value from being removed when this
         reader observes a stale or corrupt entry. Mirrors AsyncCache._delete_stale.
         """
         conn = self._connect()
         try:
-            conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
+            conn.execute(
+                "DELETE FROM cache_entries WHERE key = ? AND value = ? AND expires_at IS ?",
+                (key, value_blob, expires_at),
+            )
         finally:
             conn.close()
 
