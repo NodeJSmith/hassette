@@ -125,7 +125,7 @@ async def track_execution(
             # Only the framework's own deadline counts as a timeout; a TimeoutError raised by the
             # body (wait_for, HTTP clients) falls through to the error path below.
             result.status = ExecutionStatus.TIMED_OUT
-            result.error_message = str(exc) if str(exc) else "execution timed out"
+            result.error_message = str(exc) or "execution timed out"
             raise
         result.status = ExecutionStatus.ERROR
         result.error_message = str(exc)

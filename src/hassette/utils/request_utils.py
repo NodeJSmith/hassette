@@ -54,12 +54,12 @@ def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
             return str(val).lower()
 
         if isinstance(val, ZonedDateTime):
-            return str(val.to_fixed_offset())
+            return format_time_param(val)
 
-        if isinstance(val, (PlainDateTime | Instant | Date)):
+        if isinstance(val, PlainDateTime | Instant | Date):
             return val.format_iso()
 
-        if isinstance(val, (int | float | str)):
+        if isinstance(val, int | float | str):
             if isinstance(val, str) and not val.strip():
                 return None
             return val

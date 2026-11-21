@@ -1,4 +1,4 @@
-import typing
+from collections.abc import Iterable
 from fnmatch import fnmatch
 
 GLOB_CHARS = "*?["
@@ -17,7 +17,7 @@ def is_glob(value: str) -> bool:
     return any(ch in value for ch in GLOB_CHARS)
 
 
-def split_exact_and_glob(values: typing.Iterable[str]) -> tuple[set[str], tuple[str, ...]]:
+def split_exact_and_glob(values: Iterable[str]) -> tuple[set[str], tuple[str, ...]]:
     """Splits a list of strings into exact matches and glob patterns.
 
     Args:

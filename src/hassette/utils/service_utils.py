@@ -23,6 +23,22 @@ class Color(Enum):
     BLACK = auto()  # fully processed
 
 
+def resolve_dep(dep: type, type_set: "set[type]", candidates: "Sequence[type]") -> list[type]:
+    """Resolve one declared dependency to the types it names.
+
+    An exact member of *type_set* resolves to itself; otherwise the dependency expands to every type in
+    *candidates* that subclasses it, in *candidates* order. An empty result means the dependency is unresolved.
+    """
+    if dep in type_set:
+        return [dep]
+    return [t for t in candidates if issubclass(t, dep)]
+
+
+def resolve_deps(node: type, type_set: "set[type]", candidates: "Sequence[type]") -> list[type]:
+    """Resolve every entry of *node*'s ``depends_on`` with :func:`resolve_dep`, keeping declaration order."""
+    return [r for dep in getattr(node, "depends_on", []) for r in resolve_dep(dep, type_set, candidates)]
+
+
 def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
     """Return *types* in valid initialization order (dependencies before dependents).
 
@@ -49,16 +65,6 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
     # Restrict dependency resolution to the provided types.
     type_set: set[type] = set(types)
 
-    def _resolve_deps(raw_deps: list[type]) -> list[type]:
-        """Resolve declared deps to concrete types in input order using issubclass."""
-        resolved: list[type] = []
-        for d in raw_deps:
-            if d in type_set:
-                resolved.append(d)
-            else:
-                resolved.extend(t for t in types if issubclass(t, d))
-        return resolved
-
     color: dict[type, Color] = dict.fromkeys(types, Color.WHITE)
     result: list[type] = []
 
@@ -68,14 +74,14 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
         if color[start] is not Color.WHITE:
             continue
 
-        # Stack entries: (node, dep_iterator, index_in_path)
+        # Stack entries: (node, dep_iterator)
         # We push a node when we first visit it (WHITE→GRAY), pop when done (GRAY→BLACK).
         dep_iters: list[tuple[type, typing.Iterator[type]]] = []
         path: list[type] = []
 
         color[start] = Color.GRAY
         path.append(start)
-        dep_iters.append((start, iter(_resolve_deps(getattr(start, "depends_on", [])))))
+        dep_iters.append((start, iter(resolve_deps(start, type_set, types))))
 
         while dep_iters:
             node, deps = dep_iters[-1]
@@ -100,7 +106,7 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
             if color.get(dep, Color.BLACK) is Color.WHITE:
                 color[dep] = Color.GRAY
                 path.append(dep)
-                dep_iters.append((dep, iter(_resolve_deps(getattr(dep, "depends_on", [])))))
+                dep_iters.append((dep, iter(resolve_deps(dep, type_set, types))))
 
     return result
 
@@ -114,7 +120,7 @@ def validate_dependency_graph(types: "list[type[Resource]]") -> None:
     type_set: set[type] = set(types)
     for child_type in types:
         for dep_type in getattr(child_type, "depends_on", []):
-            if not any(issubclass(t, dep_type) for t in type_set):
+            if not resolve_dep(dep_type, type_set, types):
                 raise ValueError(
                     f"{child_type.__name__} declares depends_on=[{dep_type.__name__}] "
                     f"but no matching child type found in Hassette"
@@ -131,10 +137,6 @@ def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resourc
     deterministic startup/shutdown ordering is maintained for peers with no
     ordering constraint.
 
-    Delegates to :func:`topological_sort` for cycle detection.  Callers
-    should validate the graph with ``topological_sort`` first (this function
-    re-validates as a defensive measure).
-
     Args:
         types: Resource types to partition.
 
@@ -144,7 +146,7 @@ def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resourc
         for startup, last for shutdown).
 
     Raises:
-        ValueError: If a cycle is detected (propagated from ``topological_sort``).
+        ValueError: On a cycle (via :func:`topological_sort`).
     """
     if not types:
         return []
@@ -152,14 +154,9 @@ def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resourc
     sorted_types = topological_sort(types)
     type_set: set[type] = set(types)
 
-    def _resolve(d: type) -> list[type]:
-        if d in type_set:
-            return [d]
-        return [t for t in sorted_types if issubclass(t, d)]
-
     level_of: dict[type, int] = {}
     for t in sorted_types:
-        deps_in_set = [r for d in getattr(t, "depends_on", []) for r in _resolve(d)]
+        deps_in_set = resolve_deps(t, type_set, sorted_types)
         if not deps_in_set:
             level_of[t] = 0
         else:
@@ -385,7 +382,8 @@ def describe_error(error: BaseException | None) -> str:
     """Return ``Type: message`` for a failed attempt's exception, or ``cancelled`` for a cancelled one."""
     if error is None:
         return "cancelled"
-    return f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
+    message = str(error)
+    return f"{type(error).__name__}: {message}" if message else type(error).__name__
 
 
 def describe_wave_causes(result: WaveResult) -> str:
