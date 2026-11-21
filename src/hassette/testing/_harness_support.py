@@ -3,13 +3,15 @@
 import asyncio
 import contextlib
 import inspect
-import logging
 import typing
 from collections.abc import Awaitable, Callable, Generator
+from logging import getLogger
 from typing import Any
 
 from hassette.testing.config import WAIT_FOR_READY_TIMEOUT_SECONDS
 from hassette.utils.func_utils import is_async_callable
+
+LOGGER = getLogger(__name__)
 
 
 # Do not use raw floats in harness code — reference these constants instead so
@@ -42,6 +44,19 @@ async def wait_for(
     interval: float = 0.02,
     desc: str = "condition",
 ) -> None:
+    """Poll ``predicate`` until it returns a truthy value or ``timeout`` elapses.
+
+    Args:
+        predicate: A zero-argument callable returning a bool. May be sync or async;
+            an async predicate is awaited on each poll.
+        timeout: Maximum seconds to keep polling before giving up.
+        interval: Seconds to sleep between polls.
+        desc: Description of the awaited condition, included in the timeout message.
+
+    Raises:
+        TimeoutError: The predicate stayed falsy for ``timeout`` seconds. This is the
+            stdlib ``TimeoutError``, not the ``DrainTimeout`` the drain helpers raise.
+    """
     is_async = is_async_callable(predicate)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
@@ -95,6 +110,4 @@ async def harness_dispatch(
             if inspect.isawaitable(result):
                 await result
         except Exception:
-            logging.getLogger("hassette.testing._harness").warning(
-                "Error handler raised during harness dispatch (%s)", log_label, exc_info=True
-            )
+            LOGGER.warning("Error handler raised during harness dispatch (%s)", log_label, exc_info=True)

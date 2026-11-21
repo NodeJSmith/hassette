@@ -515,12 +515,12 @@ class RecordingApi(Resource):
 
     2. Stub methods — those that should raise ``NotImplementedError`` on the
        sync side rather than be body-copied into the facade — should use
-       ``self.not_implemented(name)`` for the canonical helpful error message
+       ``not_implemented(name)`` for the canonical helpful error message
        on the async side. The ``RecordingSyncFacade`` generator detects
        stub-tier methods by recognizing any body that contains only
        docstrings, ``raise`` statements, and/or ``not_implemented()`` calls,
        so ``raise NotImplementedError(...)`` works too, but
-       ``self.not_implemented(name)`` is preferred because the helper returns
+       ``not_implemented(name)`` is preferred because the helper raises
        an exception with the project's standard seed-state guidance.
 
     Example::

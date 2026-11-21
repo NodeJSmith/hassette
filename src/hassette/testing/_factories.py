@@ -5,8 +5,8 @@ Contains the eight public factory functions exposed via ``hassette.testing.__all
 ``make_light_state_dict``, ``make_sensor_state_dict``, ``make_switch_state_dict``,
 ``make_typed_state``, ``make_full_state_change_event``) plus the private helpers they
 depend on (``create_hass_event``, ``split_state_kwargs``, ``STATE_DICT_KEYS``), and the
-non-exported ``create_component_loaded_event`` / ``create_service_registered_event``
-builders used by the harness ``simulate_*`` helpers.
+non-exported ``create_component_loaded_event`` / ``create_service_registered_event`` /
+``create_hassette_message_event`` builders used by the harness ``simulate_*`` helpers.
 """
 
 from collections.abc import Mapping

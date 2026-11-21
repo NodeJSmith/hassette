@@ -109,7 +109,7 @@ class TimeControlMixin:
         self._freeze_time_lock_held: bool = False
 
     def _stop_time_patchers(self) -> None:
-        """Stop all active time patchers. Called by exit stack on teardown."""
+        """Stop all active patchers; used on teardown and before a re-freeze."""
         if self._time_patcher is not None:
             for p in self._time_patcher:
                 try:

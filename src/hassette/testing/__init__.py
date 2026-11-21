@@ -6,10 +6,10 @@ own Hassette automations.
 
 Private (`_`-prefixed) modules in this package (``_harness``, ``_simulation``,
 ``_time_control``, ``_sync_facade``, ``_reset``, ``_server``, ``_ws_mocks``,
-``_factories``) are implementation details that Tier 1 symbols transitively
-depend on. They ship in the wheel because the public API needs them at
-runtime, but they are not part of the supported surface and may change
-without notice.
+``_factories``, ``_harness_graph``, ``_harness_resources``, ``_harness_support``)
+are implementation details that Tier 1 symbols transitively depend on. They
+ship in the wheel because the public API needs them at runtime, but they are
+not part of the supported surface and may change without notice.
 
 Internal framework test infrastructure (web-layer factories, seed scenario
 helpers, codegen-only modules, etc.) lives in ``tests.support`` — outside
