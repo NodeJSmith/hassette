@@ -568,8 +568,6 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     if app_config_cls is not None:
         try:
             raw_schema = app_config_cls.model_json_schema()
-            if not isinstance(raw_schema, dict):
-                raise TypeError(f"model_json_schema() returned {type(raw_schema).__name__}, expected dict")
             config_schema, masked_config = _build_app_config_view(raw_schema, manifest.app_config)
             return _build_config_response(app_key, manifest, masked_config, config_schema)
         except Exception:
@@ -598,7 +596,7 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
     try:
         resolved = manifest.full_path.resolve()
         app_dir_resolved = manifest.app_dir.resolve()
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         LOGGER.warning("Failed to resolve paths for app %s", app_key, exc_info=True)
         raise WebApiError(ProblemCode.SOURCE_UNAVAILABLE, "Failed to resolve app path") from exc
 

@@ -3,12 +3,14 @@
 Returns all scheduled jobs across all apps, enriched with live registry data.
 """
 
+from http import HTTPStatus
 from logging import getLogger
 
 from fastapi import APIRouter, Request
 from hassette_wire import JobSummary, JobTriggerResponse, ProblemCode
 
 from hassette.exceptions import JobRemovedError
+from hassette.types.types import APP_SOURCE_TIER
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import SchedulerDep, SinceQuery, SourceTierQuery, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
@@ -24,7 +26,7 @@ async def all_jobs(
     telemetry: TelemetryDep,
     scheduler_service: SchedulerDep,
     since: SinceQuery = None,
-    source_tier: SourceTierQuery = "app",
+    source_tier: SourceTierQuery = APP_SOURCE_TIER,
 ) -> list[JobSummary]:
     """All scheduled jobs across all apps, enriched with live registry data.
 
@@ -42,7 +44,7 @@ async def all_jobs(
 
 @router.post(
     "/jobs/{job_id}/trigger",
-    status_code=202,
+    status_code=HTTPStatus.ACCEPTED,
     response_model=JobTriggerResponse,
     responses=problem_responses(ProblemCode.JOB_NOT_REGISTERED),
 )

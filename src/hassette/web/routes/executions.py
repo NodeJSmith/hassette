@@ -27,19 +27,13 @@ EXECUTION_DETAIL_LIMIT_CAP = 5000
 """Upper bound a client may request via `/executions/{execution_id}`'s `limit` query parameter (each list)."""
 
 
-def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
-    """Return the Unix timestamp (seconds) embedded in a UUIDv7 string, or None if not v7.
+def extract_uuidv7_timestamp_s(parsed: uuid_utils.UUID) -> float | None:
+    """Return the Unix timestamp (seconds) embedded in a UUIDv7, or None if not v7.
 
-    UUIDv7 embeds a 48-bit Unix millisecond timestamp in the first 48 bits. Falls back
-    to None for non-UUIDv7 IDs (e.g. historical UUIDv4 IDs).
+    UUIDv7 embeds a 48-bit Unix millisecond timestamp in the first 48 bits. Returns
+    None for non-UUIDv7 IDs (e.g. historical UUIDv4 IDs).
     """
-    try:
-        parsed = uuid_utils.UUID(execution_id)
-    except (ValueError, AttributeError):
-        return None
-    if parsed.version != 7:
-        return None
-    return parsed.timestamp / 1000.0
+    return parsed.timestamp / 1000.0 if parsed.version == 7 else None
 
 
 async def check_retention_expired_uuid4(telemetry: "TelemetryQueryService", execution_id: str, cutoff: float) -> bool:
@@ -78,7 +72,7 @@ async def get_execution_detail(
     Returns 422 if the execution_id is not a valid UUID.
     """
     try:
-        uuid_utils.UUID(execution_id)
+        parsed = uuid_utils.UUID(execution_id)
     except ValueError as exc:
         raise WebApiError(
             ProblemCode.VALIDATION_FAILED, f"Invalid execution_id: {execution_id!r} is not a valid UUID"
@@ -91,7 +85,7 @@ async def get_execution_detail(
     retention_expired = False
     if not records:
         cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
-        ts_s = extract_uuidv7_timestamp_s(execution_id)
+        ts_s = extract_uuidv7_timestamp_s(parsed)
         if ts_s is not None:
             retention_expired = ts_s < cutoff
         else:
