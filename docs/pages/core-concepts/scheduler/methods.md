@@ -195,7 +195,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 ## Conditional execution with where
 
-`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`Job`][hassette.scheduler.classes.Job] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `Job` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time. A predicate with `*args` or positional-only parameters raises `DependencyInjectionError` at registration; use regular named parameters instead.
+`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`Job`][hassette.scheduler.classes.Job] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `Job` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time. A predicate with `*args` or positional-only parameters raises `DependencyInjectionError` at registration; use regular named parameters instead. A predicate whose annotations can't be resolved raises `TypeError` at registration; import every annotated name at runtime.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"

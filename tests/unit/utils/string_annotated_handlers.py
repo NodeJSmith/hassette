@@ -3,8 +3,6 @@
 `Payload` exists only in this module, so resolving it against any other module's globals fails.
 """
 
-from __future__ import annotations  # noqa: TID251 - string annotations are what these tests exercise
-
 import functools
 
 
@@ -12,16 +10,20 @@ class Payload:
     pass
 
 
-def handle(x: Payload) -> None:
+def handle(x: "Payload") -> None:
     pass
 
 
-def handle_two(prefix: str, x: Payload) -> None:
+def handle_two(prefix: str, x: "Payload") -> None:
     pass
+
+
+def handle_with_unresolvable_return(x: "Payload") -> "NotDefinedAnywhere":  # noqa: F821  # pyright: ignore[reportUndefinedVariable]
+    """Its return annotation resolves nowhere, on purpose."""
 
 
 class CallableHandler:
-    def __call__(self, x: Payload) -> None:
+    def __call__(self, x: "Payload") -> None:
         pass
 
 
