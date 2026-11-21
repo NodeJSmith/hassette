@@ -92,15 +92,12 @@ def call_source_at(filename: str, mtime: int | None, lineno: int) -> str | None:
 
     source, tree = cached
 
-    try:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and hasattr(node, "lineno") and node.lineno == lineno:
-                segment = ast.get_source_segment(source, node)
-                if segment is not None:
-                    return segment
-        return None
-    except Exception:
-        return None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and node.lineno == lineno:
+            segment = ast.get_source_segment(source, node)
+            if segment is not None:
+                return segment
+    return None
 
 
 def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> tuple[str, int]:
@@ -115,9 +112,7 @@ def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FR
     chosen = _walk_to_caller(frames_to_skip, limit)
     if chosen is None:
         return ("<unknown>", 0)
-    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
-    lineno: int = getattr(chosen, "lineno", 0) or 0
-    return (filename, lineno)
+    return (chosen.filename, chosen.lineno)
 
 
 def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> StackFrame | None:
@@ -128,16 +123,15 @@ def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFA
     chosen = _walk_to_caller(frames_to_skip, limit)
     if chosen is None:
         return None
-    f_globals = getattr(getattr(chosen, "frame", chosen), "f_globals", None)
     return StackFrame(
-        filename=getattr(chosen, "filename", "<unknown>") or "<unknown>",
-        lineno=getattr(chosen, "lineno", 0) or 0,
-        function=getattr(chosen, "function", "<unknown>") or "<unknown>",
-        module=f_globals.get("__name__") if isinstance(f_globals, dict) else None,
+        filename=chosen.filename,
+        lineno=chosen.lineno,
+        function=chosen.function,
+        module=chosen.frame.f_globals.get("__name__"),
     )
 
 
-def _walk_to_caller(frames_to_skip: int, limit: int | None) -> Any:
+def _walk_to_caller(frames_to_skip: int, limit: int | None) -> inspect.FrameInfo | None:
     """Return the first non-hassette ``FrameInfo`` above the public walker that called this.
 
     Only ``find_caller_frame`` and ``find_caller_stack_frame`` may call this, directly: the slice
@@ -152,7 +146,7 @@ def _walk_to_caller(frames_to_skip: int, limit: int | None) -> Any:
     return pick_caller_frame(raw_stack[_WALKER_FRAMES + frames_to_skip :], limit)
 
 
-def pick_caller_frame(frames: list[Any], limit: int | None) -> Any:
+def pick_caller_frame(frames: list[inspect.FrameInfo], limit: int | None) -> inspect.FrameInfo | None:
     """Return the first non-hassette ``FrameInfo`` in ``frames`` (already past any skipped frames).
 
     ``limit`` bounds the window AFTER the skip: applying it before would let internal frames
@@ -162,10 +156,7 @@ def pick_caller_frame(frames: list[Any], limit: int | None) -> Any:
     if limit is not None:
         frames = frames[:limit]
     for frame_info in frames:
-        # FrameInfo from inspect.stack() has a .frame attribute with f_globals.
-        # In tests we also pass SimpleNamespace objects directly — handle both.
-        raw_frame = getattr(frame_info, "frame", frame_info)
-        if not is_internal_frame(raw_frame):
+        if not is_internal_frame(frame_info.frame):
             return frame_info
     return frames[-1] if frames else None
 
@@ -202,7 +193,7 @@ def capture_registration_source(
     from an unchanged line cost one ``stat`` plus a cache lookup.
 
     This function never raises — ``find_caller_frame`` catches stack-walk
-    failures and ``find_call_source`` catches AST failures.  Any failure
+    failures and ``get_source_and_ast`` catches file read and parse failures.  Any failure
     results in ``registration_source=None`` while ``source_location`` is still
     returned from the best available frame.
 
