@@ -11,14 +11,13 @@ paths:
 Import from `hassette.web.dependencies` instead of defining locally:
 
 ```python
-from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, HassetteDep, ApiDep
+from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, HassetteDep
 ```
 
 - `RuntimeDep` — live system state (app status, events, WebSocket)
 - `TelemetryDep` — historical telemetry from the database (listeners, jobs, errors, summaries)
 - `SchedulerDep` — live scheduler registry access (`get_all_jobs()`, `mark_job_removed()`)
 - `HassetteDep` — the root Hassette instance (drop counters, ready event)
-- `ApiDep` — Home Assistant REST/WebSocket API
 
 ## Shared Route Parameters
 

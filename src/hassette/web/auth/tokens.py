@@ -12,6 +12,8 @@ from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
 
+from starlette.datastructures import State
+
 from hassette.config.models import WebApiConfig
 from hassette.exceptions import AuthTokenWriteError
 from hassette.utils.net_utils import format_host
@@ -172,3 +174,13 @@ def _write_token_atomic(token_path: Path, token: str) -> None:
         with suppress(OSError):
             tmp_path.unlink()
         raise AuthTokenWriteError(token_path, exc) from exc
+
+
+def get_auth_token(state: State) -> str | None:
+    """Return the resolved web API credential off ASGI app state, or ``None`` if unset.
+
+    Shared by :class:`~hassette.web.middleware.DefaultDenyMiddleware`, :func:`~hassette.web.auth.authorize_ws`, and
+    ``AuthDep`` (``web/dependencies.py``). ``app.state.auth_token`` is set by
+    :func:`hassette.web.app.create_fastapi_app`; an app built without one degrades to ``None`` rather than raising.
+    """
+    return getattr(state, "auth_token", None)

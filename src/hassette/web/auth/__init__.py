@@ -27,6 +27,7 @@ from hassette.web.auth.session import (
     extract_bearer_token,
     verify_session_cookie,
 )
+from hassette.web.auth.tokens import get_auth_token
 from hassette.web.auth.trusted_proxies import TrustedProxySet, get_trusted_proxies, is_trusted_peer, peer_address
 
 WS_POLICY_VIOLATION_CLOSE_CODE = 1008
@@ -153,7 +154,7 @@ def authorize_ws(websocket: WebSocket) -> bool:
     outcome = resolve_auth_outcome(
         websocket,
         get_trusted_proxies(websocket.app.state),
-        getattr(websocket.app.state, "auth_token", None),
+        get_auth_token(websocket.app.state),
         web_api_config.session_ttl,
     )
     return outcome.authenticated

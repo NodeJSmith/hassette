@@ -8,10 +8,10 @@ from hassette_wire import LogLevel, QueryAuthor, QuerySourceTier
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
 from hassette.types.types import APP_SOURCE_TIER, LOG_LEVELS
+from hassette.web.auth.tokens import get_auth_token
 
 if TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.api import Api
     from hassette.core.runtime_query_service import RuntimeQueryService
     from hassette.core.scheduler_service import SchedulerService
     from hassette.core.telemetry.query_service import TelemetryQueryService
@@ -63,31 +63,22 @@ def get_hassette(request: Request) -> "Hassette":
 
 def get_runtime(request: Request) -> "RuntimeQueryService":
     """Return the service that answers live runtime queries (status, apps, WebSocket clients)."""
-    return request.app.state.hassette.runtime_query_service
+    return get_hassette(request).runtime_query_service
 
 
 def get_telemetry(request: Request) -> "TelemetryQueryService":
     """Return the service that queries the persisted telemetry database."""
-    return request.app.state.hassette.telemetry_query_service
+    return get_hassette(request).telemetry_query_service
 
 
 def get_scheduler(request: Request) -> "SchedulerService":
     """Return the framework scheduler service, which owns every app's scheduled jobs."""
-    return request.app.state.hassette.scheduler_service
-
-
-def get_api(request: Request) -> "Api":
-    """Return the framework-level Home Assistant API client."""
-    return request.app.state.hassette.api
+    return get_hassette(request).scheduler_service
 
 
 def get_resolved_auth_token(request: Request) -> str | None:
-    """Return the resolved web API credential from app state, or ``None`` if unset.
-
-    Mirrors the guarded lookup used by ``DefaultDenyMiddleware`` and ``authorize_ws`` so an
-    app built without an ``auth_token`` argument degrades to ``None`` rather than raising.
-    """
-    return getattr(request.app.state, "auth_token", None)
+    """Return the resolved web API credential from app state, or ``None`` if unset."""
+    return get_auth_token(request.app.state)
 
 
 # Shared dependency type aliases — import these instead of re-defining locally.
@@ -95,7 +86,6 @@ HassetteDep = Annotated["Hassette", Depends(get_hassette)]
 RuntimeDep = Annotated["RuntimeQueryService", Depends(get_runtime)]
 TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]
 SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
-ApiDep = Annotated["Api", Depends(get_api)]
 AuthDep = Annotated[str | None, Depends(get_resolved_auth_token)]
 
 
