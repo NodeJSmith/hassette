@@ -92,7 +92,7 @@ class SimpleTestServer:
         if leftovers:
             errors.append(f"Expected requests not seen: {leftovers}")
 
-        assert not errors, f"MockHaApi assertions failed: {errors}"
+        assert not errors, f"SimpleTestServer assertions failed: {errors}"
 
     def reset(self) -> None:
         """Clear queued expectations and the unexpected-request log.

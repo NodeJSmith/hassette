@@ -61,7 +61,7 @@ AppType = TypeVar("AppType", bound=App)
 # Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
 # creating a new subclass per make_hermetic_config call, which would accumulate
 # permanently in __subclasses__() and Pydantic's internal model cache.
-# Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
+# Same closure-ref pattern as get_hermetic_hassette_config_cls in config.py (singleton variant).
 HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
@@ -414,13 +414,14 @@ class AppTestHarness(SimulationMixin, IntegrationSimulationMixin, TimeControlMix
         """Seed an entity's state in the StateProxy.
 
         Uses make_state_dict() internally with a past sentinel timestamp
-        (1970-01-01T00:00:00Z). Simulated events sent via ``simulate_state_change``
-        bypass ``StateProxy``'s staleness guard entirely (they use
-        ``harness.seed_state()``), so the epoch timestamp does not play a protective
-        ordering role — it simply marks seeded state as obviously synthetic.
+        (1970-01-01T00:00:00Z) for ``last_updated``. ``StateProxy`` only accepts a
+        state-change event whose ``last_updated`` is newer than the cached one, so the
+        epoch timestamp lets any later ``simulate_state_change`` for the same entity
+        replace the seeded state.
 
         Call ``set_state`` **before** ``simulate_state_change`` for the same entity.
-        Calling it afterward will overwrite the simulated state with the seeded value.
+        Seeding writes the cache directly, bypassing that newer-than check, so calling
+        ``set_state`` afterward overwrites the simulated state with the seeded value.
 
         This is for pre-test setup only and does NOT fire bus events.
 
