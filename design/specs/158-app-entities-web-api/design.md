@@ -1,7 +1,7 @@
 # Design: Serve declared entities and their commands over the web API
 
 **Date:** 2026-11-21
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4219
 **Parent:** design/specs/155-hacs-app-entities/design.md
@@ -353,7 +353,7 @@ holding against current code:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
