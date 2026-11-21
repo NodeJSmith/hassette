@@ -124,7 +124,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
             ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
             ValueError: If ``if_exists="skip"`` and a listener with the same ``(name, topic)``
@@ -199,7 +199,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
             removes the listener from routing.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered on this bus in the current session and ``if_exists="error"`` (the default).
         """
@@ -278,7 +278,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
             A subscription object. ``sub.listener.db_id`` is set immediately.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
         """
@@ -345,7 +345,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
             A subscription object. ``sub.listener.db_id`` is set immediately.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
         """

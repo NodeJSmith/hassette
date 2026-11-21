@@ -6,9 +6,9 @@ and cleanup. Use predicates and conditions to filter events precisely.
 
 Registration methods (``on_state_change``, ``on_attribute_change``, ``on_call_service``,
 ``on``, etc.) return a ``Coroutine`` and must be awaited. The ``name=`` parameter is required on
-every call — omitting it raises ``ListenerNameRequiredError`` synchronously at call time, before
-any handle is constructed. Registration completes inline: ``sub.listener.db_id`` is a valid
-integer immediately when the awaited call returns.
+every call — omitting it raises ``TypeError``; an empty string raises ``ListenerNameRequiredError``
+synchronously at call time, before any handle is constructed. Registration completes inline:
+``sub.listener.db_id`` is a valid integer immediately when the awaited call returns.
 
 Examples:
     Basic state change subscription
@@ -497,7 +497,7 @@ class Bus(Resource):
             ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
             ValueError: If ``if_exists="skip"`` and a listener with the same ``(name, topic)``
@@ -816,7 +816,7 @@ class Bus(Resource):
             removes the listener from routing.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered on this bus in the current session and ``if_exists="error"`` (the default).
         """
@@ -914,7 +914,7 @@ class Bus(Resource):
             A subscription object. ``sub.listener.db_id`` is set immediately.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
         """
@@ -1010,7 +1010,7 @@ class Bus(Resource):
             A subscription object. ``sub.listener.db_id`` is set immediately.
 
         Raises:
-            ListenerNameRequiredError: If ``name`` is not provided.
+            ListenerNameRequiredError: If ``name`` is an empty string.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
         """

@@ -68,7 +68,7 @@ Type conversion registries: `STATE_REGISTRY` (HA entity types → model classes)
 
 Rules that bite everywhere:
 
-- Bus registration methods are `async` and must be awaited. `name=` is required on every DB-registered listener (`ListenerNameRequiredError` otherwise); `wait_for` is the exception — its name is auto-generated.
+- Bus registration methods are `async` and must be awaited. `name=` is required on every DB-registered listener (omitting it raises `TypeError`; an empty string raises `ListenerNameRequiredError`); `wait_for` is the exception — its name is auto-generated.
 - Handlers get only the parameters their signature declares. Don't pad a handler with an unused `event: Event[Any]` just to match siblings.
 - One live `Hassette()` per process at a time. Process-global state assumes it; don't add concurrency guards for it.
 
