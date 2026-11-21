@@ -1,5 +1,7 @@
 """Health and status endpoints."""
 
+from http import HTTPStatus
+
 from fastapi import APIRouter, Response
 from hassette_wire import LivenessResponse, ReadinessResponse, SystemStatusResponse
 
@@ -22,10 +24,14 @@ async def get_live() -> LivenessResponse:
     return LivenessResponse(status="live")
 
 
-@router.get("/health/ready", response_model=ReadinessResponse, responses={503: {"model": ReadinessResponse}})
+@router.get(
+    "/health/ready",
+    response_model=ReadinessResponse,
+    responses={HTTPStatus.SERVICE_UNAVAILABLE: {"model": ReadinessResponse}},
+)
 async def get_ready(runtime: RuntimeDep, response: Response) -> ReadinessResponse:
     """Return readiness status. 200 only when aggregate status is 'ok', else 503."""
     result = readiness_response_from(runtime.get_system_status())
     if not result.ready:
-        response.status_code = 503
+        response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
     return result
