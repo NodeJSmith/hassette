@@ -155,12 +155,27 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     """Return the callable's signature with string and forward-reference parameter annotations resolved.
 
-    Annotations are evaluated against the callable's module globals. The returned signature has no return annotation.
+    ``inspect.signature(eval_str=True)`` evaluates each string annotation against the globals of the function it was
+    read from, so ``functools.partial``, ``__wrapped__`` chains and callable instances resolve against the right
+    module. ``inspect`` does not evaluate the annotations of an explicit ``__signature__``, so any left as strings
+    are resolved in a second pass against ``call.__globals__`` (empty for a partial or callable instance).
 
     Raises:
-        TypeError: If an annotation cannot be resolved.
+        TypeError: If an annotation cannot be resolved. The return annotation is evaluated too, so it must resolve
+            even though the returned signature leaves it out.
+        ValueError: If ``inspect`` finds no signature for ``call`` (some builtins and C callables).
     """
-    signature = inspect.signature(call)
+    try:
+        signature = inspect.signature(call, eval_str=True)
+    except (ValueError, TypeError):
+        raise
+    except Exception as exc:
+        # eval_str runs eval() on each annotation string, so a bad one can raise anything (NameError, SyntaxError, ...).
+        raise TypeError(f"Could not resolve annotations of {call!r}: {exc}") from exc
+
+    # eval_str resolves top-level strings but not forward refs nested inside them (list["Payload"]), and never touches
+    # an explicit __signature__. Both are resolved here against call's own globals: exact for a plain function or
+    # bound method. A partial or callable instance has no __globals__, so nested refs on those stay unresolved.
     globalns = getattr(call, "__globals__", {})
     typed_params = [
         inspect.Parameter(
@@ -178,11 +193,14 @@ def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
 def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     """Resolve a string or ``ForwardRef`` annotation against the given globals.
 
+    Forward references nested in a generic (``list["Payload"]``) are resolved too, where the globals allow; a nested
+    name the globals lack is left in place.
+
     Returns:
         The resolved annotation, ``None`` for a ``None`` annotation, or the input unchanged if it is already a type.
 
     Raises:
-        TypeError: If the forward reference cannot be resolved.
+        TypeError: If a top-level forward reference cannot be resolved, or a nested one fails to evaluate.
     """
     if isinstance(annotation, str):
         annotation = ForwardRef(annotation)
@@ -194,6 +212,11 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
 
         if isinstance(annotation, ForwardRef):
             raise TypeError(f"Could not resolve ForwardRef annotation: {annotation}")
+    elif get_args(annotation):
+        try:
+            annotation, _ = try_eval_type(annotation, globalns, globalns)
+        except Exception as exc:
+            raise TypeError(f"Could not resolve annotation {annotation!r}: {exc}") from exc
 
     return annotation
 

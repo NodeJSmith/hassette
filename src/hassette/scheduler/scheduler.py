@@ -1239,7 +1239,7 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
     back to an empty invoker and is dispatched with zero arguments.
 
     Raises:
-        TypeError: If the predicate is async.
+        TypeError: If the predicate is async, or an annotation on it cannot be resolved.
         DependencyInjectionError: If the signature has ``*args`` or positional-only
             parameters.
     """
@@ -1248,7 +1248,7 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
 
     try:
         sig = get_typed_signature(predicate)
-    except (TypeError, ValueError):
+    except ValueError:
         return CallableInvoker(())
 
     plan = build_injection_plan(sig, _SCHEDULER_MATCHERS)

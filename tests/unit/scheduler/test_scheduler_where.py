@@ -138,6 +138,13 @@ class TestBuildPredicateInvoker:
             invoker = _build_predicate_invoker(pred)
             assert len(invoker.params) == 0
 
+    def test_unresolvable_annotation_raises_instead_of_dropping_injection(self) -> None:
+        def pred(_job: "NotDefinedAnywhere") -> bool:  # noqa: F821  # pyright: ignore[reportUndefinedVariable]
+            return True
+
+        with pytest.raises(TypeError, match="NotDefinedAnywhere"):
+            _build_predicate_invoker(pred)
+
     def test_lambda_empty_plan(self) -> None:
         invoker = _build_predicate_invoker(lambda: True)
         assert len(invoker.params) == 0

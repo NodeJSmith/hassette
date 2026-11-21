@@ -113,6 +113,8 @@ DI composes with `kwargs=` passed at registration. DI-annotated parameters resol
 
 Bus handlers do not support positional-only parameters (those before `/`) or `*args`, whether or not they use a `D.*` annotation. Registration raises `DependencyInjectionError` for either. Regular parameters and `**kwargs` are both valid. Every DI parameter requires a type annotation. Hassette uses the annotation to determine what to extract.
 
+String annotations, including those from `from __future__ import annotations`, resolve at registration against the module that defines the handler. This holds for handlers wrapped by a decorator, built with `functools.partial`, or written as callable objects. Every annotation must resolve then, including the return annotation. A name imported only under `TYPE_CHECKING` raises `TypeError` at registration, so import it at runtime instead.
+
 Not all `D.*` annotations work with every subscription method. [Subscription Methods](methods.md) lists the compatible annotations for each method.
 
 ## See Also
