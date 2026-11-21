@@ -8,7 +8,7 @@ from cyclopts import Parameter
 from hassette_wire import QueryAuthor
 
 from hassette.cli.formatters import now_epoch, parse_iso_epoch
-from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
+from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE, SECONDS_PER_WEEK
 
 _RELATIVE_EXAMPLES = "1h, 7d, 30m, 2w, 30s"
 
@@ -24,7 +24,7 @@ _RELATIVE_MULTIPLIERS: dict[str, int] = {
     "m": SECONDS_PER_MINUTE,
     "h": SECONDS_PER_HOUR,
     "d": SECONDS_PER_DAY,
-    "w": 7 * SECONDS_PER_DAY,
+    "w": SECONDS_PER_WEEK,
 }
 
 _ISO_WITH_OFFSET_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$")

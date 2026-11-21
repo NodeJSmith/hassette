@@ -32,6 +32,9 @@ from hassette.web.auth.tokens import web_api_token_path
 ALLOWED_SCHEMES = ("http", "https")
 """URL schemes an explicit ``server_url`` may use."""
 
+API_PATH_SUFFIX = "/api"
+"""Path suffix a ``server_url`` must not carry, since every command path already starts with it."""
+
 SERVER_SCOPE_QUALIFIER = "this machine's instance"
 """What a ``scope="server"`` source's qualifier has to say beyond naming the setting.
 
@@ -178,8 +181,8 @@ def _resolve_explicit_target(raw_url: str, *, verify_ssl: bool) -> ServerTarget:
 
     stripped_path = yurl.path.rstrip("/")
 
-    if stripped_path.endswith("/api"):
-        corrected_path = stripped_path[: -len("/api")]
+    if stripped_path.endswith(API_PATH_SUFFIX):
+        corrected_path = stripped_path.removesuffix(API_PATH_SUFFIX)
         corrected = str(_normalize(yurl, corrected_path))
         raise ServerUrlApiSuffixError(
             "server_url must not end in '/api' — command paths already start with /api "
