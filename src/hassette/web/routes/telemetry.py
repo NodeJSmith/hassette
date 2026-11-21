@@ -59,10 +59,10 @@ from hassette.web.dependencies import (
     TelemetryFiltersDep,
 )
 from hassette.web.errors import problem_responses
-from hassette.web.mappers import app_summary_from, listener_summary_from
+from hassette.web.mappers import app_summary_from
 from hassette.web.routes.apps import app_not_found
 from hassette.web.telemetry_helpers import build_app_health
-from hassette.web.utils import enrich_jobs_with_live_data
+from hassette.web.utils import enrich_jobs_with_live_data, listener_summaries
 
 LOGGER = getLogger(__name__)
 
@@ -157,9 +157,7 @@ async def app_listeners(
     filters: TelemetryFiltersDep,
 ) -> list[ListenerSummary]:
     """Listener metrics with human-readable handler summaries."""
-    listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs())
-    live_counts = hassette.bus_service.live_execution_counts()
-    return [listener_summary_from(row, live_counts) for row in listeners]
+    return await listener_summaries(telemetry, hassette, app_key, filters)
 
 
 @router.get(
