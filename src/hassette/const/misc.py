@@ -13,6 +13,9 @@ SECONDS_PER_HOUR = 3600
 SECONDS_PER_MINUTE = 60
 """Number of seconds in a minute."""
 
+SECONDS_PER_WEEK = 7 * SECONDS_PER_DAY
+"""Number of seconds in a week."""
+
 
 class FalseySentinel(enum.Enum):
     """Sentinel values that are falsey in boolean contexts.

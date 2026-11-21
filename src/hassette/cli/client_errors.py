@@ -17,6 +17,7 @@ from rich.markup import escape
 import hassette.cli.output as cli_output
 from hassette.cli.target import (
     CLI_AUTH_TOKEN_ENV,
+    SERVER_SCOPE_QUALIFIER,
     SOURCE_CLI_TOKEN_FILE,
     SOURCE_TOKEN_FILE_FLAG,
     credential_source_names,
@@ -131,7 +132,7 @@ class ErrorContext:
             # the resolver withheld it because it belongs to a different port.
             return (
                 "no credential was attached — server-scoped sources "
-                f"({credential_source_names(scope='server')}) describe this machine's instance and "
+                f"({credential_source_names(scope='server')}) describe {SERVER_SCOPE_QUALIFIER} and "
                 "are sent only to a loopback target on web_api.port, which this target's port does "
                 f"not match. Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
             )
@@ -140,7 +141,7 @@ class ErrorContext:
         # credential) and the other is remote (reconfigure the instance being queried).
         return (
             "no credential was attached to this remote request — server-scoped sources "
-            f"({credential_source_names(scope='server')}) describe this machine's instance "
+            f"({credential_source_names(scope='server')}) describe {SERVER_SCOPE_QUALIFIER} "
             f"and are never sent to a remote target. Attach one locally with {CLI_AUTH_REMEDIES} — or, "
             "if this target sits behind a forward-auth proxy, configure trusted_proxies on the "
             "remote instance, which requires access to that host and a restart. "

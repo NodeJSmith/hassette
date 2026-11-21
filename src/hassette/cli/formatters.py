@@ -130,9 +130,7 @@ def fmt_duration_ms(ms: float) -> str:
 @numeric_formatter
 def fmt_duration_s(num: float) -> str:
     """Convert a duration in seconds to a human-readable string."""
-    if abs(num) < 1:
-        return f"{num * MS_PER_SECOND:.0f}ms"
-    return f"{num:.1f}s"
+    return fmt_duration_ms(num * MS_PER_SECOND)
 
 
 def fmt_log_author(value: Any) -> str:
