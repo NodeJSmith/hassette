@@ -13,15 +13,15 @@ Four areas change: configuration, app structure, event handlers, and API calls. 
 | Listen for state changes | `self.listen_state(self.cb, "light.x", new="on")` | `await self.bus.on_state_change("light.x", handler=self.cb, changed_to="on", name="...")` | [Bus & Events](bus.md) |
 | Listen for service calls | `self.listen_event(self.cb, "call_service", domain="light")` | `await self.bus.on_call_service(domain="light", handler=self.cb, name="...")` | [Bus & Events](bus.md) |
 | Cancel a listener | `self.cancel_listen_state(handle)` | `subscription.cancel()` | [Bus & Events](bus.md) |
-| Schedule a timer | `self.run_in(self.cb, 60)` | `await self.scheduler.run_in(self.cb, delay=60)` | [Scheduler](scheduler.md) |
+| Schedule a timer | `self.run_in(self.cb, 60)` | `await self.scheduler.run_in(self.cb, delay=60, name="...")` | [Scheduler](scheduler.md) |
 | Cancel a timer | `self.cancel_timer(handle)` | `job.remove()` | [Scheduler](scheduler.md) |
-| Run daily at 07:30 | `self.run_daily(self.cb, time(7, 30, 0))` | `await self.scheduler.run_daily(self.cb, at="07:30")` | [Scheduler](scheduler.md) |
+| Run daily at 07:30 | `self.run_daily(self.cb, time(7, 30, 0))` | `await self.scheduler.run_daily(self.cb, at="07:30", name="...")` | [Scheduler](scheduler.md) |
 | Call a HA service | `self.call_service("light/turn_on", entity_id="light.x")` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.x"})` | [API Calls](api.md) |
 | Get entity state | `self.get_state("light.x")` | `self.states.light.get("light.x")` or `await self.api.get_state("light.x")` | [API Calls](api.md) |
 | Access app config | `self.args["entity"]` | `self.app_config.entity` | [Configuration](configuration.md) |
 | Logging | `self.log("message")` | `self.logger.info("message")` | [Mental Model](concepts.md) |
 
-`name=` in the bus rows above is **required** — it identifies the listener in logs and the monitoring UI. Use a descriptive string like `"kitchen_motion"`. Omitting it raises `TypeError`; an empty name raises `ListenerNameRequiredError`. AppDaemon has no equivalent.
+`name=` in the bus and scheduler rows above is **required** — it identifies the listener or job in logs and the monitoring UI. Use a descriptive string like `"kitchen_motion"`. Omitting it raises `TypeError`; an empty bus listener name raises `ListenerNameRequiredError`. AppDaemon has no equivalent.
 
 All Hassette bus, scheduler, and API calls are `async` and need `await`. In AppDaemon, `self.listen_state` registers immediately. In Hassette, forgetting `await` means nothing registers. The call raises no error, and the only signal is a `HassetteForgottenAwaitWarning` in the logs (see [Troubleshooting](../troubleshooting.md#forgotten-await)).
 
