@@ -328,11 +328,7 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     app stop or reload. Your supervisor's stop grace period must exceed this."""
 
     sync_executor_max_workers: int = Field(default_factory=lambda: min(32, (os.cpu_count() or 1) + 4), ge=1)
-    """Pool ceiling for the dedicated sync-handler thread pool executor.
-    Sized to match the prior implicit default-pool ceiling (min(32, cpu+4)). This is a
-    reasonable starting ceiling, NOT a literal behavior-equivalence guarantee: the old
-    shared pool also served logging and DB work, so a same-size dedicated pool gives sync
-    handlers more effective headroom in practice."""
+    """Maximum threads in the dedicated pool that runs sync handlers. Defaults to min(32, CPU count + 4)."""
 
     sync_executor_saturation_warn_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     """Fraction of the sync-handler thread pool that must be occupied before Hassette logs a

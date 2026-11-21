@@ -1,6 +1,6 @@
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable
 from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
@@ -57,22 +57,17 @@ def is_addon_runtime() -> bool:
     return os.environ.get("HASSETTE_DOCKER_RUNTIME") == "addon"
 
 
-def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | set[Path] | None) -> set[Path]:
+def filter_paths_to_unique_existing(paths: Iterable[Path]) -> set[Path]:
     """Resolve the provided paths and keep only the unique ones that exist.
 
     Args:
-        value: A single path, a sequence or set of paths, or None. Each path may be a ``str`` or ``Path``;
-            ``None`` and empty entries are skipped.
+        paths: The paths to resolve and filter.
 
     Returns:
         The resolved paths that exist. Missing paths are dropped silently.
     """
-    value = [value] if isinstance(value, str | Path | None) else value
-
-    paths = {Path(v).resolve() for v in value if v}
-    paths = {p for p in paths if p.exists()}
-
-    return paths
+    resolved = {p.resolve() for p in paths}
+    return {p for p in resolved if p.exists()}
 
 
 def get_log_level() -> LogLevel:
