@@ -8,9 +8,14 @@ removes the ``web → core`` import cycle.
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from hassette_wire import AppStatus, NeedsRestart, ResourceStatus
 from whenever import ZonedDateTime
+
+if TYPE_CHECKING:
+    # hassette.integration imports config, which imports app, which imports the events that import this module.
+    from hassette.integration.declarations import Declaration, EntityState
 
 APP_STATUS_KEYS = tuple(AppStatus)
 
@@ -39,6 +44,14 @@ class NeedsRestartInfo:
 
 
 @dataclass(frozen=True)
+class DeclaredEntityInfo:
+    """One entity an app instance declares through ``self.integration``, with its committed state."""
+
+    declaration: "Declaration"
+    state: "EntityState"
+
+
+@dataclass(frozen=True)
 class AppInstanceInfo:
     """Snapshot of a single app instance for status queries."""
 
@@ -63,6 +76,9 @@ class AppInstanceInfo:
     debug_capture: bool = False
     """Whether debug capture is on for this instance (spec 148). Held for a stopped instance too, whose levels
     apply when it starts."""
+    entities: tuple[DeclaredEntityInfo, ...] | None = None
+    """The instance's declared entities in key order, attached only for the app list (spec 158 D5); ``None``
+    everywhere else, meaning not included."""
 
 
 @dataclass(frozen=True)
@@ -188,3 +204,15 @@ __all__ = [
     "is_failed_info",
     "tally_app_statuses",
 ]
+
+
+@dataclass(frozen=True)
+class AppListingSnapshot:
+    """The app list's manifests with each instance's declared entities, and the revision they were read at.
+
+    Built in one synchronous step, so ``revision`` covers every entity it carries (spec 158 D4).
+    """
+
+    manifests: tuple[AppManifestInfo, ...]
+    boot_id: str
+    revision: int

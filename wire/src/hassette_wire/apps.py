@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
-from hassette_wire.literals import OpenAppAction, OpenInstanceResult
+from hassette_wire.literals import OpenAcceptedStatus, OpenAppAction, OpenInstanceResult, OpenIntegrationPlatform
 
 
 class NeedsRestart(BaseModel):
@@ -23,6 +23,39 @@ class NeedsRestart(BaseModel):
     force-terminated, or its shutdown raised); ``reason`` says which."""
     flagged_at: float
     """When the instance was flagged, in epoch seconds. The first flag stands until restart."""
+
+
+class DeclaredEntity(BaseModel):
+    """A Home Assistant button, switch or sensor an app instance declares through ``self.integration``.
+
+    Nested in ``AppInstance.entities`` on ``GET /api/apps``. Every platform shares one flat shape so a client
+    that meets a platform it doesn't know can skip that entity and keep the rest: ``unit``, ``device_class``,
+    ``state_class`` and ``options`` are set for a sensor only.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    key: str
+    """The entity's key: lowercase letters, digits and ``_``, unique within its instance."""
+    platform: OpenIntegrationPlatform
+    """``button``, ``switch`` or ``sensor``."""
+    name: str
+    """The entity's display name."""
+    default_entity_id: str | None = None
+    """The entity id the app suggests, applied only when the entity is first created in Home Assistant."""
+    unit: str | None = None
+    """A sensor's unit of measurement."""
+    device_class: str | None = None
+    """A sensor's Home Assistant device class."""
+    state_class: str | None = None
+    """A sensor's Home Assistant state class."""
+    options: list[str] | None = None
+    """An enum sensor's allowed values."""
+    value: int | float | str | bool | None = None
+    """A switch's on/off state or a sensor's value; ``None`` for a button and for a sensor that is unknown. A
+    timestamp sensor's value is an ISO 8601 string with offset, a date sensor's an ISO 8601 date."""
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    """The state attributes the app last set with the value."""
 
 
 class AppInstance(BaseModel):
@@ -54,6 +87,11 @@ class AppInstance(BaseModel):
     is stored. Set by ``PUT /api/apps/{app_key}/debug``; it ends when turned off or when hassette restarts. Held for a
     stopped instance too, whose levels apply when it starts. Fresh only when read: no WebSocket event reports a
     change, so a client caching app state refetches ``GET /api/apps`` to see it."""
+    entities: list[DeclaredEntity] | None = None
+    """The Home Assistant entities the instance declares, in key order, with their last committed state. Filled
+    only by ``GET /api/apps`` (``[]`` for an instance that declares nothing); ``None`` on every other response,
+    meaning not included rather than none. A stopped instance keeps its last declared entities, which are usable
+    only while ``status`` is ``running``."""
 
 
 class AppSummary(BaseModel):
@@ -96,12 +134,25 @@ class AppSummary(BaseModel):
 
 
 class AppListResponse(BaseModel):
-    """Response for ``GET /api/apps``: every app with status counts."""
+    """Response for ``GET /api/apps``: every app with status counts.
+
+    ``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other
+    listings and WebSocket entity messages.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     total: int
     status_counts: dict[OpenAppStatus, int] = Field(default_factory=dict)
     apps: list[AppSummary]
     only_apps: list[str] = Field(default_factory=list)
+    boot_id: str
+    """Identifies this run of hassette; it changes on every restart. ``revision`` values are comparable only
+    between responses carrying the same ``boot_id``: on a new one, discard every revision seen before."""
+    revision: int
+    """Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration
+    commit and entity state change, skipping values. The listing reflects every change up to this revision, so a
+    client may apply it to an instance whose last applied revision is equal or older."""
 
 
 class InstanceOutcome(BaseModel):
@@ -204,3 +255,19 @@ class DebugCaptureResponse(BaseModel):
     instance_name: str | None
     instances: list[InstanceDebugCapture]
     """Each targeted instance, configured instances in config order first."""
+
+
+class EntityCommandResponse(BaseModel):
+    """Response (202) for a button press or switch turn-on/off sent to an app instance's declared entity.
+
+    ``status`` is ``"accepted"`` once the command event was published to the instance's handler. That is not
+    proof the handler ran: its execution mode may drop the command, which shows only in the handler's telemetry.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    status: OpenAcceptedStatus = "accepted"
+    app_key: str
+    instance_name: str
+    key: str
+    platform: OpenIntegrationPlatform
