@@ -37,6 +37,7 @@ from hassette.web.auth.session import (
     should_renew_session_cookie,
     should_set_secure_cookie_flag,
 )
+from hassette.web.auth.tokens import get_auth_token
 from hassette.web.auth.trusted_proxies import (
     TrustedProxySet,
     get_trusted_proxies,
@@ -220,16 +221,6 @@ def _unauthorized_response() -> JSONResponse:
     return problem_response(ProblemCode.NOT_AUTHENTICATED, "Not authenticated")
 
 
-def _source_key(request: Request) -> str:
-    """Identify the failed-auth counter's "source" for a request — the raw peer address.
-
-    Falls back to a fixed placeholder when the ASGI transport reports no client (e.g. some test
-    transports) so the tracker still has a stable key to coalesce against, rather than treating
-    every such request as a distinct source.
-    """
-    return peer_address_or_unknown(request)
-
-
 class DefaultDenyMiddleware(BaseHTTPMiddleware):
     """Default-deny gate for every route under :data:`GATED_PREFIX`.
 
@@ -274,12 +265,12 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
             return self._count_failed_auth(request, await call_next(request))
 
         trusted_proxies = get_trusted_proxies(request.app.state)
-        resolved_token = getattr(request.app.state, "auth_token", None)
+        resolved_token = get_auth_token(request.app.state)
 
         outcome = resolve_auth_outcome(request, trusted_proxies, resolved_token, web_api_config.session_ttl)
 
         if not outcome.authenticated:
-            self._failed_auth.record(_source_key(request))
+            self._failed_auth.record(peer_address_or_unknown(request))
             return _unauthorized_response()
 
         response = await call_next(request)
@@ -305,7 +296,7 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         issue a 401.
         """
         if response.status_code == 401:
-            self._failed_auth.record(_source_key(request))
+            self._failed_auth.record(peer_address_or_unknown(request))
         return response
 
 
