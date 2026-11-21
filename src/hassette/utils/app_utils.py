@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic.alias_generators import to_snake
 
-from hassette.app.utils import validate_app
+from hassette.app.utils import validate_init_method
 from hassette.config.classes import INSTANCE_NAME_MAX_LENGTH
 from hassette.exceptions import (
     AppPrecheckFailedError,
@@ -497,7 +497,7 @@ def load_app_class(
         raise FAILED_TO_LOAD_CLASSES[cache_key]
 
     try:
-        app_class.app_config_cls = validate_app(app_class)
+        validate_init_method(app_class)
     except Exception as exc:
         FAILED_TO_LOAD_CLASSES[cache_key] = exc
         raise
