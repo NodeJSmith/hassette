@@ -4060,7 +4060,7 @@
           "revision": {
             "type": "integer",
             "title": "Revision",
-            "description": "Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration\ncommit and entity state change, skipping values. The listing reflects every change up to this revision, so a\nclient may apply it to an instance whose last applied revision is equal or older."
+            "description": "Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration\ncommit and entity state change, skipping values. The listing reflects every declaration and value change up to\nthis revision, so a client may apply it to an instance whose last applied revision is equal or older. It doesn't\norder availability: starting or stopping an instance changes its ``status``, not ``revision``."
           }
         },
         "type": "object",
@@ -4071,7 +4071,7 @@
           "revision"
         ],
         "title": "AppListResponse",
-        "description": "Response for ``GET /api/apps``: every app with status counts.\n\n``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other\nlistings and WebSocket entity messages."
+        "description": "Response for ``GET /api/apps``: every app with status counts.\n\n``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other\nlistings. An instance's availability follows its ``status``, not ``revision``."
       },
       "AppSource": {
         "properties": {

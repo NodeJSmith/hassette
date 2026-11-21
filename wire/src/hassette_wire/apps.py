@@ -137,7 +137,7 @@ class AppListResponse(BaseModel):
     """Response for ``GET /api/apps``: every app with status counts.
 
     ``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other
-    listings and WebSocket entity messages.
+    listings. An instance's availability follows its ``status``, not ``revision``.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -151,8 +151,9 @@ class AppListResponse(BaseModel):
     between responses carrying the same ``boot_id``: on a new one, discard every revision seen before."""
     revision: int
     """Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration
-    commit and entity state change, skipping values. The listing reflects every change up to this revision, so a
-    client may apply it to an instance whose last applied revision is equal or older."""
+    commit and entity state change, skipping values. The listing reflects every declaration and value change up to
+    this revision, so a client may apply it to an instance whose last applied revision is equal or older. It doesn't
+    order availability: starting or stopping an instance changes its ``status``, not ``revision``."""
 
 
 class InstanceOutcome(BaseModel):

@@ -62,7 +62,8 @@ class ProblemCode(StrEnum):
     """409: the scheduled job has no live registration."""
 
     INSTANCE_NOT_RUNNING = "instance_not_running"
-    """409: the app instance exists but isn't running, so it takes no commands. May clear once it starts."""
+    """409: the app instance exists but isn't running, so it takes no commands. Clears only once it starts: a
+    disabled app, or one the ``--app`` filter excludes, won't start without a config or flag change."""
 
     ENTITY_NOT_DECLARED = "entity_not_declared"
     """409: the running instance declares no entity with this key on this platform. Lasts until its

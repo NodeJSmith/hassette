@@ -309,7 +309,8 @@ class JobNotRegisteredError(ConflictError):
 class InstanceNotRunningError(ConflictError):
     """409 ``instance_not_running``: the app instance exists but isn't running, so it took no command.
 
-    Worth retrying once the instance is running again, such as after a reload.
+    Worth retrying once the instance is running again, such as after a reload. A disabled app, or one the server's
+    ``--app`` filter excludes, won't start without a config or flag change: check the app's ``status``.
     """
 
 

@@ -374,11 +374,10 @@ class IntegrationService(Resource):
     ) -> CommandDispatchResult:
         """Log why a command was not dispatched, and return ``result``."""
         self.logger.warning(
-            "Rejected a %s command for '%s' of app instance '%s/%s': %s",
+            "Rejected a %s command for %r of app instance %r: %s",
             platform,
             key,
-            app_key,
-            instance_name,
+            f"{app_key}/{instance_name}",
             result,
             extra={"app_key": app_key, "instance_name": instance_name, "key": key, "reason": str(result)},
         )

@@ -4,7 +4,7 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable, Sequence
 from logging import getLogger
-from typing import Any
+from typing import Any, assert_never
 
 import tomli_w
 from fastapi import APIRouter, Request
@@ -675,16 +675,23 @@ async def send_entity_command(
     """
     _validate_app_key(app_key)
     result = await hassette.integration_service.dispatch_command(app_key, instance_name, key, platform, value)
-    if result is CommandDispatchResult.NOT_DECLARED:
-        raise WebApiError(
-            ProblemCode.ENTITY_NOT_DECLARED,
-            f"App instance '{app_key}/{instance_name}' declares no {platform} {key!r}",
-        )
-    if result is CommandDispatchResult.NOT_RUNNING:
-        not_found = command_target_not_found(app_key, instance_name, hassette)
-        if not_found is not None:
-            raise not_found
-        raise WebApiError(ProblemCode.INSTANCE_NOT_RUNNING, f"App instance '{app_key}/{instance_name}' isn't running")
+    match result:
+        case CommandDispatchResult.DISPATCHED:
+            pass
+        case CommandDispatchResult.NOT_DECLARED:
+            raise WebApiError(
+                ProblemCode.ENTITY_NOT_DECLARED,
+                f"App instance '{app_key}/{instance_name}' declares no {platform} {key!r}",
+            )
+        case CommandDispatchResult.NOT_RUNNING:
+            not_found = command_target_not_found(app_key, instance_name, hassette)
+            if not_found is not None:
+                raise not_found
+            raise WebApiError(
+                ProblemCode.INSTANCE_NOT_RUNNING, f"App instance '{app_key}/{instance_name}' isn't running"
+            )
+        case _:
+            assert_never(result)
     LOGGER.info(
         "Sent %s command to '%s' of app instance '%s/%s' (source=%s)",
         platform,

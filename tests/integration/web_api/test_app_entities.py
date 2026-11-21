@@ -1,6 +1,7 @@
 """Declared entities on ``GET /api/apps`` and their command routes (spec 158)."""
 
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx2 import AsyncClient
@@ -8,6 +9,7 @@ from whenever import Date, Instant
 
 from hassette.core.integration_service import CommittedEntity
 from hassette.integration.declarations import CommandDispatchResult, Declaration, EntityState, IntegrationPlatform
+from hassette.testing._harness_resources import HarnessIntegrationService
 from tests.integration.conftest import make_manifest_mock
 from tests.support.web_manifest_helpers import STUB_BOOT_ID
 from tests.support.web_mocks import wire_integration_service
@@ -262,3 +264,29 @@ class TestCommands:
 
         assert response.status_code == 409
         mock_hassette.app_handler.registry.get_manifest.assert_not_called()
+
+
+async def test_real_integration_service_drives_listing_and_commands(
+    client: AsyncClient, mock_hassette: MagicMock
+) -> None:
+    """The route and listing against a real ``IntegrationService``, not the stub: commit, list, press, stop, press."""
+    seed_grid_apps(mock_hassette, APP_KEY)
+    mock_hassette.send_event = AsyncMock()
+    service = HarnessIntegrationService(mock_hassette)
+    mock_hassette.integration_service = service
+    owner = SimpleNamespace(instance_key=(APP_KEY, INSTANCE), _closed=False)
+    await service.commit_job(owner, [BUTTON.declaration, SWITCH.declaration], {})  # pyright: ignore[reportArgumentType]
+
+    listing = await get_json(client, APPS_PATH)
+    pressed = await client.post(f"{INSTANCE_PATH}/buttons/doorbell/press")
+    service.release(owner)  # pyright: ignore[reportArgumentType]
+    refused = await client.post(f"{INSTANCE_PATH}/buttons/doorbell/press")
+    after_stop = await get_json(client, APPS_PATH)
+
+    assert (listing["boot_id"], listing["revision"]) == (service.boot_id, service.revision)
+    assert [e["key"] for e in listing["apps"][0]["instances"][0]["entities"]] == ["doorbell", "guest_mode"]
+    assert pressed.status_code == 202, pressed.text
+    mock_hassette.send_event.assert_awaited_once()
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "instance_not_running"
+    assert [e["key"] for e in after_stop["apps"][0]["instances"][0]["entities"]] == ["doorbell", "guest_mode"]
