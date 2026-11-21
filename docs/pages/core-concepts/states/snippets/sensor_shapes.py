@@ -1,21 +1,22 @@
+# --8<-- [start:imports]
 from hassette import App, AppConfig, D, states
+
+# --8<-- [end:imports]
 # --8<-- [start:lookup-imports]
 from hassette.exceptions import EntityNotInViewError
 
 # --8<-- [end:lookup-imports]
 
 
+# --8<-- [start:annotation]
 class SensorShapeApp(App[AppConfig]):
     async def on_initialize(self):
-        # --8<-- [start:subscribe]
         await self.bus.on_state_change(
             "sensor.outdoor_temperature",
             handler=self.on_temperature_change,
             name="outdoor_temperature",
         )
-        # --8<-- [end:subscribe]
 
-    # --8<-- [start:annotation]
     async def on_temperature_change(
         self, new: D.StateNew[states.NumericSensorState]
     ):
