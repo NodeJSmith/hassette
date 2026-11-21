@@ -249,9 +249,12 @@ def normalize_annotation(tp: Any, *, constructible: bool = True) -> Any:
 
     while True:
         alias_value = unwrap_type_alias(tp)
-        if alias_value is not tp:
+        # An alias still standing after unwrap_type_alias's expansion budget is cyclic; re-expanding it
+        # would restart that budget forever, so stop here.
+        if alias_value is not tp and not is_type_alias(alias_value) and not is_type_alias(get_origin(alias_value)):
             tp = unwrap_annotated(alias_value)
             continue
+        tp = alias_value
 
         origin = get_origin(tp)
         if origin is None:
