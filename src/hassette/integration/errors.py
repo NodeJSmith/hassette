@@ -1,7 +1,14 @@
 """Errors raised by ``self.integration`` and its handles."""
 
 from hassette.exceptions import HassetteError
-from hassette.integration.declarations import CommandDispatchResult
+
+from .declarations import CommandDispatchResult, IntegrationPlatform
+
+REJECTION_REASONS: dict[CommandDispatchResult, str] = {
+    CommandDispatchResult.NOT_RUNNING: "the instance isn't running (it hasn't started or has stopped)",
+    CommandDispatchResult.NOT_DECLARED: "the instance declared no such entity",
+}
+"""Why ``IntegrationCommandRejectedError`` was raised, keyed by each dispatch result that rejects a command."""
 
 
 class IntegrationDeclarationClosedError(HassetteError):
@@ -17,7 +24,7 @@ class IntegrationDeclarationClosedError(HassetteError):
 
     suggestion = "Declare every button, switch and sensor in on_initialize()."
 
-    def __init__(self, key: str, platform: str) -> None:
+    def __init__(self, key: str, platform: IntegrationPlatform) -> None:
         self.key = key
         self.platform = platform
         super().__init__(
@@ -40,7 +47,9 @@ class IntegrationHandleClosedError(HassetteError):
     def __init__(self, instance_name: str, key: str) -> None:
         self.instance_name = instance_name
         self.key = key
-        super().__init__(f"Cannot set {key!r}: app instance {instance_name!r} has stopped")
+        super().__init__(
+            f"Cannot use {key!r}: app instance {instance_name!r} has stopped or its declarations failed to commit"
+        )
 
 
 class IntegrationCommandRejectedError(HassetteError):
@@ -57,15 +66,15 @@ class IntegrationCommandRejectedError(HassetteError):
         platform: The platform the command targeted.
     """
 
-    def __init__(self, reason: CommandDispatchResult, instance_name: str, key: str, platform: str) -> None:
+    def __init__(
+        self, reason: CommandDispatchResult, instance_name: str, key: str, platform: IntegrationPlatform
+    ) -> None:
         self.reason = reason
         self.instance_name = instance_name
         self.key = key
         self.platform = platform
-        if reason is CommandDispatchResult.NOT_RUNNING:
-            why = "the instance isn't running (it hasn't started or has stopped)"
-        elif reason is CommandDispatchResult.NOT_DECLARED:
-            why = "the instance declared no such entity"
-        else:
-            raise ValueError(f"{reason} is not a rejection reason")
+        try:
+            why = REJECTION_REASONS[reason]
+        except KeyError:
+            raise ValueError(f"{reason} is not a rejection reason") from None
         super().__init__(f"Cannot send {platform} command {key!r} to app instance {instance_name!r}: {why}")
