@@ -64,7 +64,7 @@ See [`Scheduler`](scheduler.md) for method equivalents.
 
 - [ ] Convert `self.get_state(entity_id)` to domain access on the state cache for cached reads — `self.get_state("light.kitchen")` becomes `self.states.light.get("light.kitchen")`
 - [ ] Replace `self.call_service("domain/service", ...)` with `await self.api.call_service("domain", "service", ...)`
-- [ ] Add `await` to all `self.api.*` calls. Forgetting `await` means the call never runs — no error, just silence. If a service call appears to do nothing, check for a missing `await`.
+- [ ] Add `await` to all `self.api.*` calls. Forgetting `await` means the call never runs. The only signal is a `HassetteForgottenAwaitWarning` in the logs naming the call site. If a service call seems to do nothing, check the logs for that warning.
 - [ ] Replace `self.set_state(...)` with `await self.api.set_state(...)`
 - [ ] Replace `self.log(...)` with `self.logger.info(...)` (and `.warning()`, `.error()` as needed)
 
