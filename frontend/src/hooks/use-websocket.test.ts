@@ -34,9 +34,10 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 
 const DELTA_REVISION = 7;
 
-/** An `app_status_changed` envelope for `my_app:my_app_0` failing at `DELTA_REVISION`, with `data` overrides. */
-function appStatusChangedMessage(overrides: Record<string, unknown>) {
-  return {
+/** Connect the hook and deliver an `app_status_changed` for `my_app:my_app_0` failing at `DELTA_REVISION`. */
+function receiveAppStatusChanged(overrides: Record<string, unknown>): void {
+  const { ws } = renderConnectedWebSocketHook();
+  const message = {
     type: "app_status_changed",
     data: {
       app_key: "my_app",
@@ -54,6 +55,9 @@ function appStatusChangedMessage(overrides: Record<string, unknown>) {
     },
     timestamp: 1000,
   };
+  act(() => {
+    ws.simulateMessage(message);
+  });
 }
 
 vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue(["/", mockNavigate]) }));
@@ -507,22 +511,14 @@ describe("useWebSocket", () => {
   });
 
   it("maps app_status_changed needs_restart into appStatus state", () => {
-    const { ws } = renderConnectedWebSocketHook();
     const flag = { reason: "1 task still pending", pending_tasks: ["MyApp.poll"], flagged_at: 1000 };
-
-    act(() => {
-      ws.simulateMessage(appStatusChangedMessage({ previous_status: "stopping", needs_restart: flag }));
-    });
+    receiveAppStatusChanged({ previous_status: "stopping", needs_restart: flag });
 
     expect(useAppStore.getState().appStatus.instances["my_app:my_app_0"]?.needs_restart).toEqual(flag);
   });
 
   it("writes an app_status_changed delta to both the instance entry and the app rollup", () => {
-    const { ws } = renderConnectedWebSocketHook();
-
-    act(() => {
-      ws.simulateMessage(appStatusChangedMessage({ app_status: "degraded", exception: "boom" }));
-    });
+    receiveAppStatusChanged({ app_status: "degraded", exception: "boom" });
 
     const { appStatus } = useAppStore.getState();
     expect(appStatus.instances["my_app:my_app_0"]).toMatchObject({
