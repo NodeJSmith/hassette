@@ -28,6 +28,9 @@ FALSE_STRINGS = frozenset({"off", "false", "no", "0"})
 
 LOGGER = getLogger(__name__)
 
+DEFAULT_ERROR_TYPES: tuple[type[BaseException], ...] = (ValueError,)
+"""Exceptions a registered converter raises to signal an unconvertible value, unless it names its own."""
+
 DATACLASS_ADAPTER_CACHE_SIZE = 128
 """Dataclass types whose validation adapters stay cached; far more than the dataclasses apps annotate."""
 
@@ -71,7 +74,7 @@ class TypeConverterEntry(Generic[T, R]):
     func: Callable[[T], R]
     from_type: type[T]
     to_type: type[R]
-    error_types: tuple[type[BaseException], ...] = (ValueError,)
+    error_types: tuple[type[BaseException], ...] = DEFAULT_ERROR_TYPES
     error_message: str | None = None
 
 
@@ -81,7 +84,10 @@ def register_type_converter_fn(fn: Callable[[T], R]) -> Callable[[T], R]: ...
 
 @overload
 def register_type_converter_fn(
-    fn: None = None, *, error_message: str | None = None, error_types: tuple[type[BaseException], ...] = (ValueError,)
+    fn: None = None,
+    *,
+    error_message: str | None = None,
+    error_types: tuple[type[BaseException], ...] = DEFAULT_ERROR_TYPES,
 ) -> Callable[[Callable[[T], R]], Callable[[T], R]]: ...
 
 
@@ -89,7 +95,7 @@ def register_type_converter_fn(
     fn: Callable[[T], R] | None = None,
     *,
     error_message: str | None = None,
-    error_types: tuple[type[BaseException], ...] = (ValueError,),
+    error_types: tuple[type[BaseException], ...] = DEFAULT_ERROR_TYPES,
 ) -> Callable[[T], R] | Callable[[Callable[[T], R]], Callable[[T], R]]:
     """Register a type conversion function with the TypeRegistry.
 
@@ -128,7 +134,7 @@ def register_simple_type_converter(
     to_type: type[R],
     fn: Callable[[T], R] | None = None,
     error_message: str | None = None,
-    error_types: tuple[type[BaseException], ...] = (ValueError,),
+    error_types: tuple[type[BaseException], ...] = DEFAULT_ERROR_TYPES,
 ):
     """Register a simple type conversion function from a non-user defined function, such as a constructor.
 
@@ -242,24 +248,24 @@ class TypeRegistry:
             )
             return new_value
 
-        fn = self.conversion_map[key]
+        entry = self.conversion_map[key]
 
         try:
-            new_value = fn.func(value)
+            new_value = entry.func(value)
             LOGGER.debug(
                 "Converted %r (%s) to %r (%s) using registered converter %s",
                 value,
                 type(value).__name__,
                 new_value,
                 to_type.__name__,
-                fn.func.__name__,
+                entry.func.__name__,
             )
             return new_value
-        except fn.error_types as exc:
+        except entry.error_types as exc:
             # Only a user-supplied template is formatted: the default message embeds the raw value,
             # which may itself contain braces.
-            if fn.error_message:
-                err_msg = fn.error_message
+            if entry.error_message:
+                err_msg = entry.error_message
                 if get_format_fields(err_msg):
                     err_msg = err_msg.format(value=value, from_type=from_type, to_type=to_type)
             else:
@@ -271,7 +277,7 @@ class TypeRegistry:
         except Exception as exc:
             raise RuntimeError(f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}") from exc
 
-    def list_conversions(self) -> list[tuple[type, type, TypeConverterEntry]]:
+    def list_conversions(self) -> list[tuple[type, type, TypeConverterEntry[Any, Any]]]:
         """List all registered type conversions.
 
         Returns a sorted list of all registered type conversions with their metadata.

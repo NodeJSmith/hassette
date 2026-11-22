@@ -90,7 +90,7 @@ class AnnotationConverter:
         raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}")
 
 
-def register_container_converter(*origins: Any):
+def register_container_converter(*origins: Any) -> Callable[[ContainerConvertFn], ContainerConvertFn]:
     """Build a decorator that registers a converter function for the given container origins.
 
     Args:
@@ -109,7 +109,7 @@ def register_container_converter(*origins: Any):
 
 
 @register_container_converter(list, set, frozenset)
-def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_homogeneous_iterable(converter: AnnotationConverter, value: Any, tp: Any) -> Any:
     """Convert a value into a ``list``, ``set``, or ``frozenset``, converting each element to the element type.
 
     Returns:
@@ -144,7 +144,7 @@ def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, t
 
 
 @register_container_converter(dict)
-def convert_dict(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_dict(converter: AnnotationConverter, value: Any, tp: Any) -> Any:
     """Convert a value into a ``dict``, converting each key and value to the annotated key and value types.
 
     Returns:
@@ -163,7 +163,7 @@ def convert_dict(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
 
 
 @register_container_converter(tuple)
-def convert_tuple(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_tuple(converter: AnnotationConverter, value: Any, tp: Any) -> Any:
     """Convert a value into a ``tuple``, converting each element per the annotation's positional or variadic types.
 
     A bare ``tuple`` annotation returns the coerced tuple unchanged. A single-argument ``tuple[T]`` with
@@ -200,7 +200,7 @@ def convert_tuple(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
 
 
 @register_container_converter(TypedStateChangeEvent)
-def convert_typed_state_change_event(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_typed_state_change_event(converter: AnnotationConverter, value: Any, tp: Any) -> Any:
     """Convert a ``RawStateChangeEvent`` into a ``TypedStateChangeEvent`` with typed old and new states.
 
     Returns:
