@@ -173,12 +173,13 @@ class TypeRegistry:
             LOGGER.warning("Overwriting existing conversion from %s to %s", from_type.__name__, to_type.__name__)
         cls.conversion_map[key] = type_converter
 
-    def convert(self, value: Any, to_type: type[Any] | tuple[type[Any], ...]) -> Any:
+    def convert(self, value: Any, to_type: type[Any] | tuple[type[Any], ...] | Any) -> Any:
         """Convert a raw value to a target Python type.
 
         Args:
             value: The raw value to convert.
-            to_type: The target Python type.
+            to_type: The target Python type, a tuple of types to try in order, or `typing.Any` to return the value
+                unchanged.
 
         Returns:
             The converted value.
@@ -197,11 +198,11 @@ class TypeRegistry:
 
         # handle single type
 
+        if to_type is Any:
+            return value
+
         from_type = type(value)
         key = (from_type, to_type)
-
-        if to_type is type(Any):
-            return value
 
         if to_type is from_type:
             return value
