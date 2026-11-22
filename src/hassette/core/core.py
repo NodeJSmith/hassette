@@ -185,7 +185,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
         if self.config.timezone:
             self.logger.info("Using configured timezone: %s", self.config.timezone)
 
-        # set context variables
         context.set_global_hassette(self)
         context.set_global_hassette_config(self.config)
 
@@ -219,11 +218,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self._telemetry_query_service = self.add_child(TelemetryQueryService)
         self._web_api_service = self.add_child(WebApiService)
 
-        # internal instances
         self._bus = self.add_child(Bus)
         self._scheduler = self.add_child(Scheduler)
 
-        # public instances
         self._states = self.add_child(StateManager)
         self._api = self.add_child(Api)
         self._state_registry = STATE_REGISTRY
@@ -316,6 +313,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         """Start Hassette and run until shutdown signal is received."""
         if not self._init_waves:
             raise RuntimeError("call wire_services() before run_forever()")
+        executor = self.command_executor
         self._loop = asyncio.get_running_loop()
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.asyncio_debug_mode)
@@ -328,15 +326,14 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
         # Install Tier 1 loop-responsiveness watchdog after the loop thread id is captured.
-        # Gated on watchdog_enabled (default True); executor is required for marker attribution.
-        if self.config.blocking_io.watchdog_enabled and self._command_executor is not None:
-            _executor = self._command_executor
+        # Gated on watchdog_enabled (default True); the executor provides marker attribution.
+        if self.config.blocking_io.watchdog_enabled:
             _loop = self._loop
             self._loop_watchdog = LoopWatchdog(
                 self,
                 loop=_loop,
                 loop_thread_id=self._loop_thread_id,
-                executor=_executor,
+                executor=executor,
                 # The watchdog daemon thread calls on_stall from off-loop; marshal onto the
                 # loop thread via call_soon_threadsafe so record_blocking_event always runs
                 # on the loop thread (a persistence-layer threading invariant). Gate on is_running(): a loop
@@ -347,20 +344,18 @@ class Hassette(HassetteAccessorsMixin, Resource):
                 # merely STOPS, the callback is enqueued but never runs — one blocking_events
                 # row is silently dropped, which is acceptable for fire-and-forget telemetry.
                 on_stall=lambda ev: (
-                    _loop.call_soon_threadsafe(_executor.record_blocking_event, ev) if _loop.is_running() else None
+                    _loop.call_soon_threadsafe(executor.record_blocking_event, ev) if _loop.is_running() else None
                 ),
             )
             self._loop_watchdog.start()
 
         # Install Tier 2 call-site interception (monkeypatch). The dev/prod enablement decision
-        # lives inside install_block_io_guard (see _should_install). install() no-ops
-        # when disabled, so the only gate here is that an executor exists for marker attribution.
-        if self._command_executor is not None:
-            install_block_io_guard(
-                self,
-                loop_thread_id=self._loop_thread_id,
-                executor=self._command_executor,
-            )
+        # lives inside install_block_io_guard (see _should_install); install() no-ops when disabled.
+        install_block_io_guard(
+            self,
+            loop_thread_id=self._loop_thread_id,
+            executor=executor,
+        )
 
         # on_initialize() runs AFTER the watchdog + Tier 2 guard are installed but BEFORE the
         # managed startup below. A raise here would otherwise skip before_shutdown(), leaking the
