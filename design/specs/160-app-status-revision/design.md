@@ -1,7 +1,7 @@
 # Design: Server-owned app status rollup and `status_revision` ordering
 
 **Date:** 2026-11-22
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4147
 **Prior art:** design/research/2026-11-22-app-status-ordering/research.md
@@ -28,7 +28,7 @@ The change:
 
 Homes of new state and behavior:
 
-- **Counter and rollup function:** `AppRegistry` (`_status_revision`, and one `app_status(app_key)` rollup extracted from `build_manifest_info`). It is the single rollup used by the write-time `StatusChange` and by every `overlay_runtime_state` branch, including the no-manifest case: STOPPED, or FAILED while a flagged entry remains, as `build_orphaned_flag_info` decides today (`src/hassette/core/app_registry.py:551-621`). The existing `set_status` DEBUG line gains the revision, and `publish_app_status` logs at DEBUG with the revision and client count. Its agreement with the delta is specified in D2.
+- **Counter and rollup function:** `AppRegistry` (`_status_revision`, and one `app_status(app_key)` rollup extracted from `build_manifest_info`). It is the single rollup used by the write-time `StatusChange` and by every `overlay_runtime_state` branch, including the no-manifest case, where only the DISABLED and BLOCKED checks are skipped, so a removed app reads STOPPING while its instances shut down and FAILED or DEGRADED while a flagged entry remains. The existing `set_status` DEBUG line gains the revision, and `publish_app_status` logs at DEBUG with the revision and client count. Its agreement with the delta is specified in D2.
 - **Per-change revision and rollup:** `StatusChange`.
 - **Snapshot field:** `AppManifestInfo.status_revision` (`src/hassette/schemas/app_snapshots.py`), mapped to `AppSummary.status_revision` (`wire/src/hassette_wire/apps.py`) by `app_summary_from` (`src/hassette/web/mappers.py`).
 - **Delta fields:** `AppStatusChangedData` (`wire/src/hassette_wire/ws.py`).
@@ -222,7 +222,7 @@ Full order under A: DISABLED > BLOCKED > DEGRADED (failed + any live) > FAILED (
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `AppRegistry.app_status` takes an optional `manifest` (defaulting to the loaded one), like `resolve_instance_infos`: `build_manifest_info` is handed a manifest, and the rollup must use the same one.
@@ -233,4 +233,6 @@ Full order under A: DISABLED > BLOCKED > DEGRADED (failed + any live) > FAILED (
 - The frontend keeps both delta maps in one store field, `appStatus: LiveAppStatus = {instances, apps}`, so they are written and cleared together; every helper takes the row (`app_key`, `status_revision`) instead of an app key.
 - `AppStatus` members are declared in D7's rollup order, so the enum's docstring states the rule once.
 - #4420 (closing a too-slow `/ws` client, the #4217 work) merged during the build; its close-and-signal handling lives in `put_to_clients`, so app-status and entity deltas get it too.
+- Ship-time challenge: `app_status` without a manifest skips only the DISABLED and BLOCKED checks, replacing the Summary's earlier "STOPPED, or FAILED while flagged" rule, so a removed app still shutting down reads STOPPING rather than STOPPED (a flagged instance is stored FAILED, so FAILED/DEGRADED still fall out of the one list).
+- Ship-time challenge: `RuntimeQueryService.broadcast` is deleted. `broadcast_envelope` and `build_and_broadcast` are synchronous over `put_to_clients`, and the log-hint handler and dev-reload watcher call `put_to_clients` directly, so the client-queue path has one name and one synchronous contract.
 - The client-compat live state reports the busy app as STARTING (true of an app mid-start under D7) and the escaping app as STOPPING, so every `AppStatus` still appears in the fixtures.

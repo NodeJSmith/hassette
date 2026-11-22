@@ -174,7 +174,7 @@ class RuntimeQueryService(Resource):
         handler = self.hassette.logging_service.capture_handler
         try:
             loop = asyncio.get_running_loop()
-            handler.set_broadcast(self.broadcast, loop)
+            handler.set_broadcast(self.put_to_clients, loop)
         except RuntimeError:
             self.logger.warning("No running event loop, log broadcast will not be available")
 
@@ -193,16 +193,16 @@ class RuntimeQueryService(Resource):
                 replace_backlog(queue, WsClientSignal.SHUTDOWN)
             self._ws_clients.clear()
 
-    async def broadcast_envelope(self, event_type: str, data: Any) -> None:
+    def broadcast_envelope(self, event_type: str, data: Any) -> None:
         """Broadcast a WS envelope of the shape ``{"type", "data", "timestamp"}``.
 
         ``data`` is already dumped: a single model's dict, or a list of them for a batch.
         """
-        await self.broadcast(envelope(event_type, data))
+        self.put_to_clients(envelope(event_type, data))
 
-    async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
+    def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
         """Dump a single wire model and broadcast it as the ``data`` of an ``event_type`` envelope."""
-        await self.broadcast_envelope(event_type, payload.model_dump())
+        self.broadcast_envelope(event_type, payload.model_dump())
 
     def publish_app_status(self, change: StatusChange) -> None:
         """Put one app instance status change on every client queue as ``app_status_changed``.
@@ -248,7 +248,7 @@ class RuntimeQueryService(Resource):
             ready=data.ready,
             ready_phase=data.ready_phase,
         )
-        await self.build_and_broadcast("service_status", payload)
+        self.build_and_broadcast("service_status", payload)
 
     async def on_apps_changed(self) -> None:
         """Broadcast a refetch signal after a full app load/reload pass.
@@ -257,15 +257,15 @@ class RuntimeQueryService(Resource):
         ``AppsChangedData`` — so this handler declares no ``event`` parameter;
         ``ParameterInjector`` only injects what a handler's signature actually asks for.
         """
-        await self.build_and_broadcast("apps_changed", AppsChangedData())
+        self.build_and_broadcast("apps_changed", AppsChangedData())
 
     async def on_ws_connected(self) -> None:
         """Broadcast a ``connectivity`` message reporting the Home Assistant connection as up."""
-        await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=True))
+        self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=True))
 
     async def on_ws_disconnected(self) -> None:
         """Broadcast a ``connectivity`` message reporting the Home Assistant connection as down."""
-        await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=False))
+        self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=False))
 
     def publish_entity_state(
         self, boot_id: str, entity_revision: int, instance: tuple[str, str], entity: CommittedEntity
@@ -335,7 +335,7 @@ class RuntimeQueryService(Resource):
         self._pending_completions = []
 
         if completions:
-            await self.broadcast_envelope("execution_completed", [c.model_dump() for c in completions])
+            self.broadcast_envelope("execution_completed", [c.model_dump() for c in completions])
 
     def overlay_manifest_rows(self, db_rows: list[dict[str, Any]]) -> list[AppManifestInfo]:
         """Overlay DB-persisted ``app_manifests`` rows with live runtime state.
@@ -536,10 +536,6 @@ class RuntimeQueryService(Resource):
             self._ws_clients.discard(queue)
             count = len(self._ws_clients)
         self.logger.debug("WebSocket client unregistered (total: %d)", count)
-
-    async def broadcast(self, message: dict) -> None:
-        """Broadcast a message to all connected WebSocket clients."""
-        self.put_to_clients(message)
 
     def put_to_clients(self, message: dict) -> None:
         """Put a message on every client queue; the one path every message takes.

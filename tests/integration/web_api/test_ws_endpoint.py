@@ -114,6 +114,11 @@ def put_to_all_queues(data_sync: RuntimeQueryService, message: dict) -> None:
             q.put_nowait(safe)
 
 
+async def put_on_loop(service: RuntimeQueryService, message: dict) -> None:
+    """``put_to_clients`` as a coroutine, for ``run_coroutine_threadsafe`` onto the loop that owns the queues."""
+    service.put_to_clients(message)
+
+
 def sync_via_ping(ws) -> None:
     """Send a ping and wait for the pong to ensure prior messages were processed.
 
@@ -232,7 +237,7 @@ class TestWebSocketConnection:
             async def _overflow() -> None:
                 # No await yields to the send loop between broadcasts, so the queue fills and overflows.
                 for i in range(WS_CLIENT_QUEUE_MAX + 1):
-                    await runtime_query_service.broadcast({"type": "app_status_changed", "data": {"index": i}})
+                    runtime_query_service.put_to_clients({"type": "app_status_changed", "data": {"index": i}})
 
             # Run on the server's event loop, where the send loop reads the queue.
             ws.portal.call(_overflow)
@@ -682,13 +687,13 @@ class TestNonReadingClientAgainstLiveServer:
 
             await wait_for(lambda: len(runtime_query_service._ws_clients) == 1, desc="client registered")
 
-            # broadcast() runs on the server's loop, which owns the client queue.
+            # put_to_clients() runs on the server's loop, which owns the client queue.
             payload = {"type": "app_status_changed", "data": {"blob": "x" * self.PAYLOAD_BYTES}}
             for _ in range(self.BROADCAST_COUNT):
                 if not runtime_query_service._ws_clients:
                     break
                 await asyncio.wrap_future(
-                    asyncio.run_coroutine_threadsafe(runtime_query_service.broadcast(payload), loops[0])
+                    asyncio.run_coroutine_threadsafe(put_on_loop(runtime_query_service, payload), loops[0])
                 )
 
             await wait_for(

@@ -51,10 +51,10 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
   const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
   const instanceScoped = !!manifest && manifest.instance_count > 1 && !showParentOverview;
   const instanceOrphaned = instanceScoped && currentInstance?.in_current_config === false;
-  // A removed app's app-level status is only ever failed or stopped. Those offer Start and never
-  // Stop (CAN_STOP), and the backend 404s Start for an app with no manifest, so its app-level
-  // actions are hidden. When it still tracks more than one instance, each instance's page keeps
-  // the Stop that ActionButtons offers an out-of-config instance (instanceOrphaned).
+  // A removed app has no manifest, so the backend 404s Start and Reload for it, and the framework
+  // already stops its instances. Its app-level actions are hidden whatever its status. When it still
+  // tracks more than one instance, each instance's page keeps the Stop that ActionButtons offers an
+  // out-of-config instance (instanceOrphaned).
   const appRemoved = manifest?.in_current_config === false;
   const hideAppActions = appRemoved && !instanceScoped;
 

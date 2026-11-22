@@ -72,6 +72,6 @@ class WebUiWatcherService(Service):
                     relative_path = str(Path(changed_path).relative_to(_WEB_DIR))
                 except ValueError:
                     relative_path = Path(changed_path).name
-                await self.hassette.runtime_query_service.broadcast(
+                self.hassette.runtime_query_service.put_to_clients(
                     {"type": "dev_reload", "data": {"path": relative_path, "kind": kind}}
                 )

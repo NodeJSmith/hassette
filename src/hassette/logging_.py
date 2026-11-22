@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import copy
 import itertools
 import logging
@@ -8,7 +7,7 @@ import queue
 import sys
 import threading
 import warnings
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import PurePath
 from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
@@ -112,7 +111,7 @@ class LogCaptureHandler(logging.Handler):
     first record.
     """
 
-    _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
+    _broadcast_fn: Callable[[dict], None] | None
     _loop: asyncio.AbstractEventLoop | None
     hints_enabled: bool
     """False when nothing persists, so no hint is sent; set by ``LoggingService.on_initialize()``."""
@@ -131,7 +130,7 @@ class LogCaptureHandler(logging.Handler):
         self.hints_enabled = True
         self._hint_pending = False
 
-    def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
+    def set_broadcast(self, fn: Callable[[dict], None], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
@@ -152,16 +151,15 @@ class LogCaptureHandler(logging.Handler):
             # the full record here (message formatting, traceback rendering) is avoided.
             payload = {"type": "log_hint", "timestamp": record.created}
 
-            def _schedule_broadcast() -> None:
-                # Cleared before the broadcast is created, so a record emitted from here on schedules a new hint;
+            def _send_hint() -> None:
+                # Cleared before the broadcast, so a record emitted from here on schedules a new hint;
                 # one emitted earlier is already covered by this hint's refetch.
                 self._hint_pending = False
-                with contextlib.suppress(RuntimeError):
-                    loop.create_task(fn(payload))
+                fn(payload)
 
             self._hint_pending = True
             try:
-                loop.call_soon_threadsafe(_schedule_broadcast)
+                loop.call_soon_threadsafe(_send_hint)
             except RuntimeError:
                 # The loop closed after the is_running() check; the callback that would clear the flag never runs.
                 self._hint_pending = False

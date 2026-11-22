@@ -391,7 +391,7 @@ class TestCompletionPayloadEnrichment:
 
     async def test_handler_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
         """app_key from a handler execution are stored in the pending batch."""
-        runtime.broadcast = AsyncMock()
+        runtime.put_to_clients = MagicMock()
         event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=42, status=SUCCESS, duration_ms=5.0, app_key="lights"
         )
@@ -402,7 +402,7 @@ class TestCompletionPayloadEnrichment:
 
     async def test_job_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
         """app_key from a job execution are stored in the pending batch."""
-        runtime.broadcast = AsyncMock()
+        runtime.put_to_clients = MagicMock()
         event = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=99, status=SUCCESS, duration_ms=8.0, app_key="climate"
         )
@@ -413,7 +413,7 @@ class TestCompletionPayloadEnrichment:
 
     async def test_payload_defaults_to_empty_app_key(self, runtime: RuntimeQueryService) -> None:
         """Events without app_key default to empty string and zero index."""
-        runtime.broadcast = AsyncMock()
+        runtime.put_to_clients = MagicMock()
         event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=999, status=SUCCESS, duration_ms=5.0
         )
@@ -427,7 +427,7 @@ class TestCompletionBatching:
     async def test_handler_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
         """Multiple handler execution events in the same tick emit one broadcast."""
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app"
@@ -459,7 +459,7 @@ class TestCompletionBatching:
     async def test_job_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
         """Multiple job execution events in the same tick emit one broadcast."""
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app"
@@ -478,7 +478,7 @@ class TestCompletionBatching:
 
     async def test_flush_resets_pending_list(self, runtime: RuntimeQueryService) -> None:
         """After flush, _pending_completions is empty."""
-        runtime.broadcast = AsyncMock()
+        runtime.put_to_clients = MagicMock()
 
         event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=3, status=SUCCESS, duration_ms=1.0, app_key="app"
@@ -491,14 +491,14 @@ class TestCompletionBatching:
 
     async def test_flush_noop_when_no_pending(self, runtime: RuntimeQueryService) -> None:
         """Flush with empty pending list does not call broadcast."""
-        runtime.broadcast = AsyncMock()
+        runtime.put_to_clients = MagicMock()
         await runtime.flush_completions()
-        runtime.broadcast.assert_not_awaited()
+        runtime.put_to_clients.assert_not_called()
 
     async def test_mixed_handler_and_job_emit_single_message(self, runtime: RuntimeQueryService) -> None:
         """Handler and job completions in same tick emit one unified message, not two."""
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         handler_event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status=SUCCESS, duration_ms=5.0, app_key="my_app"
@@ -518,7 +518,7 @@ class TestCompletionBatching:
     async def test_flushed_batch_validates_against_execution_completed_data(self, runtime: RuntimeQueryService) -> None:
         """The broadcast ``data`` list round-trips through ``list[ExecutionCompletedData]``."""
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app"
@@ -540,7 +540,7 @@ class TestCompletionValidation:
 
     async def test_malformed_completion_between_two_valid_is_isolated(self, runtime: RuntimeQueryService) -> None:
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         valid1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app"
@@ -694,7 +694,7 @@ class TestWebSocketClientManagement:
         queue = await runtime.register_ws_client()
         message = {"type": "test", "data": {"value": 42}}
 
-        await runtime.broadcast(message)
+        runtime.put_to_clients(message)
 
         received = queue.get_nowait()
         assert received == message
@@ -706,7 +706,7 @@ class TestWebSocketClientManagement:
         for i in range(WS_CLIENT_QUEUE_MAX):
             await queue.put({"type": "filler", "index": i})
 
-        await runtime.broadcast({"type": "overflow"})
+        runtime.put_to_clients({"type": "overflow"})
 
         # The backlog is replaced by the signal alone, so the send loop reaches it next.
         assert queue.qsize() == 1
@@ -714,7 +714,7 @@ class TestWebSocketClientManagement:
         assert queue not in runtime._ws_clients
 
         # A later broadcast no longer reaches the cut-off client.
-        await runtime.broadcast({"type": "after"})
+        runtime.put_to_clients({"type": "after"})
         assert queue.empty()
 
     async def test_too_slow_client_counted_and_logged_once_others_unaffected(
@@ -726,9 +726,9 @@ class TestWebSocketClientManagement:
         open_queue = await runtime.register_ws_client()
         logger = cast("MagicMock", runtime.logger)
 
-        await runtime.broadcast({"type": "first"})
+        runtime.put_to_clients({"type": "first"})
         # The full client was unregistered by the first broadcast, so the second neither counts nor logs it again.
-        await runtime.broadcast({"type": "second"})
+        runtime.put_to_clients({"type": "second"})
 
         assert runtime.hassette.pipeline_counters.get(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW) == 1
         logger.warning.assert_called_once()
@@ -750,7 +750,7 @@ class TestWebSocketClientManagement:
 class TestServiceStatusMapping:
     async def test_on_service_status_maps_ready_fields(self, runtime: RuntimeQueryService) -> None:
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event = HassetteServiceEvent.from_service_status(
             resource_name="WebsocketService",
@@ -770,7 +770,7 @@ class TestServiceStatusMapping:
         # dup-ignore-start: builds a HassetteServiceEvent via from_service_status like other
         # service-status tests, but exercises RuntimeQueryService's web-layer broadcast mapping.
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event = HassetteServiceEvent.from_service_status(
             resource_name="SomeService",
@@ -790,7 +790,7 @@ class TestAppsChanged:
     async def test_on_apps_changed_broadcasts_signal(self, runtime: RuntimeQueryService) -> None:
         """A full app load/reload pass broadcasts an empty-payload refetch signal."""
         broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        runtime.put_to_clients = MagicMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         await runtime.on_apps_changed()
 

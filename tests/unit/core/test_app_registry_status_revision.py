@@ -1,5 +1,6 @@
 """``AppRegistry.status_revision`` and ``app_status``: the ordering and the rollup every status surface shares."""
 
+import itertools
 import time
 
 import pytest
@@ -15,6 +16,13 @@ from tests.support.web_manifest_helpers import make_manifest_db_row
 from .conftest import make_app_instance, make_manifest_obj
 
 APP_KEY = "my_app"
+ROLLUP_STATUSES = (
+    ResourceStatus.FAILED,
+    ResourceStatus.NOT_STARTED,
+    ResourceStatus.STARTING,
+    ResourceStatus.STOPPING,
+    ResourceStatus.RUNNING,
+)
 
 
 @pytest.fixture
@@ -123,6 +131,51 @@ class TestAppStatusRollup:
         seed_instances(registry, statuses)
         assert registry.app_status(APP_KEY) is expected
 
+    @pytest.mark.parametrize(
+        ("enabled", "blocked", "present"),
+        [
+            (enabled, blocked, present)
+            for enabled, blocked in itertools.product([True, False], repeat=2)
+            for size in range(len(ROLLUP_STATUSES) + 1)
+            for present in itertools.combinations(ROLLUP_STATUSES, size)
+        ],
+    )
+    def test_member_order_is_the_rollup_order(
+        self, registry: AppRegistry, enabled: bool, blocked: bool, present: tuple[ResourceStatus, ...]
+    ) -> None:
+        """The enum promises "listed in rollup order": the first member whose condition holds is the status.
+
+        ``conditions`` restates each member's documented condition independently of ``app_status``, and the
+        expected status comes from walking ``AppStatus`` in declaration order, so reordering either the enum or the
+        if-chain fails here. 128 cases: every enabled/blocked pair with every subset of instance statuses.
+        """
+        statuses = set(present)
+        live = statuses - {ResourceStatus.FAILED}
+        conditions = {
+            AppStatus.DISABLED: not enabled,
+            AppStatus.BLOCKED: blocked,
+            AppStatus.DEGRADED: ResourceStatus.FAILED in statuses and bool(live),
+            AppStatus.FAILED: ResourceStatus.FAILED in statuses,
+            AppStatus.STARTING: bool(statuses & {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING}),
+            AppStatus.STOPPING: ResourceStatus.STOPPING in statuses,
+            AppStatus.RUNNING: ResourceStatus.RUNNING in statuses,
+            AppStatus.STOPPED: True,
+        }
+        assert set(conditions) == set(AppStatus)
+        seed_instances(registry, list(present))
+        registry.set_manifests({APP_KEY: make_manifest_obj(APP_KEY, enabled=enabled)})
+        if blocked:
+            registry.block_app(APP_KEY, BlockReason.ONLY_APP)
+
+        expected = next(member for member in AppStatus if conditions[member])
+        assert registry.app_status(APP_KEY) is expected
+
+    def test_a_removed_app_skips_only_the_config_states(self, registry: AppRegistry) -> None:
+        seed_instances(registry, [ResourceStatus.STOPPING])
+        registry.block_app(APP_KEY, BlockReason.ONLY_APP)
+        registry.set_manifests({})
+        assert registry.app_status(APP_KEY) is AppStatus.STOPPING
+
     def test_config_states_win(self, registry: AppRegistry) -> None:
         seed_instances(registry, [ResourceStatus.FAILED])
         registry.block_app(APP_KEY, BlockReason.ONLY_APP)
@@ -155,6 +208,14 @@ class TestDeltaAgreesWithSnapshot:
                 needs_restart=NeedsRestartInfo(reason="stuck", pending_tasks=(), flagged_at=date_utils.now()),
             ),
         )
+
+    def test_removed_app_still_stopping(self, registry: AppRegistry) -> None:
+        seed_running(registry, APP_KEY, make_app_instance(APP_KEY))
+        registry.set_manifests({})
+        change = registry.set_status(APP_KEY, APP_KEY, ResourceStatus.STOPPING)
+        assert change is not None
+        assert change.app_status is AppStatus.STOPPING
+        self.assert_agrees(registry, APP_KEY, lambda: change)
 
     def test_disabled_app(self, registry: AppRegistry) -> None:
         seed_running(registry, APP_KEY, make_app_instance(APP_KEY))

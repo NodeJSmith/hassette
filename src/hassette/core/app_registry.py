@@ -225,23 +225,21 @@ class AppRegistry:
     def app_status(self, app_key: str, manifest: "AppManifest | None" = None) -> AppStatus:
         """The app-level rollup of ``app_key``'s status, the one rule every snapshot and ``StatusChange`` uses.
 
-        With a loaded manifest, the first match wins: DISABLED, BLOCKED, DEGRADED (a failed instance and any live
-        one), FAILED (failed, none live), STARTING (any NOT_STARTED or STARTING), STOPPING (any STOPPING), RUNNING,
-        then STOPPED (nothing tracked). A flagged instance counts as failed. Without a manifest (an app removed from
-        config) it is FAILED while an instance stays flagged needs-restart, else STOPPED.
+        The first match wins: DISABLED, BLOCKED, DEGRADED (a failed instance and any live one), FAILED (failed, none
+        live), STARTING (any NOT_STARTED or STARTING), STOPPING (any STOPPING), RUNNING, then STOPPED (nothing
+        tracked). A flagged instance is stored as FAILED, so it counts as failed. Without a manifest (an app removed
+        from config) only the DISABLED and BLOCKED checks are skipped, so a removed app still stopping reads STOPPING.
 
         ``manifest`` defaults to the loaded manifest for ``app_key``.
         """
         entries = self._instances.get(app_key, {})
         if manifest is None:
             manifest = self._manifests.get(app_key)
-        if manifest is None:
-            flagged = any(entry.needs_restart is not None for entry in entries.values())
-            return AppStatus.FAILED if flagged else AppStatus.STOPPED
-        if not manifest.enabled:
-            return AppStatus.DISABLED
-        if app_key in self._blocked_apps:
-            return AppStatus.BLOCKED
+        if manifest is not None:
+            if not manifest.enabled:
+                return AppStatus.DISABLED
+            if app_key in self._blocked_apps:
+                return AppStatus.BLOCKED
         # A FAILED entry is the only entry without its App; every other stored status is live.
         statuses = {entry.status for entry in entries.values()}
         has_failed = ResourceStatus.FAILED in statuses
@@ -670,10 +668,10 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
 
     - If present: status/instances are derived from the registry's live state via
       ``build_manifest_info()`` (the rollup is ``AppRegistry.app_status``), and ``in_current_config`` is ``True``.
-    - If absent (a DB-only / removed app): status is ``AppStatus.STOPPED`` with
-      zero instances, and ``in_current_config`` is ``False`` — unless an instance of it is still
-      flagged needs-restart, in which case it is FAILED and lists its flagged instances
-      (``AppRegistry.build_orphaned_flag_info``).
+    - If absent (a DB-only / removed app): status is whatever ``AppRegistry.app_status`` yields for the app's
+      tracked entries (STOPPED once nothing is tracked, STOPPING while its instances shut down), with zero
+      instances, and ``in_current_config`` is ``False`` — unless an instance of it is still flagged needs-restart,
+      in which case it lists its instances (``AppRegistry.build_orphaned_flag_info``).
 
     Every row carries the registry's ``status_revision`` at the moment of the overlay. The overlay never awaits, so
     one call's rows share one revision.
@@ -740,10 +738,10 @@ def listed_apps(infos: Iterable[AppManifestInfo]) -> list[AppManifestInfo]:
     """The apps an app list shows: every configured app, and a removed one only while an instance is flagged.
 
     A removed app's ``app_manifests`` row outlives it until its history ages out of retention
-    (``build_prune_removed_app_manifests_query``), and ``overlay_runtime_state`` reports such a row as
-    STOPPED. Lists leave it out so it never reads as a stopped app; ``GET /apps/{app_key}`` still
-    answers for it. A removed app with a flagged needs-restart instance stays listed, as FAILED, because
-    that instance's work may still be running.
+    (``build_prune_removed_app_manifests_query``), and ``overlay_runtime_state`` reports such a row with no
+    instances, as STOPPED once nothing of it is tracked. Lists leave it out; ``GET /apps/{app_key}`` still
+    answers for it. A removed app with a flagged needs-restart instance stays listed, as FAILED (DEGRADED beside a
+    live sibling), because that instance's work may still be running.
     """
     # A removed app's snapshot lists instances only through build_orphaned_flag_info, i.e. flagged ones.
     return [info for info in infos if info.in_current_config or info.instances]
