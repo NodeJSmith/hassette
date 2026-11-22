@@ -31,7 +31,7 @@ TEMP_AS_ENUM = Declaration(
 )
 
 
-ENTITY_MESSAGE = TypeAdapter(EntityStateChangedWsMessage)
+ENTITY_MESSAGE_ADAPTER = TypeAdapter(EntityStateChangedWsMessage)
 
 
 def owner(instance_name: str = "kitchen") -> Any:
@@ -594,7 +594,7 @@ async def test_concurrent_declarations_of_one_key_reject_the_second(
     assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["feed"]
 
 
-async def entity_messages(db: DatabaseService) -> "asyncio.Queue[dict[str, Any] | None]":
+async def register_ws_queue(db: DatabaseService) -> "asyncio.Queue[dict[str, Any] | None]":
     """Wire a real ``RuntimeQueryService`` onto the mock hassette and register one ``/ws`` client queue."""
     runtime = create_mock_runtime_query_service(cast("MagicMock", db.hassette))
     return await runtime.register_ws_client()
@@ -605,14 +605,14 @@ def drain(queue: "asyncio.Queue[dict[str, Any] | None]") -> list[EntityStateChan
     while not queue.empty():
         message = queue.get_nowait()
         assert message is not None
-        messages.append(ENTITY_MESSAGE.validate_python(message))
+        messages.append(ENTITY_MESSAGE_ADAPTER.validate_python(message))
     return messages
 
 
 async def test_sets_reach_ws_clients_in_revision_order(db: DatabaseService) -> None:
     service = await start_service(db)
     await service.commit_instance(owner(), [SHOW, TEMP], {})
-    queue = await entity_messages(db)
+    queue = await register_ws_queue(db)
     live = service._owners[("my_app", "kitchen")]
 
     await asyncio.gather(*(service.set_state(live, TEMP, EntityState(value, {})) for value in range(5)))
@@ -631,7 +631,7 @@ async def test_sets_reach_ws_clients_in_revision_order(db: DatabaseService) -> N
 
 async def test_unchanged_set_and_declaration_commit_publish_nothing(db: DatabaseService) -> None:
     service = await start_service(db)
-    queue = await entity_messages(db)
+    queue = await register_ws_queue(db)
     await service.commit_instance(owner(), [TEMP], {"temp": EntityState(5, {})})
     await service.set_state(service._owners[("my_app", "kitchen")], TEMP, EntityState(5, {}))
 
@@ -642,7 +642,7 @@ async def test_unchanged_set_and_declaration_commit_publish_nothing(db: Database
 async def test_failed_set_publishes_nothing(db: DatabaseService, monkeypatch: pytest.MonkeyPatch) -> None:
     service = await start_service(db)
     await service.commit_instance(owner(), [TEMP], {})
-    queue = await entity_messages(db)
+    queue = await register_ws_queue(db)
     monkeypatch.setattr(integration_store, "update_state", fail_with_disk_error)
 
     with pytest.raises(aiosqlite.OperationalError):

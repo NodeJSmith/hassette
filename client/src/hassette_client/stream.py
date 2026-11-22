@@ -107,17 +107,19 @@ async def wait_for_connected(transport: Transport, ws: aiohttp.ClientWebSocketRe
     except TimeoutError as exc:
         raise log_raising(transport.failure(exc, ENDPOINT), cause=exc) from exc
     if message.type is aiohttp.WSMsgType.BINARY:
-        first_type: Any = "a binary frame"
-    elif message.type is not aiohttp.WSMsgType.TEXT:
-        raise log_raising(stream_ended_error(transport, ws, message))
-    else:
+        opened_with = "a binary frame"
+    elif message.type is aiohttp.WSMsgType.TEXT:
         first_type = decode(message.data).get("type")
-    if first_type != CONNECTED_TYPE:
-        raise log_raising(
-            HassetteConnectionError(
-                f"The stream from {transport.display_url} opened with {first_type!r} instead of {CONNECTED_TYPE!r}"
-            )
+        if first_type == CONNECTED_TYPE:
+            return
+        opened_with = repr(first_type)
+    else:
+        raise log_raising(stream_ended_error(transport, ws, message))
+    raise log_raising(
+        HassetteConnectionError(
+            f"The stream from {transport.display_url} opened with {opened_with} instead of {CONNECTED_TYPE!r}"
         )
+    )
 
 
 async def receive(transport: Transport, ws: aiohttp.ClientWebSocketResponse) -> aiohttp.WSMessage:

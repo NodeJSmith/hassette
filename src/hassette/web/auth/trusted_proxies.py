@@ -117,9 +117,9 @@ def peer_address_or_unknown(connection: HTTPConnection) -> str:
 
     Shared by every route handler that logs a source IP alongside a mutation action
     (``web/routes/apps.py``, ``web/routes/logs.py``, ``web/routes/scheduler.py``) and by the
-    default-deny middleware's failed-auth source key (``web/middleware.py``) — all of these want
-    the same null-safe fallback rather than repeating ``peer_address(request) or "unknown"`` at
-    each call site.
+    failed-auth source key of the default-deny middleware and the ``/ws`` handshake — all of these
+    want the same null-safe fallback rather than repeating ``peer_address(connection) or "unknown"``
+    at each call site.
     """
     return peer_address(connection) or "unknown"
 

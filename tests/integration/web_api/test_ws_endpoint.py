@@ -356,7 +356,7 @@ class TestWebSocketEdgeCases:
         # The finally block must have called unregister_ws_client with the queue
         mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
 
-    async def test_unauthorized_connection_closes_before_accept(self) -> None:
+    async def test_unauthorized_connection_is_denied_before_accept(self) -> None:
         """When `authorize_ws()` returns False, the endpoint sends a 401 denial, counts it, and never accepts.
 
         Fast, mocked unit-level counterpart to
