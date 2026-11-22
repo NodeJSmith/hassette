@@ -212,8 +212,21 @@ async def test_an_unreachable_server_raises_a_connection_error(session: aiohttp.
         await client.listen(Recorder().on_message, types=(AppStatusChangedWsMessage,))
 
 
+@pytest.mark.parametrize(
+    "reset_class",
+    [
+        pytest.param(ConnectionResetError, id="aiohttp-3.10"),
+        pytest.param(
+            getattr(aiohttp, "ClientConnectionResetError", None),
+            id="aiohttp-3.11+",
+            marks=pytest.mark.skipif(
+                not hasattr(aiohttp, "ClientConnectionResetError"), reason="added in aiohttp 3.11"
+            ),
+        ),
+    ],
+)
 async def test_a_reset_raised_while_reading_maps_to_a_connection_error(
-    ws_client: HassetteClient, ws_server: FakeWsServer, monkeypatch: pytest.MonkeyPatch
+    ws_client: HassetteClient, ws_server: FakeWsServer, monkeypatch: pytest.MonkeyPatch, reset_class: type[Exception]
 ) -> None:
     """The automatic pong aiohttp sends runs outside ``receive()``'s own error handling, so a reset there raises."""
     ws_server.frames, ws_server.hold = [CONNECTED], True
@@ -225,11 +238,11 @@ async def test_a_reset_raised_while_reading_maps_to_a_connection_error(
         calls += 1
         if calls == 1:
             return await real_receive(self, *args, **kwargs)
-        raise aiohttp.ClientConnectionResetError("Cannot write to closing transport")
+        raise reset_class("Cannot write to closing transport")
 
     monkeypatch.setattr(aiohttp.ClientWebSocketResponse, "receive", receive_then_reset)
 
-    with pytest.raises(HassetteConnectionError, match="ClientConnectionResetError"):
+    with pytest.raises(HassetteConnectionError, match=reset_class.__name__):
         await ws_client.listen(Recorder().on_message, types=(AppStatusChangedWsMessage,))
 
 

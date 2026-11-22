@@ -55,7 +55,8 @@ async def listen(
     except (TimeoutError, aiohttp.ClientError) as exc:
         raise log_raising(transport.failure(exc, ENDPOINT), cause=exc) from exc
 
-    async with ws:
+    # Not `async with ws`: ClientWebSocketResponse isn't an async context manager on aiohttp 3.10, the floor.
+    try:
         await wait_for_connected(transport, ws)
         LOGGER.debug("Stream from %s connected", transport.display_url)
         if on_connected is not None:
@@ -73,6 +74,8 @@ async def listen(
                 LOGGER.debug("Skipping a %r message from %s", tag, transport.display_url)
                 continue
             await on_message(parse_payload(message_class, message.data, endpoint=ENDPOINT))
+    finally:
+        await ws.close()
 
 
 def message_classes(types: Collection[type[MessageT]]) -> Mapping[str, type[MessageT]]:
@@ -126,14 +129,15 @@ async def receive(transport: Transport, ws: aiohttp.ClientWebSocketResponse) -> 
     """The next frame, with a connection error mapped to ``HassetteConnectionError``.
 
     ``ws.receive()`` turns most failures into a CLOSED or ERROR message, but its automatic reply to a server
-    ping runs outside that handling, so a reset at that moment raises an ``aiohttp.ClientError`` instead.
+    ping runs outside that handling, so a reset at that moment raises instead: the builtin ``ConnectionResetError``
+    on aiohttp 3.10, or ``ClientConnectionResetError`` (a subclass of it and of ``ClientConnectionError``) on 3.11+.
 
     Raises:
         HassetteConnectionError: The connection failed while reading.
     """
     try:
         return await ws.receive()
-    except aiohttp.ClientError as exc:
+    except (aiohttp.ClientError, ConnectionResetError) as exc:
         error = HassetteConnectionError(f"The stream from {transport.display_url} ended ({type(exc).__name__})")
         raise log_raising(error, cause=exc) from exc
 
