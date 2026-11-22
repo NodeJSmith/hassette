@@ -156,5 +156,5 @@ Color = Literal[
 Mirrors HA's list: the CSS named colors plus HA's own ``navyblue`` and ``homeassistant``.
 """
 
-COLORS = sorted(set(get_args(Color)))
-"""List of supported color names."""
+COLORS = sorted(get_args(Color))
+"""The names in ``Color``, sorted alphabetically."""

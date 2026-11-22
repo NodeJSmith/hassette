@@ -7,6 +7,7 @@ from .misc import (
     SECONDS_PER_DAY,
     SECONDS_PER_HOUR,
     SECONDS_PER_MINUTE,
+    SECONDS_PER_WEEK,
     FalseySentinel,
 )
 from .sensor import DEVICE_CLASS, STATE_CLASS, UNIT_OF_MEASUREMENT
@@ -21,6 +22,7 @@ __all__ = [
     "SECONDS_PER_DAY",
     "SECONDS_PER_HOUR",
     "SECONDS_PER_MINUTE",
+    "SECONDS_PER_WEEK",
     "STATE_CLASS",
     "UNIT_OF_MEASUREMENT",
     "Color",
