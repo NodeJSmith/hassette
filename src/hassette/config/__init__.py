@@ -3,6 +3,7 @@ from hassette.config.config import HassetteConfig
 from hassette.config.models import (
     AppsConfig,
     BlockingIODetectionConfig,
+    CliConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -16,6 +17,7 @@ __all__ = [
     "AppManifest",
     "AppsConfig",
     "BlockingIODetectionConfig",
+    "CliConfig",
     "DatabaseConfig",
     "FileWatcherConfig",
     "HassetteConfig",
