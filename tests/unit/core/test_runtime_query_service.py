@@ -12,7 +12,7 @@ from pydantic import TypeAdapter, ValidationError
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppRegistry, StatusChange
 from hassette.core.pipeline_counters import PipelineCounter, PipelineCounters
-from hassette.core.runtime_query_service import _WS_CLIENT_QUEUE_MAX, RuntimeQueryService
+from hassette.core.runtime_query_service import WS_CLIENT_QUEUE_MAX, RuntimeQueryService
 from hassette.events.hassette import (
     HassetteAppStateEvent,
     HassetteExecutionCompletedEvent,
@@ -29,7 +29,6 @@ from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from tests.support.web_mocks import create_mock_runtime_query_service
 
-WS_QUEUE_MAX = _WS_CLIENT_QUEUE_MAX
 SUCCESS = ExecutionStatus.SUCCESS
 STATE_TIMESTAMP = "2024-01-01T00:00:00"
 
@@ -693,7 +692,7 @@ class TestWebSocketClientManagement:
 
     async def test_broadcast_to_full_queue_signals_too_slow_and_unregisters(self, runtime: RuntimeQueryService) -> None:
         queue = await runtime.register_ws_client()
-        for i in range(WS_QUEUE_MAX):
+        for i in range(WS_CLIENT_QUEUE_MAX):
             await queue.put({"type": "filler", "index": i})
 
         await runtime.broadcast({"type": "overflow"})
@@ -711,7 +710,7 @@ class TestWebSocketClientManagement:
         self, runtime: RuntimeQueryService
     ) -> None:
         full = await runtime.register_ws_client()
-        for i in range(WS_QUEUE_MAX):
+        for i in range(WS_CLIENT_QUEUE_MAX):
             await full.put({"type": "filler", "index": i})
         open_queue = await runtime.register_ws_client()
         logger = cast("MagicMock", runtime.logger)
@@ -728,7 +727,7 @@ class TestWebSocketClientManagement:
 
     async def test_shutdown_signals_every_client_even_a_full_one(self, runtime: RuntimeQueryService) -> None:
         queues = [await runtime.register_ws_client() for _ in range(2)]
-        for i in range(WS_QUEUE_MAX):
+        for i in range(WS_CLIENT_QUEUE_MAX):
             await queues[0].put({"type": "filler", "index": i})
 
         await runtime.on_shutdown()

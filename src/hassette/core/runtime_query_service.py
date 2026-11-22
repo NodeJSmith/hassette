@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from hassette.bus import Subscription
     from hassette.events.hassette import ExecutionCompletedPayload
 
-_WS_CLIENT_QUEUE_MAX = 256
+WS_CLIENT_QUEUE_MAX = 256
 
 RQS_LISTENER_PREFIX: Final = "hassette.rqs."
 
@@ -488,7 +488,7 @@ class RuntimeQueryService(Resource):
             unregisters it and replaces its backlog with ``WsClientSignal.TOO_SLOW``: the client
             has missed a message and must close and reconnect to resync.
         """
-        queue: asyncio.Queue[WsQueueItem] = asyncio.Queue(maxsize=_WS_CLIENT_QUEUE_MAX)
+        queue: asyncio.Queue[WsQueueItem] = asyncio.Queue(maxsize=WS_CLIENT_QUEUE_MAX)
         async with self._lock:
             self._ws_clients.add(queue)
         self.logger.debug("WebSocket client registered (total: %d)", len(self._ws_clients))
@@ -526,7 +526,7 @@ class RuntimeQueryService(Resource):
                 "Closing %d WebSocket client(s) with a full queue (%d messages); they will reconnect "
                 "(clients left: %d)",
                 len(too_slow),
-                _WS_CLIENT_QUEUE_MAX,
+                WS_CLIENT_QUEUE_MAX,
                 remaining,
             )
 

@@ -15,7 +15,7 @@ from hassette_wire import ResourceStatus
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from hassette.core.runtime_query_service import _WS_CLIENT_QUEUE_MAX, RuntimeQueryService
+from hassette.core.runtime_query_service import WS_CLIENT_QUEUE_MAX, RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.schemas.ws_queue import WsClientSignal
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
@@ -24,6 +24,7 @@ from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 from hassette.web.routes.ws import (
+    WS_TOO_SLOW_CLOSE_REASON,
     WS_TRY_AGAIN_LATER_CLOSE_CODE,
     WsConnectionState,
     _read_client,
@@ -223,7 +224,7 @@ class TestWebSocketConnection:
 
             async def _overflow() -> None:
                 # No await yields to the send loop between broadcasts, so the queue fills and overflows.
-                for i in range(_WS_CLIENT_QUEUE_MAX + 1):
+                for i in range(WS_CLIENT_QUEUE_MAX + 1):
                     await runtime_query_service.broadcast({"type": "app_status_changed", "data": {"index": i}})
 
             # Run on the server's event loop, where the send loop reads the queue.
@@ -396,7 +397,7 @@ class TestWebSocketEdgeCases:
         with patch("hassette.web.routes.ws.WS_SEND_TIMEOUT_SECONDS", 0.05), anyio.CancelScope() as scope:
             await asyncio.wait_for(_send_from_queue(mock_ws, queue, WsConnectionState(), scope), timeout=5)
 
-        mock_ws.close.assert_awaited_once_with(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason="client too slow")
+        mock_ws.close.assert_awaited_once_with(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason=WS_TOO_SLOW_CLOSE_REASON)
         assert scope.cancel_called
 
     async def test_unauthorized_connection_closes_before_accept(self) -> None:

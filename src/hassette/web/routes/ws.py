@@ -19,8 +19,11 @@ LOGGER = getLogger(__name__)
 WS_TRY_AGAIN_LATER_CLOSE_CODE = 1013
 """RFC 6455 "Try Again Later": sent to a client that fell too far behind, which should reconnect and refetch."""
 
+WS_TOO_SLOW_CLOSE_REASON = "client too slow"
+"""Close reason sent with ``WS_TRY_AGAIN_LATER_CLOSE_CODE``."""
+
 WS_SEND_TIMEOUT_SECONDS = 5.0
-"""How long one frame may wait on a client that stopped reading before the connection is closed."""
+"""How long one frame, including the close frame, may wait on a client that stopped reading."""
 
 # Exception types that indicate a normal client disconnect.
 _DISCONNECT_ERRORS = (
@@ -127,7 +130,7 @@ async def close_too_slow(websocket: WebSocket, scope: anyio.CancelScope) -> None
     """
     scope.cancel()
     with anyio.move_on_after(WS_SEND_TIMEOUT_SECONDS, shield=True):
-        await websocket.close(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason="client too slow")
+        await websocket.close(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason=WS_TOO_SLOW_CLOSE_REASON)
 
 
 @router.websocket("/ws")
