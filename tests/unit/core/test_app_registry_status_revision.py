@@ -147,7 +147,7 @@ class TestAppStatusRollup:
 
         ``conditions`` restates each member's documented condition independently of ``app_status``, and the
         expected status comes from walking ``AppStatus`` in declaration order, so reordering either the enum or the
-        if-chain fails here. 128 cases: every enabled/blocked pair with every subset of instance statuses.
+        if-chain fails here. The cases are every enabled/blocked pair with every subset of instance statuses.
         """
         statuses = set(present)
         live = statuses - {ResourceStatus.FAILED}
@@ -212,10 +212,8 @@ class TestDeltaAgreesWithSnapshot:
     def test_removed_app_still_stopping(self, registry: AppRegistry) -> None:
         seed_running(registry, APP_KEY, make_app_instance(APP_KEY))
         registry.set_manifests({})
-        change = registry.set_status(APP_KEY, APP_KEY, ResourceStatus.STOPPING)
-        assert change is not None
-        assert change.app_status is AppStatus.STOPPING
-        self.assert_agrees(registry, APP_KEY, lambda: change)
+        self.assert_agrees(registry, APP_KEY, lambda: registry.set_status(APP_KEY, APP_KEY, ResourceStatus.STOPPING))
+        assert registry.app_status(APP_KEY) is AppStatus.STOPPING
 
     def test_disabled_app(self, registry: AppRegistry) -> None:
         seed_running(registry, APP_KEY, make_app_instance(APP_KEY))

@@ -85,13 +85,23 @@ describe("instance live helpers", () => {
   const inst = { ...row.instances[0], error_message: "boom" };
 
   it("apply a newer delta, including its null exception", () => {
-    const live = liveDelta("app", { instance_name: "inst_0", status: "running", exception: null }, "running", 101);
+    const live = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "running", exception: null },
+      "running",
+      ROW_REVISION + 1,
+    );
     expect(instanceLiveStatus(live, row, inst)).toBe("running");
     expect(instanceLiveError(live, row, inst)).toBeNull();
   });
 
   it("keep the snapshot instance on a tie", () => {
-    const live = liveDelta("app", { instance_name: "inst_0", status: "running", exception: null }, "running", 100);
+    const live = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "running", exception: null },
+      "running",
+      ROW_REVISION,
+    );
     expect(instanceLiveStatus(live, row, inst)).toBe("failed");
     expect(instanceLiveError(live, row, inst)).toBe("boom");
   });
@@ -103,10 +113,15 @@ describe("instance live helpers", () => {
       "app",
       { instance_name: "inst_0", status: "stopping", needs_restart: null },
       "stopping",
-      99,
+      ROW_REVISION - 1,
     );
     expect(instanceLiveNeedsRestart(older, row, flagged)).toEqual(flag);
-    const newer = liveDelta("app", { instance_name: "inst_0", status: "running", needs_restart: null }, "running", 101);
+    const newer = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "running", needs_restart: null },
+      "running",
+      ROW_REVISION + 1,
+    );
     expect(instanceLiveNeedsRestart(newer, row, flagged)).toBeNull();
   });
 });
@@ -192,7 +207,7 @@ describe("appNeedsRestart", () => {
       "multi_app",
       { instance_name: "inst_1", status: "failed", needs_restart: flag },
       "failed",
-      101,
+      ROW_REVISION + 1,
     );
 
     expect(appNeedsRestart(live, row)).toEqual({ count: 0, flag: null });
@@ -220,7 +235,7 @@ describe("appNeedsRestart", () => {
       "multi_app",
       { instance_name: "inst_1", status: "failed", needs_restart: liveFlag },
       "failed",
-      101,
+      ROW_REVISION + 1,
     );
 
     expect(appNeedsRestart(live, row)).toEqual({ count: 2, flag: null });

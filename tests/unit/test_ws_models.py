@@ -29,9 +29,9 @@ TEST_TIMESTAMP = 1234567890.0
 
 MESSAGE_ADAPTER = TypeAdapter(WsServerMessage)
 
-WS_ONLY_APP_STATUS_FIELDS = {"status_revision", "boot_id", "app_status"}
-"""Ordering fields the WS delta carries and the user-facing bus payload doesn't (spec 160 D2)."""
 WS_ORDERING_FIELDS = {"status_revision": 1, "boot_id": "b1", "app_status": "running"}
+"""Ordering fields the WS delta carries and the user-facing bus payload doesn't (spec 160 D2), with sample values."""
+WS_ONLY_APP_STATUS_FIELDS = set(WS_ORDERING_FIELDS)
 
 
 def validate_envelope(msg_type: str, data: object) -> WsServerMessage:

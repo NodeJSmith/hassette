@@ -226,7 +226,7 @@ class RuntimeQueryService(Resource):
             exception_traceback=exc_tb,
             needs_restart=change.needs_restart.to_wire() if change.needs_restart else None,
         )
-        self.put_to_clients(envelope(WS_EVENT_APP_STATUS_CHANGED, payload.model_dump()))
+        self.build_and_broadcast(WS_EVENT_APP_STATUS_CHANGED, payload)
         self.logger.debug(
             "Published app_status_changed for app '%s' instance '%s' (status_revision %d, clients: %d)",
             change.app_key,
@@ -283,7 +283,7 @@ class RuntimeQueryService(Resource):
             instance_name=instance[1],
             entity=declared_entity_from(entity),
         )
-        self.put_to_clients(envelope(WS_EVENT_ENTITY_STATE_CHANGED, payload.model_dump()))
+        self.build_and_broadcast(WS_EVENT_ENTITY_STATE_CHANGED, payload)
 
     async def on_execution_completed(self, event: AnyEvent) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.

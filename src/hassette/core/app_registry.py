@@ -388,7 +388,7 @@ class AppRegistry:
         if self._blocked_apps.get(app_key) != reason:
             self._blocked_apps[app_key] = reason
             self._status_revision += 1
-        self.logger.debug("Blocked app '%s' reason: %s", app_key, reason)
+            self.logger.debug("Blocked app '%s' reason: %s", app_key, reason)
 
     def unblock_apps(self, reason: BlockReason) -> set[str]:
         """Remove and return all apps blocked for the given reason."""

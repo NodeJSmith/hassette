@@ -74,7 +74,7 @@ async def test_no_runtime_query_service_sends_nothing_to_clients(
     assert [step for step, _ in steps] == ["row", "send"]
 
 
-def fail_on_stale_publish(runtime: RuntimeQueryService, registry: AppRegistry) -> list[int]:
+def record_stale_publishes(runtime: RuntimeQueryService, registry: AppRegistry) -> list[int]:
     """Wrap ``runtime.publish_app_status`` to record each change published after a later write already landed.
 
     The registry's revision at publish time equals the change's only if nothing ran between ``set_status`` and the
@@ -100,7 +100,7 @@ async def test_interleaved_writers_reach_a_client_queue_in_revision_order(
     runtime = create_mock_runtime_query_service(hassette)
     hassette.integration_service.boot_id = "boot"
     queue = await runtime.register_ws_client()
-    stale_publishes = fail_on_stale_publish(runtime, real_registry_service.registry)
+    stale_publishes = record_stale_publishes(runtime, real_registry_service.registry)
 
     async def yielding_send(_event: object) -> None:
         await asyncio.sleep(0)  # every bus send suspends, so the two writers interleave
