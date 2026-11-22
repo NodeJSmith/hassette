@@ -3,6 +3,7 @@ from enum import StrEnum
 import pytest
 
 from hassette import TYPE_REGISTRY
+from hassette.conversion.type_registry import TypeConverterEntry, TypeRegistry
 from hassette.exceptions import UnableToConvertValueError
 
 
@@ -108,3 +109,35 @@ def test_tuple_conversion_keeps_already_typed_str_subclass() -> None:
     """A str subclass that already matches a tuple member is not re-converted to a plain str."""
     result = TYPE_REGISTRY.convert(Mode.CLEANING, (str, Mode))
     assert type(result) is Mode
+
+
+@pytest.mark.parametrize(
+    ("value", "to_type"),
+    [("{foo}", float), ("a}b", float), ("{", int)],
+)
+def test_registered_converter_error_with_braced_value_raises_unable_to_convert(value: str, to_type: type) -> None:
+    """A raw value containing braces must not be parsed as a format template in the default error message."""
+    with pytest.raises(UnableToConvertValueError, match="Error converting"):
+        TYPE_REGISTRY.convert(value, to_type)
+
+
+def test_tuple_conversion_falls_through_on_braced_value() -> None:
+    assert TYPE_REGISTRY.convert("{x}", (float, str)) == "{x}"
+
+
+def test_registered_converter_custom_error_message_is_formatted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A converter's custom error_message template is still formatted with the value and types."""
+
+    class Widget:
+        pass
+
+    def to_widget(value: str) -> Widget:
+        raise ValueError(value)
+
+    entry = TypeConverterEntry(
+        func=to_widget, from_type=str, to_type=Widget, error_message="cannot make a widget from {value!r}"
+    )
+    monkeypatch.setitem(TypeRegistry.conversion_map, (str, Widget), entry)
+
+    with pytest.raises(UnableToConvertValueError, match=r"cannot make a widget from '\{x\}'"):
+        TYPE_REGISTRY.convert("{x}", Widget)
