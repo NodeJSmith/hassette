@@ -389,7 +389,6 @@ class CommandExecutor(Service):
         """
         now = time.monotonic()
 
-        # Determine the in-memory ID for rate-limiting
         match cmd:
             case InvokeHandler():
                 entity_id = cmd.listener.listener_id
@@ -405,7 +404,6 @@ class CommandExecutor(Service):
         if len(self._timeout_warn_timestamps) > _TIMEOUT_WARN_CACHE_MAX:
             self._timeout_warn_timestamps.clear()
 
-        # Rate-limit check
         last_ts = self._timeout_warn_timestamps.get(entity_id)
         if last_ts is not None and now - last_ts < _TIMEOUT_WARN_SUPPRESS_SECS:
             return  # suppressed

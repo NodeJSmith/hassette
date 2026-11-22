@@ -1096,7 +1096,7 @@ requires-dist = [
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "typing-extensions", specifier = "==4.16.*" },
     { name = "uuid-utils", specifier = ">=0.9.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.53.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.1" },
     { name = "watchfiles", specifier = ">=1.1.0" },
     { name = "whenever", specifier = ">=0.11,<0.12" },
 ]

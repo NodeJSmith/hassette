@@ -113,7 +113,6 @@ class AppFactory:
             )
             force_reload = False
 
-        # Try to load the class
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
             # Class loading failed — this affects every configured instance (one shared class

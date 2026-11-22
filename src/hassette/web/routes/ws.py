@@ -10,8 +10,10 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from hassette.schemas.ws_queue import WsClientSignal, WsQueueItem
-from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE, authorize_ws
+from hassette.web.auth import authorize_ws
+from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.mappers import connected_data_from
+from hassette.web.middleware import failed_auth_tracker, unauthorized_response
 
 router = APIRouter(tags=["websocket"])
 LOGGER = getLogger(__name__)
@@ -137,12 +139,15 @@ async def close_too_slow(websocket: WebSocket, scope: anyio.CancelScope) -> None
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Stream runtime events to an authorized client until it disconnects.
 
-    Unauthorized connections are closed with a policy-violation code. Accepted clients receive a
-    ``connected`` message first, then queued events; clients can subscribe to log records. A client
-    that falls behind is closed with ``WS_TRY_AGAIN_LATER_CLOSE_CODE`` (see ``_send_from_queue``).
+    An unauthorized handshake gets the same 401 problem response REST sends and counts as a failed auth
+    attempt. Sending it needs the ASGI WebSocket Denial Response extension, which the uvicorn hassette runs
+    provides; without it Starlette raises ``RuntimeError``. Accepted clients receive a ``connected`` message
+    first, then queued events; clients can subscribe to log records. A client that falls behind is closed
+    with ``WS_TRY_AGAIN_LATER_CLOSE_CODE`` (see ``_send_from_queue``).
     """
     if not authorize_ws(websocket):
-        await websocket.close(code=WS_POLICY_VIOLATION_CLOSE_CODE)
+        failed_auth_tracker(websocket).record(peer_address_or_unknown(websocket))
+        await websocket.send_denial_response(unauthorized_response())
         return
     await websocket.accept()
     runtime = websocket.app.state.hassette.runtime_query_service

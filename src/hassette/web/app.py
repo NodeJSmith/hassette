@@ -20,7 +20,7 @@ from hassette.web.auth.trusted_proxies import (
 )
 from hassette.web.body_limit import RequestBodySizeLimitMiddleware
 from hassette.web.errors import WebApiError, install_problem_handlers, install_problem_openapi
-from hassette.web.middleware import API_PREFIX, DefaultDenyMiddleware
+from hassette.web.middleware import API_PREFIX, DefaultDenyMiddleware, FailedAuthTracker
 from hassette.web.request_context import HassetteContextMiddleware
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.auth import router as auth_router
@@ -112,6 +112,7 @@ def create_fastapi_app(
     app.state.hassette = hassette
     app.state.auth_token = auth_token
     app.state.trusted_proxies = trusted_proxies or EMPTY_TRUSTED_PROXY_SET
+    app.state.failed_auth = FailedAuthTracker()
 
     # Starlette wraps middleware so the LAST one added is OUTERMOST: it sees the request first and
     # the response last. Each comment below gives only that middleware's placement reason.
