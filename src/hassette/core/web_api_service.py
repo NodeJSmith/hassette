@@ -222,6 +222,8 @@ class WebApiService(Service):
             # One access line per request (health pollers hit every 30s) drowns real events; keep them for DEBUG only.
             access_log=self.config_log_level == "DEBUG",
             lifespan="off",
+            # The /ws send deadline relies on this backend blocking send() while the client's socket is backed
+            # up (uvicorn>=0.53); without that, a client that stops reading is never closed.
             ws="websockets-sansio",
             timeout_graceful_shutdown=_GRACEFUL_SHUTDOWN_TIMEOUT,
             # Uvicorn's own ProxyHeadersMiddleware would otherwise silently trust X-Forwarded-For
