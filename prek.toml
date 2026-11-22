@@ -77,6 +77,20 @@ types = ["python"]
 files = '^(src|tests|scripts|tools|codegen|wire|client|docs|examples)/.*\.py$'
 stages = ["pre-commit", "pre-push"]
 
+[[repos.hooks]]
+id = "no-mypy-ignore"
+name = 'Ban "type: ignore" comments (use pyright suppressions instead)'
+language = "pygrep"
+types = ["python"]
+entry = "# type: ignore"
+
+[[repos.hooks]]
+id = "no-future-annotations"
+name = "Ban from __future__ import annotations (breaks Pydantic and runtime type inspection)"
+language = "pygrep"
+types = ["python"]
+entry = "^from __future__ import annotations"
+
 [[repos]]
 repo = "https://github.com/python-trio/flake8-async"
 rev = "26.8.1"
