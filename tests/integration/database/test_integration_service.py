@@ -18,6 +18,7 @@ from hassette.core.integration_service import CommitCounts, IntegrationService
 from hassette.integration import Integration, IntegrationSensor
 from hassette.integration.declarations import CommandDispatchResult, Declaration, EntityState, IntegrationPlatform
 from hassette.integration.errors import IntegrationDeclarationClosedError, IntegrationHandleClosedError
+from hassette.schemas.ws_queue import WsQueueItem
 from hassette.testing import wait_for
 from tests.support.factories import make_app
 from tests.support.helpers import async_noop
@@ -594,17 +595,17 @@ async def test_concurrent_declarations_of_one_key_reject_the_second(
     assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["feed"]
 
 
-async def register_ws_queue(db: DatabaseService) -> "asyncio.Queue[dict[str, Any] | None]":
+async def register_ws_queue(db: DatabaseService) -> asyncio.Queue[WsQueueItem]:
     """Wire a real ``RuntimeQueryService`` onto the mock hassette and register one ``/ws`` client queue."""
     runtime = create_mock_runtime_query_service(cast("MagicMock", db.hassette))
     return await runtime.register_ws_client()
 
 
-def drain(queue: "asyncio.Queue[dict[str, Any] | None]") -> list[EntityStateChangedWsMessage]:
+def drain(queue: asyncio.Queue[WsQueueItem]) -> list[EntityStateChangedWsMessage]:
     messages = []
     while not queue.empty():
         message = queue.get_nowait()
-        assert message is not None
+        assert isinstance(message, dict), f"expected a broadcast message, got {message!r}"
         messages.append(ENTITY_MESSAGE_ADAPTER.validate_python(message))
     return messages
 

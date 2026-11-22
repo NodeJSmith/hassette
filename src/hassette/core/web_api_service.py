@@ -222,8 +222,9 @@ class WebApiService(Service):
             # One access line per request (health pollers hit every 30s) drowns real events; keep them for DEBUG only.
             access_log=self.config_log_level == "DEBUG",
             lifespan="off",
-            # /ws rejects a bad token with a 401 through the ASGI denial-response extension
-            # (send_denial_response), which needs this backend at uvicorn >= 0.52.1, the pyproject floor.
+            # The pyproject floor (uvicorn >= 0.52.1) is what this backend needs for /ws: the ASGI denial-response
+            # extension (send_denial_response) that rejects a bad token with a 401, and write flow control that
+            # blocks send() while a client's socket is backed up, without which the /ws send deadline never fires.
             ws="websockets-sansio",
             timeout_graceful_shutdown=_GRACEFUL_SHUTDOWN_TIMEOUT,
             # Uvicorn's own ProxyHeadersMiddleware would otherwise silently trust X-Forwarded-For

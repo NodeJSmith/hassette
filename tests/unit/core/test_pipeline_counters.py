@@ -55,14 +55,14 @@ def test_increment_and_get() -> None:
 def test_snapshot_is_a_copy() -> None:
     """Mutating a snapshot or incrementing after it does not change the other."""
     counters = PipelineCounters()
-    counters.increment(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL, n=2)
+    counters.increment(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW, n=2)
 
     snap = counters.snapshot()
-    snap[PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL] = 99
-    counters.increment(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL)
+    snap[PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW] = 99
+    counters.increment(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW)
 
-    assert counters.get(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL) == 3
-    assert counters.snapshot()[PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL] == 3
+    assert counters.get(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW) == 3
+    assert counters.snapshot()[PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW] == 3
 
 
 def test_concurrent_increments_sum_correctly() -> None:

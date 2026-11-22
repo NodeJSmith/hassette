@@ -36,7 +36,7 @@ class PipelineCounter(Enum):
     ERROR_HANDLER_HANDLER_RAISED = ("error_handler", "handler_raised", CounterKind.FAILURE)
     LOG_QUEUE_OVERFLOW = ("log_queue", "overflow", CounterKind.LOSS)
     LOG_DB_WRITE_QUEUE_OVERFLOW = ("log_db_write_queue", "overflow", CounterKind.LOSS)
-    WS_BROADCAST_CLIENT_QUEUE_FULL = ("ws_broadcast", "client_queue_full", CounterKind.LOSS)
+    WS_CLIENT_CLOSED_TOO_SLOW = ("ws_broadcast", "client_closed_too_slow", CounterKind.LOSS)
     BLOCKING_EVENT_WRITE_OVERFLOW = ("blocking_event_write", "overflow", CounterKind.LOSS)
     DB_WRITE_QUEUE_YIELDED_TO_SUBMIT = ("db_write_queue", "yielded_to_submit", CounterKind.LOSS)
     API_WRITE_RECORD_DROPPED = ("api_write_record", "dropped", CounterKind.LOSS)

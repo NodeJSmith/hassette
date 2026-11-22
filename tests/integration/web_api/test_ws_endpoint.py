@@ -1,7 +1,11 @@
 """Integration tests for the WebSocket endpoint (ws.py)."""
 
 import asyncio
+import base64
 import json
+import logging
+import os
+import socket
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -16,14 +20,23 @@ from hassette_wire import ProblemCode, ResourceStatus
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.core.runtime_query_service import WS_CLIENT_QUEUE_MAX, RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
+from hassette.schemas.ws_queue import WsClientSignal
+from hassette.testing import wait_for
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
-from hassette.web.routes.ws import WsConnectionState, _read_client, websocket_endpoint
+from hassette.web.routes.ws import (
+    WS_TOO_SLOW_CLOSE_REASON,
+    WS_TRY_AGAIN_LATER_CLOSE_CODE,
+    WsConnectionState,
+    _read_client,
+    _send_from_queue,
+    websocket_endpoint,
+)
 from tests.support.helpers import assert_failed_auth_warn_count, capture_failed_auth_warn
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_manifest_helpers import make_app_instance_info
@@ -202,11 +215,31 @@ class TestWebSocketConnection:
     ) -> None:
         with subscribed_ws(client):
             assert len(runtime_query_service._ws_clients) == 1
-            # Send None sentinel to trigger graceful queue shutdown
+            # Send the shutdown signal to trigger graceful queue shutdown
             for q in list(runtime_query_service._ws_clients):
-                q.put_nowait(None)
-            # The send loop will break on None, causing the task group to end.
+                q.put_nowait(WsClientSignal.SHUTDOWN)
+            # The send loop will break on SHUTDOWN, causing the task group to end.
         # After close, client should be unregistered
+        assert len(runtime_query_service._ws_clients) == 0
+
+    def test_overflowing_client_is_closed_with_try_again_later(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
+        """A client whose queue overflows is closed with 1013 instead of silently missing messages."""
+        with subscribed_ws(client) as ws:
+            assert len(runtime_query_service._ws_clients) == 1
+
+            async def _overflow() -> None:
+                # No await yields to the send loop between broadcasts, so the queue fills and overflows.
+                for i in range(WS_CLIENT_QUEUE_MAX + 1):
+                    await runtime_query_service.broadcast({"type": "app_status_changed", "data": {"index": i}})
+
+            # Run on the server's event loop, where the send loop reads the queue.
+            ws.portal.call(_overflow)
+
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                ws.receive_json()
+            assert exc_info.value.code == WS_TRY_AGAIN_LATER_CLOSE_CODE
         assert len(runtime_query_service._ws_clients) == 0
 
     def test_disconnect_unregisters_client(
@@ -355,6 +388,24 @@ class TestWebSocketEdgeCases:
 
         # The finally block must have called unregister_ws_client with the queue
         mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
+
+    async def test_stalled_send_closes_with_try_again_later(self) -> None:
+        """A send that never completes (the client stopped reading) closes the client with 1013."""
+        mock_ws = AsyncMock(spec=WebSocket)
+        hang_forever: asyncio.Future = asyncio.get_running_loop().create_future()
+
+        async def _never_sends(_message: dict) -> None:
+            await hang_forever
+
+        mock_ws.send_json = AsyncMock(side_effect=_never_sends)
+        queue: asyncio.Queue = asyncio.Queue()
+        queue.put_nowait({"type": "app_status_changed", "data": {}})
+
+        with patch("hassette.web.routes.ws.WS_SEND_TIMEOUT_SECONDS", 0.05), anyio.CancelScope() as scope:
+            await asyncio.wait_for(_send_from_queue(mock_ws, queue, WsConnectionState(), scope), timeout=5)
+
+        mock_ws.close.assert_awaited_once_with(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason=WS_TOO_SLOW_CLOSE_REASON)
+        assert scope.cancel_called
 
     async def test_unauthorized_connection_is_denied_before_accept(self) -> None:
         """When `authorize_ws()` returns False, the endpoint sends a 401 denial, counts it, and never accepts.
@@ -578,3 +629,76 @@ class TestWebSocketTrustedPeerPrecedence:
                 pass
 
         assert exc_info.value.response.status_code == HANDSHAKE_REJECTED_STATUS
+
+
+class TestNonReadingClientAgainstLiveServer:
+    """A client that stops reading is closed by the send deadline, not buffered without bound.
+
+    The deadline in `_send_from_queue` only fires if `websocket.send_json` blocks once the client stops
+    draining its socket, which needs write flow control in uvicorn's `websockets-sansio` backend
+    (uvicorn>=0.52.1). The in-process `AsyncMock` test cannot show that; this one runs the real backend.
+    """
+
+    SEND_TIMEOUT_SECONDS = 0.3
+    CLIENT_RCVBUF_BYTES = 4096
+    PAYLOAD_BYTES = 128 * 1024
+    QUEUE_HEADROOM = 56
+    """Broadcasts stay this far below the client queue's capacity, so overflow can never close the client."""
+    BROADCAST_COUNT = WS_CLIENT_QUEUE_MAX - QUEUE_HEADROOM
+    CLOSE_DEADLINE_SECONDS = 15.0
+
+    async def test_non_reading_client_is_closed_by_send_deadline(
+        self,
+        app: FastAPI,
+        runtime_query_service: RuntimeQueryService,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr("hassette.web.routes.ws.WS_SEND_TIMEOUT_SECONDS", self.SEND_TIMEOUT_SECONDS)
+        caplog.set_level(logging.WARNING, logger="hassette.web.routes.ws")
+        loops: list[asyncio.AbstractEventLoop] = []
+        server, thread, port = start_uvicorn_server(
+            app,
+            ws="websockets-sansio",
+            timeout_graceful_shutdown=1,
+            on_startup=lambda: loops.append(asyncio.get_running_loop()),
+        )
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            # Set before connect so the advertised TCP window stays small.
+            client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.CLIENT_RCVBUF_BYTES)
+            client.settimeout(5)
+            client.connect(("127.0.0.1", port))
+            handshake_key = base64.b64encode(os.urandom(16)).decode()
+            client.sendall(
+                (
+                    f"GET {WS_PATH} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\n"
+                    f"Connection: Upgrade\r\nSec-WebSocket-Key: {handshake_key}\r\n"
+                    "Sec-WebSocket-Version: 13\r\n\r\n"
+                ).encode()
+            )
+            assert b" 101 " in client.recv(self.CLIENT_RCVBUF_BYTES), "handshake was not accepted"
+            # The client never reads again.
+
+            await wait_for(lambda: len(runtime_query_service._ws_clients) == 1, desc="client registered")
+
+            # broadcast() runs on the server's loop, which owns the client queue.
+            payload = {"type": "app_status_changed", "data": {"blob": "x" * self.PAYLOAD_BYTES}}
+            for _ in range(self.BROADCAST_COUNT):
+                if not runtime_query_service._ws_clients:
+                    break
+                await asyncio.wrap_future(
+                    asyncio.run_coroutine_threadsafe(runtime_query_service.broadcast(payload), loops[0])
+                )
+
+            await wait_for(
+                lambda: not runtime_query_service._ws_clients,
+                timeout=self.CLOSE_DEADLINE_SECONDS,
+                desc="non-reading client closed and unregistered",
+            )
+            assert any("accepted no data" in r.getMessage() for r in caplog.records), (
+                "client was unregistered, but not by the send deadline"
+            )
+        finally:
+            client.close()
+            stop_uvicorn_server(server, thread)

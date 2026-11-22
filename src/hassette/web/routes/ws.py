@@ -9,6 +9,7 @@ import anyio
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from hassette.schemas.ws_queue import WsClientSignal, WsQueueItem
 from hassette.web.auth import authorize_ws
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.mappers import connected_data_from
@@ -16,6 +17,15 @@ from hassette.web.middleware import failed_auth_tracker, unauthorized_response
 
 router = APIRouter(tags=["websocket"])
 LOGGER = getLogger(__name__)
+
+WS_TRY_AGAIN_LATER_CLOSE_CODE = 1013
+"""RFC 6455 "Try Again Later": sent to a client that fell too far behind, which should reconnect and refetch."""
+
+WS_TOO_SLOW_CLOSE_REASON = "client too slow"
+"""Close reason sent with ``WS_TRY_AGAIN_LATER_CLOSE_CODE``."""
+
+WS_SEND_TIMEOUT_SECONDS = 5.0
+"""How long one frame, including the close frame, may wait on a client that stopped reading."""
 
 # Exception types that indicate a normal client disconnect.
 _DISCONNECT_ERRORS = (
@@ -75,23 +85,54 @@ async def _read_client(websocket: WebSocket, state: WsConnectionState, scope: an
         scope.cancel()
 
 
-async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, state: WsConnectionState) -> None:
-    """Send messages from the broadcast queue to the client."""
+async def _send_from_queue(
+    websocket: WebSocket, queue: asyncio.Queue[WsQueueItem], state: WsConnectionState, scope: anyio.CancelScope
+) -> None:
+    """Send messages from the broadcast queue to the client, cancelling ``scope`` when sending stops.
+
+    Stops on ``WsClientSignal.SHUTDOWN``. A client that falls behind is closed with
+    ``WS_TRY_AGAIN_LATER_CLOSE_CODE``: either its queue overflowed (``WsClientSignal.TOO_SLOW``) or
+    a send waited longer than ``WS_SEND_TIMEOUT_SECONDS`` because it stopped reading.
+    """
     try:
         while True:
             message = await queue.get()
-            if message is None:
-                break  # shutdown sentinel
+            if message is WsClientSignal.SHUTDOWN:
+                scope.cancel()
+                return
+            if message is WsClientSignal.TOO_SLOW:
+                await close_too_slow(websocket, scope)
+                return
             # log_hint carries no level; clients filter by level after the /logs/recent refetch it triggers.
             msg_type = message.get("type")
             if msg_type == "log_hint" and not state.subscribe_logs:
                 continue
-            await websocket.send_json(message)
+            with anyio.move_on_after(WS_SEND_TIMEOUT_SECONDS) as send_scope:
+                await websocket.send_json(message)
+            if send_scope.cancelled_caught:
+                LOGGER.warning(
+                    "Closing a WebSocket client that accepted no data for %.0f s; it will reconnect",
+                    WS_SEND_TIMEOUT_SECONDS,
+                )
+                await close_too_slow(websocket, scope)
+                return
     except Exception as exc:
         if _is_disconnect(exc):
             return
         LOGGER.debug("WebSocket send error", exc_info=True)
         raise
+
+
+async def close_too_slow(websocket: WebSocket, scope: anyio.CancelScope) -> None:
+    """Close a client that fell behind with ``WS_TRY_AGAIN_LATER_CLOSE_CODE``.
+
+    Cancels ``scope`` first, so the reader stops before Starlette marks the socket closed and never
+    fails against it mid-close. The close itself is shielded from that cancellation, and bounded,
+    because a client this slow may never take the close frame either.
+    """
+    scope.cancel()
+    with anyio.move_on_after(WS_SEND_TIMEOUT_SECONDS, shield=True):
+        await websocket.close(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason=WS_TOO_SLOW_CLOSE_REASON)
 
 
 @router.websocket("/ws")
@@ -101,7 +142,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     An unauthorized handshake gets the same 401 problem response REST sends and counts as a failed auth
     attempt. Sending it needs the ASGI WebSocket Denial Response extension, which the uvicorn hassette runs
     provides; without it Starlette raises ``RuntimeError``. Accepted clients receive a ``connected`` message
-    first, then queued events; clients can subscribe to log records.
+    first, then queued events; clients can subscribe to log records. A client that falls behind is closed
+    with ``WS_TRY_AGAIN_LATER_CLOSE_CODE`` (see ``_send_from_queue``).
     """
     if not authorize_ws(websocket):
         failed_auth_tracker(websocket).record(peer_address_or_unknown(websocket))
@@ -118,7 +160,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.send_json({"type": "connected", "data": connected.model_dump(), "timestamp": time.time()})
         async with anyio.create_task_group() as tg:
             tg.start_soon(_read_client, websocket, state, tg.cancel_scope)
-            tg.start_soon(_send_from_queue, websocket, queue, state)
+            tg.start_soon(_send_from_queue, websocket, queue, state, tg.cancel_scope)
     except BaseException as exc:  # noqa: ASYNC103 — disconnect errors are intentionally suppressed below
         if isinstance(exc, asyncio.CancelledError):
             raise
