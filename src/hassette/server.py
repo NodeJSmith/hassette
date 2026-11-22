@@ -23,6 +23,9 @@ Raised for a `ConfigError` and for a failed app precheck (an app file must be ed
 key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` script).
 """
 
+EX_FAILURE = 1
+"""A fatal error or anything else unexpected, and a forced exit on a second SIGINT."""
+
 EX_SOFTWARE = 70
 """sysexits.h ``EX_SOFTWARE``: ``hassette run`` hard-exited after a clean stop, abandoning work still running.
 
@@ -52,7 +55,7 @@ def exit_code_for(exc: BaseException | None) -> int:
         return 0
     if isinstance(exc, ConfigError | AppPrecheckFailedError):
         return EX_CONFIG
-    return 1
+    return EX_FAILURE
 
 
 async def exit_after_run(core: Hassette, exc: BaseException | None) -> None:
@@ -80,7 +83,8 @@ async def exit_after_run(core: Hassette, exc: BaseException | None) -> None:
 
     deadline = time.monotonic() + EXIT_BUDGET_SECONDS
     # only the hard exits use this code, and one that abandoned work never reports a clean stop's 0
-    hard_exit_code = EX_SOFTWARE if (mapped := exit_code_for(exc)) == 0 else mapped
+    mapped = exit_code_for(exc)
+    hard_exit_code = EX_SOFTWARE if mapped == 0 else mapped
     start_exit_watchdog(deadline + EXIT_WATCHDOG_MARGIN_SECONDS, hard_exit_code)
 
     survivors = await cancel_remaining_tasks(deadline)
@@ -167,7 +171,7 @@ def _handle_sigint_signal(core: Hassette, loop: asyncio.AbstractEventLoop, sigin
     """
     if sigint_seen.is_set():
         LOGGER.warning("second SIGINT received during shutdown; forcing immediate exit")
-        os._exit(1)
+        os._exit(EX_FAILURE)
 
     sigint_seen.set()
     loop.call_soon_threadsafe(request_shutdown, core, "SIGINT received")
@@ -216,8 +220,8 @@ async def serve(core: Hassette) -> None:
     # executor pool, the logging QueueListener, etc. — all spawned during run_forever()'s
     # resource initialization, after this point) inherits the blocked mask — see
     # _sigint_wait_loop's docstring. sigwait()/pthread_sigmask() are POSIX-only; hassette does
-    # not target Windows (see pyproject.toml — no Windows classifier), so no fallback is
-    # provided there.
+    # not target Windows, so there it only logs a warning and runs without the SIGINT thread
+    # (no second-Ctrl+C force exit).
     sigint_seen = threading.Event()
     try:
         signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
