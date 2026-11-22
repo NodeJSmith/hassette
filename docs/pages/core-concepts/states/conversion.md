@@ -129,7 +129,7 @@ To also accept other entities, add `BaseState` as the last union member.
 
 `TypeRegistry` maps `(from_type, to_type)` pairs to converter functions. When a raw value
 does not match the expected `value_type`, the registry looks up a matching converter and
-applies it.
+applies it. A target of `typing.Any` skips conversion: `TYPE_REGISTRY.convert(5, Any)` returns `5` unchanged.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/type-registry/lookup_example.py"
