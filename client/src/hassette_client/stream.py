@@ -61,7 +61,7 @@ async def listen(
         if on_connected is not None:
             await on_connected()
         while True:
-            message = await ws.receive()
+            message = await receive(transport, ws)
             if message.type is aiohttp.WSMsgType.BINARY:
                 LOGGER.debug("Skipping a binary frame from %s", transport.display_url)
                 continue
@@ -103,7 +103,7 @@ async def wait_for_connected(transport: Transport, ws: aiohttp.ClientWebSocketRe
     """
     try:
         async with asyncio.timeout(transport.request_timeout):
-            message = await ws.receive()
+            message = await receive(transport, ws)
     except TimeoutError as exc:
         raise log_raising(transport.failure(exc, ENDPOINT), cause=exc) from exc
     if message.type is aiohttp.WSMsgType.BINARY:
@@ -118,6 +118,22 @@ async def wait_for_connected(transport: Transport, ws: aiohttp.ClientWebSocketRe
                 f"The stream from {transport.display_url} opened with {first_type!r} instead of {CONNECTED_TYPE!r}"
             )
         )
+
+
+async def receive(transport: Transport, ws: aiohttp.ClientWebSocketResponse) -> aiohttp.WSMessage:
+    """The next frame, with a connection error mapped to ``HassetteConnectionError``.
+
+    ``ws.receive()`` turns most failures into a CLOSED or ERROR message, but its automatic reply to a server
+    ping runs outside that handling, so a reset at that moment raises an ``aiohttp.ClientError`` instead.
+
+    Raises:
+        HassetteConnectionError: The connection failed while reading.
+    """
+    try:
+        return await ws.receive()
+    except aiohttp.ClientError as exc:
+        error = HassetteConnectionError(f"The stream from {transport.display_url} ended ({type(exc).__name__})")
+        raise log_raising(error, cause=exc) from exc
 
 
 def decode(text: str) -> dict[str, Any]:

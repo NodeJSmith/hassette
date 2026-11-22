@@ -212,6 +212,27 @@ async def test_an_unreachable_server_raises_a_connection_error(session: aiohttp.
         await client.listen(Recorder().on_message, types=(AppStatusChangedWsMessage,))
 
 
+async def test_a_reset_raised_while_reading_maps_to_a_connection_error(
+    ws_client: HassetteClient, ws_server: FakeWsServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The automatic pong aiohttp sends runs outside ``receive()``'s own error handling, so a reset there raises."""
+    ws_server.frames, ws_server.hold = [CONNECTED], True
+    real_receive = aiohttp.ClientWebSocketResponse.receive
+    calls = 0
+
+    async def receive_then_reset(self: aiohttp.ClientWebSocketResponse, *args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return await real_receive(self, *args, **kwargs)
+        raise aiohttp.ClientConnectionResetError("Cannot write to closing transport")
+
+    monkeypatch.setattr(aiohttp.ClientWebSocketResponse, "receive", receive_then_reset)
+
+    with pytest.raises(HassetteConnectionError, match="ClientConnectionResetError"):
+        await ws_client.listen(Recorder().on_message, types=(AppStatusChangedWsMessage,))
+
+
 async def test_an_exception_from_on_message_propagates(ws_client: HassetteClient, ws_server: FakeWsServer) -> None:
     ws_server.frames = [CONNECTED, STATUS_MESSAGE]
 

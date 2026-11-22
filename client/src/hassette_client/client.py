@@ -147,12 +147,16 @@ class HassetteClient:
                 you track here (``get_apps()`` for entity state) on every connect, including the first: anything
                 changed before the stream opened is only in that fetch, and a message received while it runs is
                 passed on only after it returns. Apply a pushed ``EntityStateChangedWsMessage`` only when its
-                ``revision`` is newer than the listing's for the same ``boot_id``.
+                ``boot_id`` equals the applied listing's and its ``revision`` is newer; ignore other boots' messages
+                rather than treating them as a restart, since a restart during the fetch can leave old-boot
+                messages queued on this socket.
 
         Raises:
             ValueError: A class in ``types`` isn't a ``/ws`` message, or is ``ConnectedWsMessage``.
             AuthenticationError: The server rejected the token. Other error statuses raise the class
                 ``HassetteHTTPError`` documents for them.
+            ForbiddenError: A hassette server older than the release that added ``listen`` rejected the token with
+                a bare 403 instead of a 401; treat it as a rejected token.
             HassetteTimeoutError: Connecting, or the ``connected`` message, took longer than ``request_timeout``.
             HassetteConnectionError: The connection failed, or the stream ended after it opened: the server
                 closed it, it stopped answering heartbeats, or it was reset.

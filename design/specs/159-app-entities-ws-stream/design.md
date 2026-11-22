@@ -1,7 +1,7 @@
 # Design: Stream declared entity state over `/ws`, with WebSocket streams in hassette-client
 
 **Date:** 2026-11-22
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4220
 **Parent:** design/specs/155-hacs-app-entities/design.md
@@ -342,7 +342,7 @@ hass-hassette needs to tell "never connected" from "connected, then ended".
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
@@ -356,3 +356,5 @@ hass-hassette needs to tell "never connected" from "connected, then ended".
 - `Transport`'s below-HTTP exception mapping became `Transport.failure()` so `listen` maps connect failures the same way.
 - `publish_entity_state` reuses `web.mappers.declared_entity_from`, so a pushed entity is built exactly as the listing builds it; `core` already imports `web` (`web_api_service`).
 - The docs section has no complete runnable example. The persona review asked for one; D5's ratified "no docs-page example" was kept, and the section shows the call shape in one line instead.
+- `listen` maps an `aiohttp.ClientError` raised while reading (aiohttp's automatic pong runs outside `receive()`'s own error handling) to `HassetteConnectionError`, so D9's "no raw aiohttp exception escapes" holds on that path too (ship-time challenge Finding 9).
+- D5's accepted restart window is closed by the consumer's apply rule rather than a `boot_id` on `connected`: the docs and the `on_connected` docstring say to apply a delta only when its `boot_id` equals the applied listing's, and to ignore other boots' messages instead of treating them as a restart. That is safe because `listen` awaits `on_connected` before dispatching on a new socket (ship-time challenge Finding 10).

@@ -219,7 +219,8 @@ class FailedAuthTracker:
 def failed_auth_tracker(connection: HTTPConnection) -> FailedAuthTracker:
     """The app's one ``FailedAuthTracker``, which ``create_fastapi_app`` stores on ``app.state``.
 
-    Shared by the HTTP gate and the ``/ws`` handshake, so a source failing on both is counted once.
+    The HTTP gate and the ``/ws`` handshake feed this one tally, so a browser's rejected reconnect counts twice:
+    the handshake, then the web UI's confirming REST request.
     """
     return connection.app.state.failed_auth
 
