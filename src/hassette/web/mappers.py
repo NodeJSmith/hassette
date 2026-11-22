@@ -17,12 +17,15 @@ directly — pass the enum value as-is.
 """
 
 from hassette_wire import (
+    AppActivityStats,
     AppInstance,
     AppListResponse,
     AppSummary,
     ConnectedData,
     DeclaredEntity,
     InstanceOutcome,
+    LastError,
+    LastErrorResult,
     ListenerKind,
     ListenerSummary,
     ReadinessResponse,
@@ -33,10 +36,12 @@ from whenever import Date, Instant
 from hassette.integration.declarations import CommittedEntity
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
+from hassette.schemas.summary_models import AppHealthSummary
 from hassette.types.enums import Topic
-from hassette.web.telemetry_helpers import format_handler_summary
+from hassette.web.telemetry_helpers import build_app_health, format_handler_summary
 
 TOPIC_KIND_MAP: dict[str, ListenerKind] = {
     Topic.HASS_EVENT_STATE_CHANGED: "state change",
@@ -212,4 +217,29 @@ def listener_summary_from(
         suppressed_count=suppressed,
         dropped_count=dropped,
         backpressure_dropped_count=backpressure_dropped,
+    )
+
+
+def app_activity_stats_from(summary: AppHealthSummary) -> AppActivityStats:
+    """Build an app's ``stats`` part from its health summary."""
+    agg = summary.aggregates
+    return AppActivityStats(
+        handler_count=summary.handler_count,
+        job_count=summary.job_count,
+        total_invocations=agg.total_invocations,
+        total_errors=agg.handler_errors,
+        total_timed_out=agg.handler_timed_out,
+        total_executions=agg.total_executions,
+        total_job_errors=agg.job_errors,
+        total_job_timed_out=agg.job_timed_out,
+        health=build_app_health(agg),
+    )
+
+
+def last_error_result_from(err: AppLastError | None) -> LastErrorResult:
+    """Build an app's ``last_error`` part from a lookup that ran; ``err`` is ``None`` when it found none."""
+    if err is None:
+        return LastErrorResult(error=None)
+    return LastErrorResult(
+        error=LastError(error_message=err.error_message, error_type=err.error_type, ts=err.timestamp)
     )

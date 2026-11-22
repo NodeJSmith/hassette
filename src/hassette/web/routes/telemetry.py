@@ -23,7 +23,6 @@ from hassette_wire import (
     ActivityBucket,
     ActivityFeedEntry,
     AppActivity,
-    AppActivityStats,
     AppGridEntry,
     AppGridResponse,
     AppHealth,
@@ -31,8 +30,6 @@ from hassette_wire import (
     Execution,
     ExecutionKind,
     JobSummary,
-    LastError,
-    LastErrorResult,
     ListenerMiss,
     ListenerSummary,
     ProblemCode,
@@ -59,7 +56,7 @@ from hassette.web.dependencies import (
     TelemetryFiltersDep,
 )
 from hassette.web.errors import problem_responses
-from hassette.web.mappers import app_summary_from
+from hassette.web.mappers import app_activity_stats_from, app_summary_from, last_error_result_from
 from hassette.web.routes.apps import app_not_found
 from hassette.web.telemetry_helpers import build_app_health
 from hassette.web.utils import enrich_jobs_with_live_data, listener_summaries
@@ -351,36 +348,13 @@ class GridEnrichments:
         buckets = None if self.activity_buckets is None else self.activity_buckets.get(app_key, [])
         blocking = None if self.blocking_event_count is None else self.blocking_event_count.get(app_key, 0)
         return AppActivity(
-            stats=None if self.stats is None else stats_part(self.stats.get(app_key, NO_TELEMETRY_SUMMARY)),
+            stats=None
+            if self.stats is None
+            else app_activity_stats_from(self.stats.get(app_key, NO_TELEMETRY_SUMMARY)),
             activity_buckets=None if buckets is None else [ActivityBucket(ok=ok, err=err) for ok, err in buckets],
-            last_error=None if self.last_error is None else last_error_part(self.last_error.get(app_key)),
+            last_error=None if self.last_error is None else last_error_result_from(self.last_error.get(app_key)),
             blocking_event_count=blocking,
         )
-
-
-def stats_part(summary: AppHealthSummary) -> AppActivityStats:
-    """Build an app's ``stats`` part from its health summary."""
-    agg = summary.aggregates
-    return AppActivityStats(
-        handler_count=summary.handler_count,
-        job_count=summary.job_count,
-        total_invocations=agg.total_invocations,
-        total_errors=agg.handler_errors,
-        total_timed_out=agg.handler_timed_out,
-        total_executions=agg.total_executions,
-        total_job_errors=agg.job_errors,
-        total_job_timed_out=agg.job_timed_out,
-        health=build_app_health(agg),
-    )
-
-
-def last_error_part(err: AppLastError | None) -> LastErrorResult:
-    """Build an app's ``last_error`` part from a lookup that ran; ``err`` is ``None`` when it found none."""
-    if err is None:
-        return LastErrorResult(error=None)
-    return LastErrorResult(
-        error=LastError(error_message=err.error_message, error_type=err.error_type, ts=err.timestamp)
-    )
 
 
 async def query_or_none(label: str, query: Awaitable[ResultT]) -> ResultT | None:
