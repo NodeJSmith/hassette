@@ -503,7 +503,14 @@ class TestReplayPreReleaseReconciliationSerialization:
         )
 
         lifecycle_service.resolve_only_apps = race.gated_call  # pyright: ignore[reportAttributeAccessIssue]
-        lifecycle_service.refresh_config = AsyncMock(return_value=({}, {}))  # pyright: ignore[reportAttributeAccessIssue]
+
+        # Like the real refresh_config(), re-apply the --app filter, so handle_change_event()
+        # reaches the gated collaborator too.
+        async def stub_refresh_config() -> tuple[dict, dict]:
+            await lifecycle_service.resolve_only_apps()
+            return {}, {}
+
+        lifecycle_service.refresh_config = stub_refresh_config  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
 
         first_task = await race.start_first(lifecycle_service._replay_pre_release_reconciliation_if_needed())

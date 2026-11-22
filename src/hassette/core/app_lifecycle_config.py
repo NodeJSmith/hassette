@@ -84,7 +84,7 @@ class AppConfigStateMixin:
         """
         self.logger.debug("Setting apps configuration")
         self.registry.set_manifests(deepcopy(apps_config))
-        self.registry.set_only_apps(())  # reset the filter, it is recomputed on next initialize
+        self.registry.set_only_apps(())  # clear any stale filter; callers re-apply it via resolve_only_apps()
 
         self.logger.debug(
             "Found %d apps in configuration: %s", len(self.registry.manifests), list(self.registry.manifests.keys())
