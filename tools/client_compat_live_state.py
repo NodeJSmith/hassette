@@ -47,11 +47,11 @@ APP_KEY_FLAGGED_APP = "flagged_app"
 
 APP_KEY_BUSY_APP = "busy_app"
 """A live app with an action always in flight, so any action on it answers ``action_in_progress``
-(:func:`wire_busy_app`). It reports ``STOPPED``, as an app whose start is still running does."""
+(:func:`wire_busy_app`). It reports ``STARTING``, as an app whose start is still running does."""
 
 APP_KEY_ESCAPING_APP = "escaping_app"
 """A live app whose source path resolves outside its app directory, so reading its source answers
-``path_traversal`` (:func:`wire_source_paths`)."""
+``path_traversal`` (:func:`wire_source_paths`). It reports ``STOPPING``, so every ``AppStatus`` appears."""
 
 APP_KEY_UNREADABLE_APP = "unreadable_app"
 """A live app whose source path fails to resolve, so reading its source answers ``source_unavailable``
@@ -284,13 +284,13 @@ def live_manifests() -> list[AppManifestInfo]:
                 class_name=name,
                 display_name=name,
                 filename=f"{key}.py",
-                status=AppStatus.STOPPED,
+                status=status,
                 instance_count=0,
             )
-            for key, name in (
-                (APP_KEY_ESCAPING_APP, "EscapingApp"),
-                (APP_KEY_UNREADABLE_APP, "UnreadableApp"),
-                (APP_KEY_BUSY_APP, "BusyApp"),
+            for key, name, status in (
+                (APP_KEY_ESCAPING_APP, "EscapingApp", AppStatus.STOPPING),
+                (APP_KEY_UNREADABLE_APP, "UnreadableApp", AppStatus.STOPPED),
+                (APP_KEY_BUSY_APP, "BusyApp", AppStatus.STARTING),
             )
         ),
     ]

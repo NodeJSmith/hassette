@@ -114,6 +114,13 @@ class AppSummary(BaseModel):
     """One-line description of what the app does, from the app's config as last recorded (an app removed from
     config keeps its last description); ``None`` when unset."""
     status: OpenAppStatus
+    status_revision: int
+    """The app-status revision this summary was read at; it covers ``status`` and every instance's ``status``,
+    ``error_message`` and ``needs_restart``. An ``app_status_changed`` message updates this app only when its
+    ``status_revision`` is strictly greater, so on a tie the summary wins. Refetch on ``apps_changed``: writes that
+    send no ``app_status_changed`` (blocking, config changes, registration) are delivered that way. Revisions
+    strictly increase within a run and, since they are seeded from the server's clock, across restarts unless the
+    clock steps backwards. They skip values, so they can't detect a lost message."""
     block_reason: str | None = None
     instance_count: int = 0
     """Number of entries in ``instances``: every configured instance, including ones never started or
@@ -136,8 +143,8 @@ class AppSummary(BaseModel):
 class AppListResponse(BaseModel):
     """Response for ``GET /api/apps``: every app with status counts.
 
-    ``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other
-    listings. An instance's availability follows its ``status``, not ``revision``.
+    ``boot_id`` and ``entity_revision`` order the declared entities it carries (``AppInstance.entities``) against
+    other listings. An instance's availability follows its ``status``, ordered by ``AppSummary.status_revision``.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -147,13 +154,13 @@ class AppListResponse(BaseModel):
     apps: list[AppSummary]
     only_apps: list[str] = Field(default_factory=list)
     boot_id: str
-    """Identifies this run of hassette; it changes on every restart. ``revision`` values are comparable only
+    """Identifies this run of hassette; it changes on every restart. ``entity_revision`` values are comparable only
     between responses carrying the same ``boot_id``: on a new one, discard every revision seen before."""
-    revision: int
+    entity_revision: int
     """Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration
     commit and entity state change, skipping values. The listing reflects every declaration and value change up to
     this revision, so a client may apply it to an instance whose last applied revision is equal or older. It doesn't
-    order availability: starting or stopping an instance changes its ``status``, not ``revision``."""
+    order availability: that is ``AppSummary.status_revision``."""
 
 
 class InstanceOutcome(BaseModel):

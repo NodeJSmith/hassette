@@ -14,7 +14,6 @@ from hassette.core.app_registry import AppRegistry, StatusChange
 from hassette.core.pipeline_counters import PipelineCounter, PipelineCounters
 from hassette.core.runtime_query_service import WS_CLIENT_QUEUE_MAX, RuntimeQueryService
 from hassette.events.hassette import (
-    HassetteAppStateEvent,
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
 )
@@ -289,54 +288,66 @@ class TestConcurrentAppHandlerTeardown:
         [info] = runtime.overlay_manifest_rows([make_manifest_db_row(app_key=manifest.app_key)])
         assert info.status is AppStatus.STOPPED
 
-    async def test_on_app_state_changed_does_not_read_needs_restart_from_the_registry(
+    def test_publish_app_status_carries_the_changes_revision_rollup_and_boot(
         self, runtime: RuntimeQueryService
     ) -> None:
-        """An event with no needs-restart flag broadcasts ``needs_restart: None``, whatever the registry holds."""
-        broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        """The WS message is built from the change alone, plus the process's ``boot_id``."""
+        sent: list[dict] = []
+        runtime.put_to_clients = Mock(side_effect=sent.append)
+        runtime.hassette.integration_service.boot_id = "boot-1"
         registry = AppRegistry()
-        # A flag that landed after this STARTING event was sent must not show on it.
-        seed_failed(registry, "stuck_app", "StuckApp[0]", needs_restart="flagged after this event was sent")
+        # A flag that landed after this STARTING change must not show on it.
+        seed_failed(registry, "stuck_app", "Other[0]", needs_restart="flagged after this change")
         runtime.hassette.app_handler.registry = registry
-        event = HassetteAppStateEvent.from_change(
+
+        runtime.publish_app_status(
             StatusChange(
                 app_key="stuck_app",
                 instance_name="StuckApp[0]",
                 class_name="StuckApp",
                 previous=ResourceStatus.NOT_STARTED,
                 status=ResourceStatus.STARTING,
+                status_revision=42,
+                app_status=AppStatus.STARTING,
             )
         )
 
-        await runtime.on_app_state_changed(event)
+        [msg] = sent
+        assert msg["type"] == "app_status_changed"
+        data = msg["data"]
+        assert (data["status"], data["status_revision"], data["app_status"], data["boot_id"]) == (
+            ResourceStatus.STARTING,
+            42,
+            AppStatus.STARTING,
+            "boot-1",
+        )
+        assert data["needs_restart"] is None
 
-        [msg] = broadcast_calls
-        assert msg["data"]["status"] == ResourceStatus.STARTING
-        assert msg["data"]["needs_restart"] is None
-
-    async def test_on_app_state_changed_carries_the_events_needs_restart(self, runtime: RuntimeQueryService) -> None:
-        """The WS message carries the flag the bus event carries, with ``flagged_at`` in epoch seconds."""
-        broadcast_calls: list[dict] = []
-        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+    def test_publish_app_status_carries_the_changes_needs_restart(self, runtime: RuntimeQueryService) -> None:
+        """The WS message carries the change's flag, with ``flagged_at`` in epoch seconds."""
+        sent: list[dict] = []
+        runtime.put_to_clients = Mock(side_effect=sent.append)
+        runtime.hassette.integration_service.boot_id = "boot-1"
         flag = NeedsRestartInfo(
             reason="1 task still pending", pending_tasks=("StuckApp.poll",), flagged_at=date_utils.now()
         )
-        event = HassetteAppStateEvent.from_change(
+
+        runtime.publish_app_status(
             StatusChange(
                 app_key="stuck_app",
                 instance_name="StuckApp[0]",
                 class_name="StuckApp",
                 previous=ResourceStatus.STOPPING,
                 status=ResourceStatus.FAILED,
+                status_revision=7,
+                app_status=AppStatus.FAILED,
                 error=RuntimeError("hung"),
                 needs_restart=flag,
             )
         )
 
-        await runtime.on_app_state_changed(event)
-
-        [msg] = broadcast_calls
+        [msg] = sent
+        assert msg["data"]["exception"] == "hung"
         wire_flag = msg["data"]["needs_restart"]
         assert wire_flag["reason"] == "1 task still pending"
         assert wire_flag["pending_tasks"] == ["StuckApp.poll"]

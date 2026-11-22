@@ -78,7 +78,7 @@ async def test_commit_persists_and_a_new_boot_restores_it(db: DatabaseService) -
 
     rebooted = await start_service(db)
     assert rebooted.boot_id != service.boot_id
-    assert rebooted.revision == 0
+    assert rebooted.entity_revision == 0
     restored = {entity.declaration.key: entity.state for entity in rebooted.entities("my_app", "kitchen")}
     assert restored == {"feed": EntityState(), "show": EntityState(True, {}), "temp": EntityState(21.5, {"a": 1})}
 
@@ -156,7 +156,7 @@ async def test_failed_commit_leaves_the_previous_set(db: DatabaseService, monkey
     service = await start_service(db)
     first = owner()
     await service.commit_instance(first, [FEED, TEMP], {"temp": EntityState(1, {})})
-    revision = service.revision
+    revision = service.entity_revision
 
     real_executemany = db.db.executemany
     calls = 0
@@ -179,7 +179,7 @@ async def test_failed_commit_leaves_the_previous_set(db: DatabaseService, monkey
         ("kitchen", "temp", "sensor", "1", "{}"),
     ]
     assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["feed", "temp"]
-    assert service.revision == revision
+    assert service.entity_revision == revision
     with pytest.raises(IntegrationHandleClosedError):
         await service.set_state(second, TEMP, EntityState(2, {}))
 
@@ -192,10 +192,10 @@ async def test_set_writes_once_and_rejects_a_replaced_owner(db: DatabaseService)
     with pytest.raises(IntegrationHandleClosedError):
         await service.set_state(old, TEMP, EntityState(5, {}))
 
-    revision = service.revision
+    revision = service.entity_revision
     await service.set_state(new, TEMP, EntityState(5, {}))
     await service.set_state(new, TEMP, EntityState(5, {}))
-    assert service.revision == revision + 1
+    assert service.entity_revision == revision + 1
     assert await stored_rows(db) == [("kitchen", "temp", "sensor", "5", "{}")]
 
 
@@ -461,7 +461,7 @@ async def test_failed_commit_closes_the_handles_and_discards_pending_values(
 async def test_instance_that_declares_nothing_writes_nothing(db: DatabaseService) -> None:
     service = await start_service(db)
     assert await make_integration(service)._commit_declarations() is None
-    assert service.revision == 0
+    assert service.entity_revision == 0
     assert await stored_rows(db) == []
 
     integration = make_integration(service)
@@ -622,10 +622,10 @@ async def test_sets_reach_ws_clients_in_revision_order(db: DatabaseService) -> N
     assert queue.qsize() == 6
 
     messages = drain(queue)
-    assert [m.data.revision for m in messages] == list(range(2, 8))
+    assert [m.data.entity_revision for m in messages] == list(range(2, 8))
     assert [m.data.entity.value for m in messages] == [0, 1, 2, 3, 4, False]
     last = messages[-1].data
-    assert (last.boot_id, last.revision) == (service.boot_id, service.revision)
+    assert (last.boot_id, last.entity_revision) == (service.boot_id, service.entity_revision)
     assert (last.app_key, last.instance_name) == ("my_app", "kitchen")
     assert (last.entity.key, last.entity.platform, last.entity.attributes) == ("show", "switch", {"by": "test"})
 
@@ -636,7 +636,7 @@ async def test_unchanged_set_and_declaration_commit_publish_nothing(db: Database
     await service.commit_instance(owner(), [TEMP], {"temp": EntityState(5, {})})
     await service.set_state(service._owners[("my_app", "kitchen")], TEMP, EntityState(5, {}))
 
-    assert service.revision == 1
+    assert service.entity_revision == 1
     assert queue.empty()
 
 

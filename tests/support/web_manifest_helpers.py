@@ -25,6 +25,8 @@ from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
 STUB_BOOT_ID = "0123456789abcdef0123456789abcdef"
 """The ``boot_id`` stub listings and the stub ``IntegrationService`` report."""
+STUB_STATUS_REVISION = 1_000
+"""The ``status_revision`` hand-built manifests and summaries carry by default."""
 
 
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppSummary]) -> dict[AppStatus, int]:
@@ -95,6 +97,7 @@ def make_manifest(
     error_traceback: str | None = None,
     autostart: bool = True,
     in_current_config: bool = True,
+    status_revision: int = STUB_STATUS_REVISION,
 ) -> AppManifestInfo:
     """Build an AppManifestInfo with sensible defaults."""
     return AppManifestInfo(
@@ -104,6 +107,7 @@ def make_manifest(
         filename=filename,
         enabled=enabled,
         status=status,
+        status_revision=status_revision,
         block_reason=block_reason,
         instance_count=instance_count,
         instances=tuple(instances or ()),
@@ -125,6 +129,7 @@ def make_app_summary(
     instances: list[AppInstance] | None = None,
     in_current_config: bool = True,
     needs_restart_count: int = 0,
+    status_revision: int = STUB_STATUS_REVISION,
 ) -> AppSummary:
     """Build an AppSummary with sensible defaults."""
     return AppSummary(
@@ -134,6 +139,7 @@ def make_app_summary(
         filename=filename,
         enabled=enabled,
         status=status,
+        status_revision=status_revision,
         instance_count=instance_count,
         instances=instances or [],
         in_current_config=in_current_config,
@@ -176,5 +182,5 @@ def make_app_list_response(
         # items(), not the dict itself: dict keys are invariant, so dict[AppStatus, int] can't widen to OpenAppStatus.
         status_counts=dict(counts.items()),
         boot_id=STUB_BOOT_ID,
-        revision=0,
+        entity_revision=0,
     )

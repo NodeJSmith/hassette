@@ -9,6 +9,10 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import DATA_LOAD_TIMEOUT_MS, DESKTOP_VIEWPORT, MOBILE_VIEWPORT
+from tests.support.web_manifest_helpers import STUB_BOOT_ID, STUB_STATUS_REVISION
+
+INJECTED_STATUS_REVISION = STUB_STATUS_REVISION + 1
+"""Newer than every mock app row, so an injected ``app_status_changed`` applies over the snapshot."""
 
 pytestmark = pytest.mark.e2e
 
@@ -247,7 +251,7 @@ def test_stopped_app_status_survives_back_navigation(page: Page, live_server_ws_
     reload), and confirm the grid reflects 'stopped' rather than the pre-stop 'running'
     snapshot. The apps grid overlays live status from the Zustand appStatus store (see
     appLiveStatus() in utils/app-data.ts), which is populated by the app_status_changed WS
-    message a real backend broadcasts after RuntimeQueryService.on_app_state_changed fires —
+    message a real backend publishes from set_app_status (RuntimeQueryService.publish_app_status) —
     this test injects that message directly via broadcast_sync, the same way
     test_execution_completed_ws_message_triggers_activity_refetch injects execution_completed,
     since the mock backend's stop_app() is a no-op MagicMock with no event-bus wiring.
@@ -275,7 +279,14 @@ def test_stopped_app_status_survives_back_navigation(page: Page, live_server_ws_
     broadcast_sync(
         {
             "type": "app_status_changed",
-            "data": {"app_key": "my_app", "instance_name": "myapp_0", "status": "stopped"},
+            "data": {
+                "app_key": "my_app",
+                "instance_name": "myapp_0",
+                "status": "stopped",
+                "status_revision": INJECTED_STATUS_REVISION,
+                "boot_id": STUB_BOOT_ID,
+                "app_status": "stopped",
+            },
             "timestamp": time.time(),
         }
     )
@@ -322,7 +333,14 @@ def test_multi_instance_overview_shows_live_instance_status_after_stop(page: Pag
     broadcast_sync(
         {
             "type": "app_status_changed",
-            "data": {"app_key": "multi_app", "instance_name": "multiapp_0", "status": "stopped"},
+            "data": {
+                "app_key": "multi_app",
+                "instance_name": "multiapp_0",
+                "status": "stopped",
+                "status_revision": INJECTED_STATUS_REVISION,
+                "boot_id": STUB_BOOT_ID,
+                "app_status": "running",
+            },
             "timestamp": time.time(),
         }
     )

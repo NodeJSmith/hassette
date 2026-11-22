@@ -2,7 +2,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { appStatusKey, type AppStore } from "../state/store";
+import { type AppStatusEntry, appStatusKey, type AppStore } from "../state/store";
 import { createBlockingFinding } from "../test/blocking-fixtures";
 import { createAppSummary, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
@@ -15,6 +15,19 @@ import { setupApi, setupMultiInstanceParent } from "./app-detail.test-helpers";
 // Mutable search string for tests that need to control query params
 let mockSearchString = "";
 const mockNavigate = vi.fn();
+
+/** A live delta for one `test_app` instance, newer than the default manifest's `status_revision` (100). */
+function liveInstance(
+  instanceName: string,
+  entry: Pick<AppStatusEntry, "status" | "exception">,
+): AppStore["appStatus"] {
+  return {
+    instances: {
+      [appStatusKey("test_app", instanceName)]: { ...entry, instance_name: instanceName, status_revision: 101 },
+    },
+    apps: {},
+  };
+}
 
 // Stub wouter navigation
 vi.mock("wouter", () =>
@@ -152,7 +165,7 @@ describe("AppDetailPage instances", () => {
     setupApi(manifest);
     const { findByTestId } = renderPage(
       { key: "test_app" },
-      { appStatus: { [appStatusKey("test_app", "inst_0")]: { status: "stopped", instance_name: "inst_0" } } },
+      { appStatus: liveInstance("inst_0", { status: "stopped" }) },
     );
 
     const card0 = await findByTestId("instance-card-inst_0");
@@ -176,9 +189,7 @@ describe("AppDetailPage instances", () => {
     const { findByTestId } = renderPage(
       { key: "test_app" },
       {
-        appStatus: {
-          [appStatusKey("test_app", "inst_0")]: { status: "running", instance_name: "inst_0", exception: null },
-        },
+        appStatus: liveInstance("inst_0", { status: "running", exception: null }),
       },
     );
 
@@ -201,9 +212,7 @@ describe("AppDetailPage instances", () => {
     const { findByTestId } = renderPage(
       { key: "test_app" },
       {
-        appStatus: {
-          [appStatusKey("test_app", "inst_0")]: { status: "failed", instance_name: "inst_0", exception: "kaboom" },
-        },
+        appStatus: liveInstance("inst_0", { status: "failed", exception: "kaboom" }),
       },
     );
 
@@ -223,7 +232,7 @@ describe("AppDetailPage instances", () => {
     mockSearchString = "instance=inst_1";
     const { findByTestId } = renderPage(
       { key: "test_app" },
-      { appStatus: { [appStatusKey("test_app", "inst_0")]: { status: "stopped", instance_name: "inst_0" } } },
+      { appStatus: liveInstance("inst_0", { status: "stopped" }) },
     );
 
     const switcherBtn0 = await findByTestId("switcher-instance-inst_0");

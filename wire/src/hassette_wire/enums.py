@@ -85,7 +85,11 @@ OpenResourceStatus = Annotated[ResourceStatus | UnknownValue, LenientValue("Reso
 
 
 class AppStatus(StrEnum):
-    """An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``)."""
+    """An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``).
+
+    Members are listed in rollup order: the first that applies is the app's status. Only tracked instances count;
+    a configured instance that isn't tracked (shown as ``stopped``) never does.
+    """
 
     DISABLED = "disabled"
     """The app is disabled in configuration and will not start."""
@@ -94,13 +98,19 @@ class AppStatus(StrEnum):
     """The app was intentionally prevented from starting (see ``BlockReason``)."""
 
     DEGRADED = "degraded"
-    """At least one instance is running and at least one instance has failed."""
-
-    RUNNING = "running"
-    """All tracked instances are running."""
+    """At least one instance has failed and at least one is live (not started, starting, running or stopping)."""
 
     FAILED = "failed"
-    """All tracked instances have failed and none are running."""
+    """At least one instance has failed and none is live."""
+
+    STARTING = "starting"
+    """At least one instance is starting or registered but not yet started."""
+
+    STOPPING = "stopping"
+    """At least one instance is stopping."""
+
+    RUNNING = "running"
+    """Every tracked instance is running."""
 
     STOPPED = "stopped"
     """The app has no tracked instances (not started, or intentionally stopped)."""

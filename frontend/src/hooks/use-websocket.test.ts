@@ -492,6 +492,9 @@ describe("useWebSocket", () => {
         data: {
           app_key: "my_app",
           status: "failed",
+          status_revision: 7,
+          boot_id: "boot-1",
+          app_status: "failed",
           previous_status: "stopping",
           instance_name: "my_app_0",
           class_name: "MyApp",
@@ -504,7 +507,40 @@ describe("useWebSocket", () => {
       });
     });
 
-    expect(useAppStore.getState().appStatus["my_app:my_app_0"]?.needs_restart).toEqual(flag);
+    expect(useAppStore.getState().appStatus.instances["my_app:my_app_0"]?.needs_restart).toEqual(flag);
+  });
+
+  it("writes an app_status_changed delta to both the instance entry and the app rollup", () => {
+    const { ws } = renderConnectedWebSocketHook();
+
+    act(() => {
+      ws.simulateMessage({
+        type: "app_status_changed",
+        data: {
+          app_key: "my_app",
+          status: "failed",
+          status_revision: 7,
+          boot_id: "boot-1",
+          app_status: "degraded",
+          previous_status: "running",
+          instance_name: "my_app_0",
+          class_name: "MyApp",
+          exception: "boom",
+          exception_type: null,
+          exception_traceback: null,
+        },
+        timestamp: 1000,
+      });
+    });
+
+    const { appStatus } = useAppStore.getState();
+    expect(appStatus.instances["my_app:my_app_0"]).toMatchObject({
+      status: "failed",
+      status_revision: 7,
+      instance_name: "my_app_0",
+      exception: "boom",
+    });
+    expect(appStatus.apps["my_app"]).toEqual({ app_status: "degraded", status_revision: 7 });
   });
 
   it("defaults ready to false and ready_phase to null for pre-schema events", () => {

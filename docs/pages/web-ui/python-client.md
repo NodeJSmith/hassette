@@ -96,7 +96,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 !!! warning "An accepted command can still be dropped"
     A successful `press_button()` or `set_switch()` means Hassette accepted and published the command, not that the app's handler ran. The handler's [execution mode](../core-concepts/bus/execution-modes.md) can still drop it. The default, `single`, skips a command that arrives while the previous one is still running, and a `queued` handler skips one when its queue is full. Each skip is recorded as a [near-miss](../core-concepts/bus/filtering.md#near-misses) (`hassette listener <id> --misses`). A `restart` handler runs the new command and cancels the earlier one, which shows up as a cancelled execution. The app chooses the mode with `mode=` when it [declares the button or switch](../core-concepts/apps/integration-entities.md). A command accepted while the instance or Hassette is shutting down can be lost with no record beyond a debug log line. None of this appears in the response, so check the handler's executions and near-misses to see what happened.
 
-Each instance's declared entities, with their current state, are in `get_apps()`'s `AppInstance.entities`; every other method that returns instances leaves `entities` as `None`. The listing's `boot_id` and `revision` say how fresh those entities are: `revision` goes up with every change, and comparing two revisions only makes sense when both listings carry the same `boot_id`.
+Each instance's declared entities, with their current state, are in `get_apps()`'s `AppInstance.entities`; every other method that returns instances leaves `entities` as `None`. The listing's `boot_id` and `entity_revision` say how fresh those entities are: `entity_revision` goes up with every change, and comparing two revisions only makes sense when both listings carry the same `boot_id`.
 
 `POST /api/auth/session` has no method. It trades a token for a browser session cookie, which a client sending its token on every request doesn't need.
 
@@ -197,18 +197,29 @@ Inside Home Assistant, don't retry in the integration at all. Raise `ConfigEntry
 await client.listen(on_message, types=[EntityStateChangedWsMessage], on_connected=refresh)
 ```
 
-`listen()` connects with the client's session and token and waits until the stream is receiving. It awaits `on_connected()`, then awaits `on_message` for each message whose type is in `types`, one at a time, in the order the server sent them. Other types are skipped without being parsed, including types a newer Hassette adds, so a change to a message the client doesn't listen for never breaks the stream. The message classes come from `hassette_wire`. `AppStatusChangedWsMessage` is the other one an integration usually wants, for an instance starting or stopping.
+`listen()` connects with the client's session and token and waits until the stream is receiving. It awaits `on_connected()`, then awaits `on_message` for each message whose type is in `types`, one at a time, in the order the server sent them. Other types are skipped without being parsed, including types a newer Hassette adds, so a change to a message the client doesn't listen for never breaks the stream. The message classes come from `hassette_wire`. `AppStatusChangedWsMessage` is the other one an integration usually wants, for an instance starting or stopping; [App status](#app-status) covers how to apply it.
 
 `listen()` never returns and never reconnects, so run it as a background task. When the stream ends, it raises `HassetteConnectionError`: the server closed it, the connection stopped answering the heartbeat sent every 30 seconds, or it was reset. Reconnecting is the caller's decision. Cancel the task to close the stream.
 
 A bad token raises `AuthenticationError`, as on any other method. A Hassette server older than the release that added `listen()` rejects the token with a bare 403 instead, which raises `ForbiddenError`, and it sends no entity messages at all, so the poll described below matters there even more.
 
-Each `EntityStateChangedWsMessage` carries one entity's full state, in the same shape as an entry of `AppInstance.entities`, plus the `boot_id` and `revision` it was committed at. Apply messages by these rules:
+Each `EntityStateChangedWsMessage` carries one entity's full state, in the same shape as an entry of `AppInstance.entities`, plus the `boot_id` and `entity_revision` it was committed at. Apply messages by these rules:
 
-- **Same boot, newer revision.** Apply a pushed entity only when its `boot_id` equals the `boot_id` of the listing last applied and its `revision` is newer than the last one applied. Ignore a message from any other boot rather than treating it as a restart. If Hassette restarts while a listing fetch is in flight, the old socket can still deliver deltas from the old boot after the new boot's listing is applied, and the reconnect brings that listing anyway. Messages reach each client in revision order, but a fetched listing can already include a change whose message is still on its way.
-- **Revisions skip.** `revision` counts every change across all of Hassette's instances, and adding or removing entities when an instance starts moves it too. A gap between two messages doesn't mean one was missed.
+- **Same boot, newer revision.** Apply a pushed entity only when its `boot_id` equals the `boot_id` of the listing last applied and its `entity_revision` is newer than the last one applied. Ignore a message from any other boot rather than treating it as a restart. If Hassette restarts while a listing fetch is in flight, the old socket can still deliver deltas from the old boot after the new boot's listing is applied, and the reconnect brings that listing anyway. Messages reach each client in revision order, but a fetched listing can already include a change whose message is still on its way.
+- **Revisions skip.** `entity_revision` counts every change across all of Hassette's instances, and adding or removing entities when an instance starts moves it too. A gap between two messages doesn't mean one was missed.
 - **Only a listing repairs a lost message.** Hassette drops messages for a client that falls too far behind, and nothing in the stream signals it. Keep fetching `get_apps()` on a timer, and refetch it in `on_connected()` on every connect, including the first: changes made before the stream opened appear only in that listing.
 - **Entities appear and disappear through the listing.** The stream reports new state only for entities that already exist. A new or removed entity shows up in the next `get_apps()`.
+
+### App status
+
+Each `AppStatusChangedWsMessage` reports one instance's new `status`, plus `app_status`, the app's overall status after the change, and the `status_revision` it was written at. Every `AppSummary` that `get_apps()`, `get_app()` and the app grid return carries the `status_revision` it was read at. The two numbers come from one counter, so a message and a snapshot compare directly:
+
+- **Strictly newer wins.** Apply a message to an app only when its `status_revision` is greater than the `status_revision` of the `AppSummary` you last applied for that app. On a tie, keep the summary. Write `>`, not `>=`.
+- **Refetch on `AppsChangedWsMessage`.** Disabling or blocking an app, a config change, and registering an instance change status without sending `AppStatusChangedWsMessage`. They send `AppsChangedWsMessage` once the load pass ends, so listen for it and refetch.
+- **No boot check needed.** `status_revision` is seeded from the server's clock, so it keeps increasing across restarts and a summary from before a restart doesn't outrank a message from after it. The exception is a host whose clock steps backwards across the restart (a device with no battery-backed clock, before it syncs time): old summaries then win until your next fetch. `boot_id` still tells you a restart happened, if you keep other state per server process.
+- **Revisions skip.** Writes that send no message move `status_revision` too, so a gap doesn't mean a message was lost. As with entity messages, a dropped message is repaired only by the next fetch.
+
+For availability, read each instance's `status`, not the app-level `app_status`: an app with several instances reads `starting` or `stopping` while any one of them is restarting.
 
 ## Talking to an older or newer server
 

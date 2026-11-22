@@ -23,7 +23,7 @@ from hassette_wire import (
 from pydantic import BaseModel
 
 from hassette.bus import Bus
-from hassette.core.app_registry import listed_apps, overlay_runtime_state
+from hassette.core.app_registry import StatusChange, listed_apps, overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
 from hassette.core.pipeline_counters import PipelineCounter
@@ -31,6 +31,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events import AnyEvent
+from hassette.events.hassette import extract_exception_fields
 from hassette.integration.declarations import CommittedEntity
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
@@ -58,6 +59,7 @@ SEVERITY_ERR: Final = "err"
 
 WS_EVENT_CONNECTIVITY: Final = "connectivity"
 WS_EVENT_ENTITY_STATE_CHANGED: Final = "entity_state_changed"
+WS_EVENT_APP_STATUS_CHANGED: Final = "app_status_changed"
 
 SERVICE_ROLE_PATH = "payload.data.role"
 
@@ -128,12 +130,8 @@ class RuntimeQueryService(Resource):
         # BusService, StateProxy, and LoggingService are guaranteed ready by depends_on auto-wait.
         # AppHandler is not a dependency — its registry may still be pre-bootstrap here.
 
-        # Subscribe to bus events
-        self._subscriptions.append(
-            await self.bus.on_app_state_changed(
-                handler=self.on_app_state_changed, name=f"{RQS_LISTENER_PREFIX}on_app_state_changed"
-            )
-        )
+        # Subscribe to bus events. App status changes aren't subscribed to here: set_app_status calls
+        # publish_app_status directly, so they reach clients in write order.
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
@@ -200,28 +198,42 @@ class RuntimeQueryService(Resource):
 
         ``data`` is already dumped: a single model's dict, or a list of them for a batch.
         """
-        entry: dict[str, Any] = {"type": event_type, "data": data, "timestamp": time.time()}
-        await self.broadcast(entry)
+        await self.broadcast(envelope(event_type, data))
 
     async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
         """Dump a single wire model and broadcast it as the ``data`` of an ``event_type`` envelope."""
         await self.broadcast_envelope(event_type, payload.model_dump())
 
-    async def on_app_state_changed(self, event: AnyEvent) -> None:
-        """Convert an app status change event to ``AppStatusChangedData`` and broadcast it to WS clients."""
-        data = event.payload.data
+    def publish_app_status(self, change: StatusChange) -> None:
+        """Put one app instance status change on every client queue as ``app_status_changed``.
+
+        ``AppInstanceLifecycleMixin.set_app_status`` calls this right after ``AppRegistry.set_status`` returns the
+        change, so messages reach every client queue in ``status_revision`` order. Keep it synchronous: an await
+        here would let a later write's message overtake this one.
+        """
+        exc_str, exc_type, exc_tb = extract_exception_fields(change.error)
         payload = AppStatusChangedData(
-            app_key=data.app_key,
-            instance_name=data.instance_name,
-            status=data.status,
-            previous_status=data.previous_status,
-            class_name=data.class_name,
-            exception=data.exception,
-            exception_type=data.exception_type,
-            exception_traceback=data.exception_traceback,
-            needs_restart=data.needs_restart.to_wire() if data.needs_restart else None,
+            app_key=change.app_key,
+            instance_name=change.instance_name,
+            status=change.status,
+            status_revision=change.status_revision,
+            boot_id=self.hassette.integration_service.boot_id,
+            app_status=change.app_status,
+            previous_status=change.previous,
+            class_name=change.class_name,
+            exception=exc_str,
+            exception_type=exc_type,
+            exception_traceback=exc_tb,
+            needs_restart=change.needs_restart.to_wire() if change.needs_restart else None,
         )
-        await self.build_and_broadcast("app_status_changed", payload)
+        self.put_to_clients(envelope(WS_EVENT_APP_STATUS_CHANGED, payload.model_dump()))
+        self.logger.debug(
+            "Published app_status_changed for app '%s' instance '%s' (status_revision %d, clients: %d)",
+            change.app_key,
+            change.instance_name,
+            change.status_revision,
+            len(self._ws_clients),
+        )
 
     async def on_service_status(self, event: AnyEvent) -> None:
         """Convert a non-app service status event to ``ServiceStatusData`` and broadcast it to WS clients."""
@@ -255,23 +267,23 @@ class RuntimeQueryService(Resource):
         """Broadcast a ``connectivity`` message reporting the Home Assistant connection as down."""
         await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=False))
 
-    async def publish_entity_state(
-        self, boot_id: str, revision: int, instance: tuple[str, str], entity: CommittedEntity
+    def publish_entity_state(
+        self, boot_id: str, entity_revision: int, instance: tuple[str, str], entity: CommittedEntity
     ) -> None:
-        """Broadcast one committed entity state change as ``entity_state_changed``.
+        """Put one committed entity state change on every client queue as ``entity_state_changed``.
 
-        ``IntegrationService.set_job`` awaits this inline after it bumps the revision, so messages reach every
+        ``IntegrationService.set_job`` calls this inline after it bumps the revision, so messages reach every
         client queue in revision order. Keep it that way: take every value as an argument, read no
-        ``IntegrationService`` state, and never spawn the broadcast as a task.
+        ``IntegrationService`` state, and keep it synchronous.
         """
         payload = EntityStateChangedData(
             boot_id=boot_id,
-            revision=revision,
+            entity_revision=entity_revision,
             app_key=instance[0],
             instance_name=instance[1],
             entity=declared_entity_from(entity),
         )
-        await self.build_and_broadcast(WS_EVENT_ENTITY_STATE_CHANGED, payload)
+        self.put_to_clients(envelope(WS_EVENT_ENTITY_STATE_CHANGED, payload.model_dump()))
 
     async def on_execution_completed(self, event: AnyEvent) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.
@@ -347,7 +359,7 @@ class RuntimeQueryService(Resource):
 
         Only ``GET /api/apps`` calls this: the shared overlays stay entity-free, so the other
         responses carrying instances never hold entity state without a revision beside it. Synchronous, so the
-        entities and ``revision`` are one snapshot.
+        entities and ``entity_revision`` are one snapshot.
         """
         integration = self.hassette.integration_service
 
@@ -359,7 +371,9 @@ class RuntimeQueryService(Resource):
             dataclasses.replace(manifest, instances=tuple(with_entities(instance) for instance in manifest.instances))
             for manifest in manifests
         )
-        return AppListingSnapshot(manifests=listed, boot_id=integration.boot_id, revision=integration.revision)
+        return AppListingSnapshot(
+            manifests=listed, boot_id=integration.boot_id, entity_revision=integration.entity_revision
+        )
 
     def get_registry_only_apps(self) -> list[str]:
         """Return the exclusive-app filter (``--app`` CLI flag), sorted.
@@ -524,24 +538,30 @@ class RuntimeQueryService(Resource):
         self.logger.debug("WebSocket client unregistered (total: %d)", count)
 
     async def broadcast(self, message: dict) -> None:
-        """Broadcast a message to all connected WebSocket clients.
+        """Broadcast a message to all connected WebSocket clients."""
+        self.put_to_clients(message)
 
-        A client whose queue is full is cut off rather than skipped, so it never misses a message
-        while its socket stays open (see ``register_ws_client``).
+    def put_to_clients(self, message: dict) -> None:
+        """Put a message on every client queue; the one path every message takes.
+
+        A client whose queue is full is cut off rather than skipped, so it never misses a message while its socket
+        stays open (see ``register_ws_client``).
+
+        Synchronous with no lock: it runs on the event loop without suspending, so no client can register or
+        unregister mid-loop, and callers that need ordering (``publish_app_status``, ``publish_entity_state``)
+        get it by calling this in write order.
         """
         # Pre-serialize once for all clients (handles enums, dataclasses, etc.)
         safe_message = json.loads(json.dumps(message, default=str))
-        async with self._lock:
-            too_slow: list[asyncio.Queue[WsQueueItem]] = []
-            for queue in self._ws_clients:
-                try:
-                    queue.put_nowait(safe_message)
-                except asyncio.QueueFull:
-                    too_slow.append(queue)
-            for queue in too_slow:
-                self._ws_clients.discard(queue)
-                replace_backlog(queue, WsClientSignal.TOO_SLOW)
-            remaining = len(self._ws_clients)
+        too_slow: list[asyncio.Queue[WsQueueItem]] = []
+        for queue in self._ws_clients:
+            try:
+                queue.put_nowait(safe_message)
+            except asyncio.QueueFull:
+                too_slow.append(queue)
+        for queue in too_slow:
+            self._ws_clients.discard(queue)
+            replace_backlog(queue, WsClientSignal.TOO_SLOW)
         if too_slow:
             self.hassette.pipeline_counters.increment(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW, n=len(too_slow))
             self.logger.warning(
@@ -549,7 +569,7 @@ class RuntimeQueryService(Resource):
                 "(clients left: %d)",
                 len(too_slow),
                 WS_CLIENT_QUEUE_MAX,
-                remaining,
+                len(self._ws_clients),
             )
 
 
@@ -564,3 +584,8 @@ def replace_backlog(queue: asyncio.Queue[WsQueueItem], signal: WsClientSignal) -
         except asyncio.QueueEmpty:
             break
     queue.put_nowait(signal)
+
+
+def envelope(event_type: str, data: Any) -> dict[str, Any]:
+    """A WS message of the shape ``{"type", "data", "timestamp"}``; ``data`` is already dumped."""
+    return {"type": event_type, "data": data, "timestamp": time.time()}

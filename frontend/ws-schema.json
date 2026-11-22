@@ -1,7 +1,22 @@
 {
   "$defs": {
+    "AppStatus": {
+      "description": "An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``).\n\nMembers are listed in rollup order: the first that applies is the app's status. Only tracked instances count;\na configured instance that isn't tracked (shown as ``stopped``) never does.",
+      "enum": [
+        "disabled",
+        "blocked",
+        "degraded",
+        "failed",
+        "starting",
+        "stopping",
+        "running",
+        "stopped"
+      ],
+      "title": "AppStatus",
+      "type": "string"
+    },
     "AppStatusChangedData": {
-      "description": "An app instance changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
+      "description": "An app instance changed lifecycle status.\n\nApply it only when ``status_revision`` is strictly greater than the ``AppSummary.status_revision`` of the row it\nupdates; on a tie the summary wins. The ``exception*`` fields describe the error that caused the change, and\nare ``None`` when no error did.",
       "properties": {
         "app_key": {
           "title": "App Key",
@@ -13,6 +28,20 @@
         },
         "status": {
           "$ref": "#/$defs/ResourceStatus"
+        },
+        "status_revision": {
+          "description": "The app-status revision this change was written at; comparable with ``AppSummary.status_revision``.",
+          "title": "Status Revision",
+          "type": "integer"
+        },
+        "boot_id": {
+          "description": "Identifies the hassette boot that sent the message; a new value means the server restarted. Ordering doesn't\nneed it, since ``status_revision`` keeps increasing across restarts; it lets a client reset state it keeps per\nserver process.",
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "app_status": {
+          "$ref": "#/$defs/AppStatus",
+          "description": "The app's rollup status after this change, equal to the ``AppSummary.status`` read at ``status_revision``."
         },
         "previous_status": {
           "anyOf": [
@@ -82,13 +111,17 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "description": "Set when this change flagged the instance needs-restart (only a ``failed`` change can), so a client can show\nit with the status."
         }
       },
       "required": [
         "app_key",
         "instance_name",
-        "status"
+        "status",
+        "status_revision",
+        "boot_id",
+        "app_status"
       ],
       "title": "AppStatusChangedData",
       "type": "object"
@@ -368,16 +401,16 @@
       "type": "object"
     },
     "EntityStateChangedData": {
-      "description": "One app-declared entity's committed state changed.\n\n``boot_id`` and ``revision`` are the same counters ``GET /api/apps`` reports. Apply this message only when its\n``revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values, and a lost\nmessage is repaired only by the next listing fetch. Declaration commits send no message: entities appear and\ndisappear only through the listing.",
+      "description": "One app-declared entity's committed state changed.\n\n``boot_id`` and ``entity_revision`` are the same counters ``GET /api/apps`` reports. Apply this message only\nwhen its ``entity_revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values,\nand a lost message is repaired only by the next listing fetch. Declaration commits send no message: entities\nappear and disappear only through the listing.",
       "properties": {
         "boot_id": {
           "description": "Identifies the hassette boot that sent the message; a new value means the server restarted.",
           "title": "Boot Id",
           "type": "string"
         },
-        "revision": {
-          "description": "The hassette-wide revision this change was committed at.",
-          "title": "Revision",
+        "entity_revision": {
+          "description": "The hassette-wide entity revision this change was committed at.",
+          "title": "Entity Revision",
           "type": "integer"
         },
         "app_key": {
@@ -395,7 +428,7 @@
       },
       "required": [
         "boot_id",
-        "revision",
+        "entity_revision",
         "app_key",
         "instance_name",
         "entity"

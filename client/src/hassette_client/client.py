@@ -147,9 +147,11 @@ class HassetteClient:
                 you track here (``get_apps()`` for entity state) on every connect, including the first: anything
                 changed before the stream opened is only in that fetch, and a message received while it runs is
                 passed on only after it returns. Apply a pushed ``EntityStateChangedWsMessage`` only when its
-                ``boot_id`` equals the applied listing's and its ``revision`` is newer; ignore other boots' messages
-                rather than treating them as a restart, since a restart during the fetch can leave old-boot
-                messages queued on this socket.
+                ``boot_id`` equals the applied listing's and its ``entity_revision`` is newer; ignore other boots'
+                messages rather than treating them as a restart, since a restart during the fetch can leave old-boot
+                messages queued on this socket. Apply an ``AppStatusChangedWsMessage`` only when its
+                ``status_revision`` is strictly greater than the app's ``AppSummary.status_revision``, and refetch
+                on ``AppsChangedWsMessage``.
 
         Raises:
             ValueError: A class in ``types`` isn't a ``/ws`` message, or is ``ConnectedWsMessage``.

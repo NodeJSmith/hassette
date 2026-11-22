@@ -194,13 +194,28 @@ class AppInstanceLifecycleMixin:
         refuse it (an untracked or flagged name; see its docstring). No event is sent unless it changed
         something; a caller that needs to know whether a write landed checks the registry.
 
-        Each change is also recorded as a ``lifecycle_events`` row. A send failure is only logged: the event is
-        telemetry, and the registry already holds the status, so failing to send must not turn a started app into
-        a failed one or record a stop's failure twice.
+        Each change goes to ``/ws`` clients first, through ``RuntimeQueryService.publish_app_status`` with no await
+        in between, so clients receive changes in ``status_revision`` order. It is then recorded as a
+        ``lifecycle_events`` row and sent on the bus. A publish or send failure is only logged: both are telemetry,
+        and the registry already holds the status, so failing must not turn a started app into a failed one or
+        record a stop's failure twice.
         """
         change = self.registry.set_status(app_key, instance_name, to, app=app, error=error, needs_restart=needs_restart)
         if change is None:
             return
+        # Without a web server (the app-testing harness, web API disabled) there is no client to tell.
+        # The public accessor raises when the service isn't wired, so read the slot, which core/ owns.
+        runtime = self.hassette._runtime_query_service
+        if runtime is not None:
+            try:
+                runtime.publish_app_status(change)
+            except Exception:
+                self.logger.exception(
+                    "Failed to publish the %s change for app '%s' (%s) to /ws clients; its status is recorded",
+                    to,
+                    instance_name,
+                    change.class_name,
+                )
         # Before the send, so a failed send can't cost the lifecycle row; the writer never raises.
         record_app_change(self.hassette, change)
         try:

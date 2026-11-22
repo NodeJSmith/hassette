@@ -65,7 +65,7 @@ async def test_failed_commit_runs_shutdown_hook_fails_instance_and_keeps_the_com
     await lifecycle.shutdown_instance(first, outcomes=AnyNameOutcomes())
     committed = EntityState(30.0, {})
     assert [(e.declaration.key, e.state) for e in service.entities(*key)] == [("temp", committed)]
-    revision = service.revision
+    revision = service.entity_revision
 
     with patch.object(service, "persist_instance_set", side_effect=OSError("disk full")):
         second_app, outcomes = await run_instance(harness, registry, lifecycle)
@@ -80,6 +80,6 @@ async def test_failed_commit_runs_shutdown_hook_fails_instance_and_keeps_the_com
     [outcome] = outcomes.snapshot()
     assert outcome.result.value == "failed"
     assert [(e.declaration.key, e.state) for e in service.entities(*key)] == [("temp", committed)]
-    assert service.revision == revision
+    assert service.entity_revision == revision
 
     await lifecycle.shutdown_all()

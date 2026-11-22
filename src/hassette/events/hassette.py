@@ -209,17 +209,54 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         Returns:
             The event, ready to send on the bus.
         """
-        exc_str, exc_type, exc_tb = extract_exception_fields(change.error)
-        payload = AppStateChangePayload(
+        return cls.from_app_status(
             app_key=change.app_key,
             instance_name=change.instance_name,
+            class_name=change.class_name,
             status=change.status,
             previous_status=change.previous,
-            class_name=change.class_name,
+            exception=change.error,
+            needs_restart=change.needs_restart,
+        )
+
+    @classmethod
+    def from_app_status(
+        cls,
+        app_key: str,
+        instance_name: str,
+        class_name: str,
+        status: ResourceStatus,
+        previous_status: ResourceStatus | None = None,
+        exception: BaseException | None = None,
+        needs_restart: NeedsRestartInfo | None = None,
+    ) -> "HassetteAppStateEvent":
+        """Build an app state-change event from its fields.
+
+        ``from_change`` uses it, and so does the test harness, which simulates transitions no registry applied.
+
+        Args:
+            app_key: The app key.
+            instance_name: The instance name.
+            class_name: The app's class name.
+            status: The new status.
+            previous_status: The status before this change, if known.
+            exception: The exception behind a failure, flattened into string, type, and traceback fields.
+            needs_restart: The needs-restart flag a FAILED change carries, if any.
+
+        Returns:
+            The event, ready to send on the bus.
+        """
+        exc_str, exc_type, exc_tb = extract_exception_fields(exception)
+        payload = AppStateChangePayload(
+            app_key=app_key,
+            instance_name=instance_name,
+            status=status,
+            previous_status=previous_status,
+            class_name=class_name,
             exception=exc_str,
             exception_type=exc_type,
             exception_traceback=exc_tb,
-            needs_restart=change.needs_restart,
+            needs_restart=needs_restart,
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,

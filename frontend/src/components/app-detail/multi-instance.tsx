@@ -11,11 +11,14 @@ import { BlockingFindingsSection } from "./blocking-findings";
 
 export function InstanceSwitcher({
   appKey,
+  statusRevision,
   instances,
   currentInstanceName,
   onNavigate,
 }: {
   appKey: string;
+  /** The app snapshot's `status_revision`, which a live delta must exceed to apply. */
+  statusRevision: number;
   instances: AppInstance[];
   currentInstanceName: string | undefined;
   onNavigate: (instanceName: string) => void;
@@ -31,7 +34,11 @@ export function InstanceSwitcher({
     >
       {instances.map((instance) => {
         const isActive = instance.instance_name === currentInstanceName;
-        const liveStatus = instanceLiveStatus(appStatus, appKey, instance);
+        const liveStatus = instanceLiveStatus(
+          appStatus,
+          { app_key: appKey, status_revision: statusRevision },
+          instance,
+        );
         return (
           <button
             key={instance.instance_name}
@@ -98,18 +105,22 @@ function InstanceCard({
 
 export function MultiInstanceOverview({
   appKey,
+  statusRevision,
   displayName,
   instances,
   instanceCount,
   onNavigate,
 }: {
   appKey: string;
+  /** The app snapshot's `status_revision`, which a live delta must exceed to apply. */
+  statusRevision: number;
   displayName: string;
   instances: AppInstance[];
   instanceCount: number;
   onNavigate: (instanceName: string) => void;
 }) {
   const appStatus = useAppStore((s) => s.appStatus);
+  const row = { app_key: appKey, status_revision: statusRevision };
 
   return (
     <div className="py-4" data-testid="multi-instance-overview">
@@ -129,8 +140,8 @@ export function MultiInstanceOverview({
           <InstanceCard
             key={instance.instance_name}
             instance={instance}
-            liveStatus={instanceLiveStatus(appStatus, appKey, instance)}
-            liveErrorMessage={instanceLiveError(appStatus, appKey, instance)}
+            liveStatus={instanceLiveStatus(appStatus, row, instance)}
+            liveErrorMessage={instanceLiveError(appStatus, row, instance)}
             onNavigate={onNavigate}
           />
         ))}

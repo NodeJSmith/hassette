@@ -6,7 +6,7 @@ import {
   type ResourceStatus,
   stopApp,
 } from "@/api/endpoints";
-import type { AppStatusEntry } from "@/state/store";
+import type { LiveAppStatus } from "@/state/store";
 import { appLiveStatus, instanceLiveStatus } from "@/utils/app-data";
 import { appDetailPath, handlerPath, NAV_PAGES } from "@/utils/app-routes";
 import { DOCS_URL } from "@/utils/constants";
@@ -52,7 +52,7 @@ function activeManifests(manifests: AppManifest[]): AppManifest[] {
 
 export function buildActionItems(
   manifests: AppManifest[],
-  appStatuses: Record<string, AppStatusEntry>,
+  appStatuses: LiveAppStatus,
   onClose: () => void,
 ): PaletteItem[] {
   const active = activeManifests(manifests);
@@ -94,7 +94,7 @@ export function buildActionItems(
 
 export function buildAppItems(
   manifests: AppManifest[],
-  appStatuses: Record<string, AppStatusEntry>,
+  appStatuses: LiveAppStatus,
   navigate: (path: string) => void,
   onClose: () => void,
 ): PaletteItem[] {
@@ -121,7 +121,7 @@ export function buildAppItems(
           kind: "instance",
           label: inst.instance_name,
           sub: m.app_key,
-          status: instanceLiveStatus(appStatuses, m.app_key, inst),
+          status: instanceLiveStatus(appStatuses, m, inst),
           action: () => {
             navigate(appDetailPath(m.app_key, undefined, { instance: inst.instance_name }));
             onClose();

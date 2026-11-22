@@ -32,14 +32,27 @@ CONNECTED = {"type": "connected", "data": {"uptime_seconds": 1.0, "entity_count"
 
 STATUS_MESSAGE = {
     "type": "app_status_changed",
-    "data": {"app_key": "my_app", "instance_name": "kitchen", "status": "running"},
+    "data": {
+        "app_key": "my_app",
+        "instance_name": "kitchen",
+        "status": "running",
+        "status_revision": 7,
+        "boot_id": "b1",
+        "app_status": "running",
+    },
     "timestamp": 3.0,
 }
 
 
-def entity_message(revision: int, value: Any = 1.5) -> dict[str, Any]:
+def entity_message(entity_revision: int, value: Any = 1.5) -> dict[str, Any]:
     entity = {"key": "temp", "platform": "sensor", "name": "Temp", "value": value, "attributes": {}}
-    data = {"boot_id": "b1", "revision": revision, "app_key": "my_app", "instance_name": "kitchen", "entity": entity}
+    data = {
+        "boot_id": "b1",
+        "entity_revision": entity_revision,
+        "app_key": "my_app",
+        "instance_name": "kitchen",
+        "entity": entity,
+    }
     return {"type": "entity_state_changed", "data": data, "timestamp": 2.0}
 
 
@@ -133,7 +146,7 @@ async def test_passes_requested_types_in_order_after_on_connected(
     assert isinstance(first, EntityStateChangedWsMessage)
     assert isinstance(status, AppStatusChangedWsMessage)
     assert isinstance(second, EntityStateChangedWsMessage)
-    assert (first.data.revision, second.data.revision, second.data.entity.value) == (5, 6, 2.5)
+    assert (first.data.entity_revision, second.data.entity_revision, second.data.entity.value) == (5, 6, 2.5)
     assert ws_server.handshake_headers[0]["Authorization"] == f"Bearer {TEST_TOKEN}"
 
 

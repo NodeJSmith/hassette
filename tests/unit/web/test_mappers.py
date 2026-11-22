@@ -111,8 +111,8 @@ def test_listener_summary_row_fields_are_subset_of_wire_model():
 
 
 def list_response(manifests: list[AppManifestInfo]) -> AppListResponse:
-    """The listing ``app_list_response_from`` builds for ``manifests``, at a fixed boot and revision."""
-    return app_list_response_from(make_full_snapshot(manifests), boot_id=STUB_BOOT_ID, revision=0)
+    """The listing ``app_list_response_from`` builds for ``manifests``, at a fixed boot and entity revision."""
+    return app_list_response_from(make_full_snapshot(manifests), boot_id=STUB_BOOT_ID, entity_revision=0)
 
 
 def test_app_list_response_from_builds_nested_instances():

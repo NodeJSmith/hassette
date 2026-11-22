@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from hassette_wire import ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_handler import AppHandler
@@ -158,13 +158,18 @@ def fake_set_status(
     error: Exception | None = None,
     **_kwargs: Any,
 ) -> StatusChange:
-    """A mock registry's ``set_status``: every write is a change from an unknown status, so each one emits."""
+    """A mock registry's ``set_status``: every write is a change from NOT_STARTED, so each one emits.
+
+    The revision and rollup are placeholders: these tests assert which writes were made, not their ordering.
+    """
     return StatusChange(
         app_key=app_key,
         instance_name=instance_name,
         class_name="TestApp",
-        previous=None,
+        previous=ResourceStatus.NOT_STARTED,
         status=to,
+        status_revision=0,
+        app_status=AppStatus.RUNNING,
         error=error if to is ResourceStatus.FAILED else None,
     )
 

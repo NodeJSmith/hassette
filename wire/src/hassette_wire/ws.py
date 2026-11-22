@@ -3,27 +3,39 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.apps import DeclaredEntity, NeedsRestart
-from hassette_wire.enums import OpenExecutionStatus, OpenResourceStatus
+from hassette_wire.enums import OpenAppStatus, OpenExecutionStatus, OpenResourceStatus
 from hassette_wire.literals import OpenExecutionKind
 
 
 class AppStatusChangedData(BaseModel):
     """An app instance changed lifecycle status.
 
-    The ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.
+    Apply it only when ``status_revision`` is strictly greater than the ``AppSummary.status_revision`` of the row it
+    updates; on a tie the summary wins. The ``exception*`` fields describe the error that caused the change, and
+    are ``None`` when no error did.
     """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     app_key: str
     instance_name: str
     status: OpenResourceStatus
+    status_revision: int
+    """The app-status revision this change was written at; comparable with ``AppSummary.status_revision``."""
+    boot_id: str
+    """Identifies the hassette boot that sent the message; a new value means the server restarted. Ordering doesn't
+    need it, since ``status_revision`` keeps increasing across restarts; it lets a client reset state it keeps per
+    server process."""
+    app_status: OpenAppStatus
+    """The app's rollup status after this change, equal to the ``AppSummary.status`` read at ``status_revision``."""
     previous_status: OpenResourceStatus | None = None
     class_name: str | None = None
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None
     needs_restart: NeedsRestart | None = None
-    """Set when the instance is flagged needs-restart, so a client can show it with the status. Read from the
-    server's registry when the event is sent, not from the status change itself."""
+    """Set when this change flagged the instance needs-restart (only a ``failed`` change can), so a client can show
+    it with the status."""
 
 
 class ConnectivityData(BaseModel):
@@ -131,18 +143,18 @@ class AppsChangedWsMessage(BaseModel):
 class EntityStateChangedData(BaseModel):
     """One app-declared entity's committed state changed.
 
-    ``boot_id`` and ``revision`` are the same counters ``GET /api/apps`` reports. Apply this message only when its
-    ``revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values, and a lost
-    message is repaired only by the next listing fetch. Declaration commits send no message: entities appear and
-    disappear only through the listing.
+    ``boot_id`` and ``entity_revision`` are the same counters ``GET /api/apps`` reports. Apply this message only
+    when its ``entity_revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values,
+    and a lost message is repaired only by the next listing fetch. Declaration commits send no message: entities
+    appear and disappear only through the listing.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     boot_id: str
     """Identifies the hassette boot that sent the message; a new value means the server restarted."""
-    revision: int
-    """The hassette-wide revision this change was committed at."""
+    entity_revision: int
+    """The hassette-wide entity revision this change was committed at."""
     app_key: str
     instance_name: str
     entity: DeclaredEntity

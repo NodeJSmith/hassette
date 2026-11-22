@@ -17,6 +17,11 @@ export type WsServerMessage =
  */
 export type ResourceStatus = "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed";
 /**
+ * The app's rollup status after this change, equal to the ``AppSummary.status`` read at ``status_revision``.
+ */
+export type AppStatus =
+  "disabled" | "blocked" | "degraded" | "failed" | "starting" | "stopping" | "running" | "stopped";
+/**
  * How a handler invocation or job execution ended.
  */
 export type ExecutionStatus = "success" | "error" | "cancelled" | "timed_out" | "skipped";
@@ -32,17 +37,34 @@ export interface AppStatusChangedWsMessage {
 /**
  * An app instance changed lifecycle status.
  *
- * The ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.
+ * Apply it only when ``status_revision`` is strictly greater than the ``AppSummary.status_revision`` of the row it
+ * updates; on a tie the summary wins. The ``exception*`` fields describe the error that caused the change, and
+ * are ``None`` when no error did.
  */
 export interface AppStatusChangedData {
   app_key: string;
   instance_name: string;
   status: ResourceStatus;
+  /**
+   * The app-status revision this change was written at; comparable with ``AppSummary.status_revision``.
+   */
+  status_revision: number;
+  /**
+   * Identifies the hassette boot that sent the message; a new value means the server restarted. Ordering doesn't
+   * need it, since ``status_revision`` keeps increasing across restarts; it lets a client reset state it keeps per
+   * server process.
+   */
+  boot_id: string;
+  app_status: AppStatus;
   previous_status?: ResourceStatus | null;
   class_name?: string | null;
   exception?: string | null;
   exception_type?: string | null;
   exception_traceback?: string | null;
+  /**
+   * Set when this change flagged the instance needs-restart (only a ``failed`` change can), so a client can show
+   * it with the status.
+   */
   needs_restart?: NeedsRestart | null;
 }
 /**
@@ -197,10 +219,10 @@ export interface EntityStateChangedWsMessage {
 /**
  * One app-declared entity's committed state changed.
  *
- * ``boot_id`` and ``revision`` are the same counters ``GET /api/apps`` reports. Apply this message only when its
- * ``revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values, and a lost
- * message is repaired only by the next listing fetch. Declaration commits send no message: entities appear and
- * disappear only through the listing.
+ * ``boot_id`` and ``entity_revision`` are the same counters ``GET /api/apps`` reports. Apply this message only
+ * when its ``entity_revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values,
+ * and a lost message is repaired only by the next listing fetch. Declaration commits send no message: entities
+ * appear and disappear only through the listing.
  */
 export interface EntityStateChangedData {
   /**
@@ -208,9 +230,9 @@ export interface EntityStateChangedData {
    */
   boot_id: string;
   /**
-   * The hassette-wide revision this change was committed at.
+   * The hassette-wide entity revision this change was committed at.
    */
-  revision: number;
+  entity_revision: number;
   app_key: string;
   instance_name: string;
   entity: DeclaredEntity;

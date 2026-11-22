@@ -12,7 +12,7 @@ from types import MappingProxyType
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette_wire import BlockingFindingsResponse, ResourceStatus, UnattributedBlockingResponse
+from hassette_wire import AppStatus, BlockingFindingsResponse, ResourceStatus, UnattributedBlockingResponse
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
@@ -26,7 +26,7 @@ from hassette.web.app import create_fastapi_app
 from hassette.web.auth.trusted_proxies import TrustedProxySet
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 from tests.support.task_buckets import make_closing_task_bucket
-from tests.support.web_manifest_helpers import STUB_BOOT_ID, make_full_snapshot
+from tests.support.web_manifest_helpers import STUB_BOOT_ID, STUB_STATUS_REVISION, make_full_snapshot
 
 TEST_START_EPOCH = 1704067200.0
 
@@ -258,6 +258,9 @@ def wire_app_handler(
     registry.only_apps = frozenset()
     # The DB-only branch also asks the registry for needs-restart records; no app has one here.
     registry.build_orphaned_flag_info = MagicMock(return_value=None)
+    # With no manifest and no flagged instance, every app rolls up STOPPED, read at a fixed revision.
+    registry.app_status = MagicMock(return_value=AppStatus.STOPPED)
+    registry.status_revision = STUB_STATUS_REVISION
 
     # _run_app_action() rejects an action with 409 while this is truthy, which a bare MagicMock is.
     handler.is_action_in_progress = MagicMock(return_value=False)
@@ -294,7 +297,7 @@ def wire_integration_service(
 
     An instance in ``declared_entities`` counts as running, so ``dispatch_command`` dispatches a command to one
     of its keys on the right platform and answers ``NOT_DECLARED`` otherwise; every other instance answers
-    ``NOT_RUNNING``, as an instance with no live owner does. ``boot_id`` and ``revision`` are fixed.
+    ``NOT_RUNNING``, as an instance with no live owner does. ``boot_id`` and ``entity_revision`` are fixed.
     """
     entities = declared_entities or {}
 
@@ -311,7 +314,7 @@ def wire_integration_service(
     service = hassette.integration_service = hassette._integration_service
     service.entities = MagicMock(side_effect=lambda app_key, name: entities.get((app_key, name), []))
     service.boot_id = STUB_BOOT_ID
-    service.revision = 0
+    service.entity_revision = 0
     service.dispatch_command = AsyncMock(side_effect=dispatch_command)
 
 

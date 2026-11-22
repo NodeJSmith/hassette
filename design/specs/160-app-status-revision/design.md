@@ -220,8 +220,17 @@ Full order under A: DISABLED > BLOCKED > DEGRADED (failed + any live) > FAILED (
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- `AppRegistry.app_status` takes an optional `manifest` (defaulting to the loaded one), like `resolve_instance_infos`: `build_manifest_info` is handed a manifest, and the rollup must use the same one.
+- `block_app` bumps `status_revision` only when the block reason changes, and `unblock_apps` only when it unblocked something: a write that changes nothing needs no new revision.
+- `publish_entity_state` became synchronous and `IntegrationService.set_job` calls it without `await`, so both publishes share `put_to_clients` with no suspension point (D4).
+- The harness factory is `HassetteAppStateEvent.from_app_status`, and `from_change` delegates to it, so the payload is built in one place.
+- The D5 rename covers `IntegrationService.revision` and `AppListingSnapshot.revision` too, so the counter has one name end to end.
+- The frontend keeps both delta maps in one store field, `appStatus: LiveAppStatus = {instances, apps}`, so they are written and cleared together; every helper takes the row (`app_key`, `status_revision`) instead of an app key.
+- `AppStatus` members are declared in D7's rollup order, so the enum's docstring states the rule once.
+- #4420 (closing a too-slow `/ws` client, the #4217 work) merged during the build; its close-and-signal handling lives in `put_to_clients`, so app-status and entity deltas get it too.
+- The client-compat live state reports the busy app as STARTING (true of an app mid-start under D7) and the escaping app as STOPPING, so every `AppStatus` still appears in the fixtures.

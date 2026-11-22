@@ -44,7 +44,7 @@ def action_body(**overrides: Any) -> dict[str, Any]:
 
 
 def app_list_body(status_counts: dict[str, int]) -> dict[str, Any]:
-    return {"total": 0, "status_counts": status_counts, "apps": [], "boot_id": "boot", "revision": 0}
+    return {"total": 0, "status_counts": status_counts, "apps": [], "boot_id": "boot", "entity_revision": 0}
 
 
 # (model, body builder, field, out-of-vocabulary value) for every newly typed open field.

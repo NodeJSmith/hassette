@@ -72,6 +72,7 @@ def minimal_app_summary(**overrides: Any) -> AppSummary:
             "filename": "my_app.py",
             "enabled": True,
             "status": "stopped",
+            "status_revision": 1,
         },
         overrides,
     )
@@ -232,6 +233,8 @@ class TestAppStatus:
             AppStatus.DISABLED,
             AppStatus.BLOCKED,
             AppStatus.DEGRADED,
+            AppStatus.STARTING,
+            AppStatus.STOPPING,
             AppStatus.RUNNING,
             AppStatus.FAILED,
             AppStatus.STOPPED,

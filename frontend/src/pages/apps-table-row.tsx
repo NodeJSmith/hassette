@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { cn } from "@/lib/utils";
-import type { AppStatusEntry } from "@/state/store";
+import type { LiveAppStatus } from "@/state/store";
 import {
   appLiveStatus,
   appNeedsRestart,
@@ -72,7 +72,7 @@ export function AppTableRow({
   compact = false,
 }: {
   app: AppRow;
-  appStatuses: Record<string, AppStatusEntry>;
+  appStatuses: LiveAppStatus;
   isExpanded: boolean;
   onToggle: () => void;
   muteStatus?: boolean;
@@ -227,18 +227,17 @@ export function AppTableRow({
       {isMulti &&
         isExpanded &&
         app.instances?.map((inst) => {
-          const instStatus = instanceLiveStatus(appStatuses, app.app_key, inst);
-          const instErrorMessage = instanceLiveError(appStatuses, app.app_key, inst);
+          const instStatus = instanceLiveStatus(appStatuses, app, inst);
+          const instErrorMessage = instanceLiveError(appStatuses, app, inst);
           const instKind = statusToKind(instStatus);
-          const instNeedsRestart = instanceLiveNeedsRestart(appStatuses, app.app_key, inst);
+          const instNeedsRestart = instanceLiveNeedsRestart(appStatuses, app, inst);
           // A blocked parent's not-yet-tracked instances still report a synthetic "stopped"
           // status (see build_manifest_info()) so they stay addressable in the table — but
           // that makes CAN_START key off "stopped" and show a Start button for an app the
           // exclusive-app filter excluded. Force the action status to "blocked" in that case;
           // the backend guards it too (AppLifecycleService rejects starts for blocked apps).
           //
-          // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
-          // (configStatusOverride): the backend explicitly permits a transient start of a
+          // Deliberately "blocked" only, not "disabled": the backend explicitly permits a transient start of a
           // disabled app's instance (CAN_START.disabled is true on purpose), so once that
           // instance is actually running, this must reflect its live status — not freeze on
           // "disabled" and hide Stop/Reload forever. "blocked" has no such transient-start

@@ -8,7 +8,7 @@ import type { components } from "./api/generated-types";
 import { App, MAIN_CONTENT_ID } from "./app";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
-import { appStatusKey, useAppStore } from "./state/store";
+import { useAppStore } from "./state/store";
 import { createAppSummary, createInstance, createListener } from "./test/factories";
 import { withManifests } from "./test/handlers";
 import { server } from "./test/server";
@@ -584,10 +584,9 @@ describe("App — FailedAppsAlert", () => {
     expect(screen.queryByTestId(ALERT_BANNER_TESTID)).toBeNull();
   });
 
-  it("includes a multi-instance app whose live overlay shows one running and one failed instance", async () => {
-    // Covers appLiveStatus()'s multi-instance branch (app-data.ts), not just its fast-path
-    // passthrough of a manifest already tagged "degraded": a cached manifest can read "running"
-    // while one of its instances has already failed, until an execution event refetches the grid.
+  it("includes a multi-instance app whose newer live rollup is degraded", async () => {
+    // The cached manifest can read "running" while an instance has since failed, until the grid
+    // is refetched; the server's rollup on the newer delta carries the degraded status.
     seedManifests([
       createAppSummary({
         app_key: "multi_instance_app",
@@ -606,10 +605,11 @@ describe("App — FailedAppsAlert", () => {
     act(() => {
       useAppStore
         .getState()
-        .updateAppStatus(appStatusKey("multi_instance_app", "inst_0"), { status: "running", instance_name: "inst_0" });
-      useAppStore
-        .getState()
-        .updateAppStatus(appStatusKey("multi_instance_app", "inst_1"), { status: "failed", instance_name: "inst_1" });
+        .updateAppStatus(
+          "multi_instance_app",
+          { status: "failed", instance_name: "inst_1", status_revision: 101 },
+          { app_status: "degraded", status_revision: 101 },
+        );
     });
 
     const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
@@ -638,7 +638,11 @@ describe("App — FailedAppsAlert re-render scoping", () => {
       // key must not change either.
       useAppStore
         .getState()
-        .updateAppStatus(appStatusKey("healthy_app", "inst_0"), { status: "running", instance_name: "inst_0" });
+        .updateAppStatus(
+          "healthy_app",
+          { status: "running", instance_name: "inst_0", status_revision: 101 },
+          { app_status: "running", status_revision: 101 },
+        );
     });
 
     expect(alertBannerRenderCount.renders).toBe(before);
@@ -664,7 +668,11 @@ describe("App — FailedAppsAlert re-render scoping", () => {
     act(() => {
       useAppStore
         .getState()
-        .updateAppStatus(appStatusKey("flaky_app", "inst_0"), { status: "failed", instance_name: "inst_0" });
+        .updateAppStatus(
+          "flaky_app",
+          { status: "failed", instance_name: "inst_0", status_revision: 101 },
+          { app_status: "failed", status_revision: 101 },
+        );
     });
 
     const banner = await screen.findByTestId(ALERT_BANNER_TESTID);

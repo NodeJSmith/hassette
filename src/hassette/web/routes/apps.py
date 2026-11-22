@@ -398,7 +398,7 @@ async def get_apps(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppListRespo
         total=len(listing.manifests),
         status_counts=tally_app_statuses(listing.manifests),
     )
-    return app_list_response_from(full_snapshot, boot_id=listing.boot_id, revision=listing.revision)
+    return app_list_response_from(full_snapshot, boot_id=listing.boot_id, entity_revision=listing.entity_revision)
 
 
 @router.get(

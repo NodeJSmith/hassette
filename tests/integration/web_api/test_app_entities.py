@@ -58,7 +58,7 @@ def running(mock_hassette: MagicMock) -> MagicMock:
     """``my_app`` configured on a real registry, its instance running and declaring :data:`ENTITIES`."""
     seed_grid_apps(mock_hassette, APP_KEY)
     wire_integration_service(mock_hassette, declared_entities={(APP_KEY, INSTANCE): ENTITIES})
-    mock_hassette.integration_service.revision = 42
+    mock_hassette.integration_service.entity_revision = 42
     return mock_hassette
 
 
@@ -67,7 +67,7 @@ class TestListing:
         data = await get_json(client, APPS_PATH)
 
         assert data["boot_id"] == STUB_BOOT_ID
-        assert data["revision"] == 42
+        assert data["entity_revision"] == 42
         [app] = data["apps"]
         [instance] = app["instances"]
         assert [entity["key"] for entity in instance["entities"]] == [entity.declaration.key for entity in ENTITIES]
@@ -288,7 +288,7 @@ async def test_real_integration_service_drives_listing_and_commands(
     refused = await client.post(f"{INSTANCE_PATH}/buttons/doorbell/press")
     after_stop = await get_json(client, APPS_PATH)
 
-    assert (listing["boot_id"], listing["revision"]) == (service.boot_id, service.revision)
+    assert (listing["boot_id"], listing["entity_revision"]) == (service.boot_id, service.entity_revision)
     assert [e["key"] for e in listing["apps"][0]["instances"][0]["entities"]] == ["doorbell", "guest_mode"]
     assert pressed.status_code == 202, pressed.text
     mock_hassette.send_event.assert_awaited_once()

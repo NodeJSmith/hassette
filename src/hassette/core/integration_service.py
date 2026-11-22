@@ -1,7 +1,7 @@
 """IntegrationService: every app instance's declared buttons, switches and sensors, and their state (spec 157).
 
 Holds the committed declarations and entity state in memory, backed by the ``integration_entities`` table, plus
-the per-boot identifier and the hassette-wide revision counter. Every write (an instance's running-time commit,
+the per-boot identifier and the hassette-wide entity revision counter. Every write (an instance's running-time commit,
 a handle's ``set()``) runs as one job on the database writer that commits, then updates memory, then bumps the
 revision, so memory never lags or reorders a committed write (spec 157 D10).
 """
@@ -56,7 +56,7 @@ class CommitCounts:
 
 
 class IntegrationService(Resource):
-    """Owns every instance's committed declarations and entity state, the revision, and command dispatch.
+    """Owns every instance's committed declarations and entity state, the entity revision, and command dispatch.
 
     Each write has three layers: the public entry point (``commit_instance``, ``set_state``) submits a ``*_job``
     through ``run_write``; the job decides what to write and updates memory; ``persist_*`` holds just the SQL.
@@ -69,13 +69,13 @@ class IntegrationService(Resource):
     boot_id: str
     """Identifies this boot of hassette, so a reader can tell a restart from a revision that went backwards."""
 
-    revision: int
+    entity_revision: int
     """Bumped on every committed entity state change and every declaration commit. Starts at 0 each boot."""
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self.boot_id = uuid.uuid4().hex
-        self.revision = 0
+        self.entity_revision = 0
         self._entities: dict[InstanceKey, dict[EntityKey, CommittedEntity]] = {}
         self._owners: dict[InstanceKey, Integration] = {}
 
@@ -201,7 +201,7 @@ class IntegrationService(Resource):
         # nobody, and a newer resource's claim made meanwhile is left alone.
         if not owner._closed:
             self._owners[instance] = owner
-        self.revision += 1
+        self.entity_revision += 1
         new_keys = set(self._entities[instance])
         old_keys = set(previous)
         counts = CommitCounts(
@@ -297,13 +297,13 @@ class IntegrationService(Resource):
         await self.persist_state(instance, declaration, state)
         entity = CommittedEntity(current.declaration, state)
         self._entities[instance][(declaration.key, declaration.platform)] = entity
-        self.revision += 1
-        # Awaited inside the write job, so /ws clients receive entity messages in revision order (spec 159 D2).
+        self.entity_revision += 1
+        # Published inside the write job, so /ws clients receive entity messages in revision order (spec 159 D2).
         # Without a web server (the app-testing harness) there is no RuntimeQueryService and no client to tell.
         # The public accessor raises when the service isn't wired, so read the slot, which core/ owns.
         runtime = self.hassette._runtime_query_service
         if runtime is not None:
-            await runtime.publish_entity_state(self.boot_id, self.revision, instance, entity)
+            runtime.publish_entity_state(self.boot_id, self.entity_revision, instance, entity)
 
     async def dispatch_command(
         self, app_key: str, instance_name: str, key: str, platform: str, value: bool | None = None

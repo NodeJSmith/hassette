@@ -254,10 +254,8 @@ class TestStartApp:
     ) -> None:
         # dup-ignore-end
         """Pruned entries must not be discarded silently — without a STOPPED event, the WS
-        status cache for that instance stays on FAILED forever, and if the config shrinks to a
-        single remaining instance, appLiveStatus() falls back to reading exactly that stale
-        cache entry (frontend/src/utils/app-data.ts's instances.length <= 1 branch) — the same
-        vulnerability shape as the discarded-on-stop bug this mirrors.
+        status cache for that instance stays on FAILED until a refetched snapshot outranks it —
+        the same vulnerability shape as the discarded-on-stop bug this mirrors.
         """
         event_capture.install(mock_hassette)
         registry = real_registry_service.registry

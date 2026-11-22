@@ -43,8 +43,7 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
   // buttons on the parent manifest's own status in that case; the backend guards it too
   // (AppLifecycleService rejects starts for blocked apps).
   //
-  // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
-  // (configStatusOverride): the backend explicitly permits a transient start of a disabled
+  // Deliberately "blocked" only, not "disabled": the backend explicitly permits a transient start of a disabled
   // app's instance (CAN_START.disabled is true on purpose), so once that instance is actually
   // running, this must reflect its live status — not freeze on "disabled" and hide
   // Stop/Reload forever. "blocked" has no such transient-start path; the backend rejects it
