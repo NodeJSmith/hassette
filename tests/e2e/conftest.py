@@ -35,7 +35,7 @@ from tests.e2e.mock_fixtures import (
     wire_owner_resolution,
     wire_scheduler_trigger,
 )
-from tests.support.log_factories import RecordingLogCaptureHandler, make_recording_log_capture_handler
+from tests.support.log_factories import LogRecordEntry, RecordingLogCaptureHandler, make_recording_log_capture_handler
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from hassette.core.runtime_query_service import RuntimeQueryService
-    from hassette.logging_ import LogRecordEntry
 
 # Shared viewport constants for e2e tests.
 # Mobile height 812 = iPhone X (safe-area / notch testing).

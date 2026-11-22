@@ -9,7 +9,7 @@ import sys
 import threading
 import warnings
 from collections.abc import Callable, Coroutine
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import PurePath
 from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
 
@@ -84,28 +84,6 @@ NOISY_LOGGER_LEVELS: dict[str, int] = {
 }
 
 
-@dataclass
-class LogRecordEntry:
-    """A single captured log record."""
-
-    seq: int
-    timestamp: float
-    level: str
-    logger_name: str
-    func_name: str
-    lineno: int
-    message: str
-    author: LogAuthor
-    exc_info: str | None = None
-    app_key: str | None = None
-    execution_id: str | None = None
-    instance_name: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return the entry's fields as a plain dict."""
-        return asdict(self)
-
-
 def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     """Extract the identity and correlation attributes the handler filters stamped on a LogRecord."""
     return {
@@ -170,9 +148,8 @@ class LogCaptureHandler(logging.Handler):
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
             loop = self._loop
-            # LogHintWsMessage carries no log data — clients that want the new record fetch it
-            # via the REST API. Keeps the broadcast payload independent of LogRecordEntry's shape, and
-            # avoids building a full LogRecordEntry (message formatting, traceback rendering) here.
+            # LogHintWsMessage carries no log data — clients fetch the new record via the REST API; building
+            # the full record here (message formatting, traceback rendering) is avoided.
             payload = {"type": "log_hint", "timestamp": record.created}
 
             def _schedule_broadcast() -> None:
