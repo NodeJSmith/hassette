@@ -15,14 +15,21 @@ from hassette_wire import ResourceStatus
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.core.runtime_query_service import _WS_CLIENT_QUEUE_MAX, RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
+from hassette.schemas.ws_queue import WsClientSignal
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
-from hassette.web.routes.ws import WsConnectionState, _read_client, websocket_endpoint
+from hassette.web.routes.ws import (
+    WS_TRY_AGAIN_LATER_CLOSE_CODE,
+    WsConnectionState,
+    _read_client,
+    _send_from_queue,
+    websocket_endpoint,
+)
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
@@ -200,11 +207,31 @@ class TestWebSocketConnection:
     ) -> None:
         with subscribed_ws(client):
             assert len(runtime_query_service._ws_clients) == 1
-            # Send None sentinel to trigger graceful queue shutdown
+            # Send the shutdown signal to trigger graceful queue shutdown
             for q in list(runtime_query_service._ws_clients):
-                q.put_nowait(None)
-            # The send loop will break on None, causing the task group to end.
+                q.put_nowait(WsClientSignal.SHUTDOWN)
+            # The send loop will break on SHUTDOWN, causing the task group to end.
         # After close, client should be unregistered
+        assert len(runtime_query_service._ws_clients) == 0
+
+    def test_overflowing_client_is_closed_with_try_again_later(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
+        """A client whose queue overflows is closed with 1013 instead of silently missing messages."""
+        with subscribed_ws(client) as ws:
+            assert len(runtime_query_service._ws_clients) == 1
+
+            async def _overflow() -> None:
+                # No await yields to the send loop between broadcasts, so the queue fills and overflows.
+                for i in range(_WS_CLIENT_QUEUE_MAX + 1):
+                    await runtime_query_service.broadcast({"type": "app_status_changed", "data": {"index": i}})
+
+            # Run on the server's event loop, where the send loop reads the queue.
+            ws.portal.call(_overflow)
+
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                ws.receive_json()
+            assert exc_info.value.code == WS_TRY_AGAIN_LATER_CLOSE_CODE
         assert len(runtime_query_service._ws_clients) == 0
 
     def test_disconnect_unregisters_client(
@@ -353,6 +380,24 @@ class TestWebSocketEdgeCases:
 
         # The finally block must have called unregister_ws_client with the queue
         mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
+
+    async def test_stalled_send_closes_with_try_again_later(self) -> None:
+        """A send that never completes (the client stopped reading) closes the client with 1013."""
+        mock_ws = AsyncMock(spec=WebSocket)
+        hang_forever: asyncio.Future = asyncio.get_running_loop().create_future()
+
+        async def _never_sends(_message: dict) -> None:
+            await hang_forever
+
+        mock_ws.send_json = AsyncMock(side_effect=_never_sends)
+        queue: asyncio.Queue = asyncio.Queue()
+        queue.put_nowait({"type": "app_status_changed", "data": {}})
+
+        with patch("hassette.web.routes.ws.WS_SEND_TIMEOUT_SECONDS", 0.05), anyio.CancelScope() as scope:
+            await asyncio.wait_for(_send_from_queue(mock_ws, queue, WsConnectionState(), scope), timeout=5)
+
+        mock_ws.close.assert_awaited_once_with(code=WS_TRY_AGAIN_LATER_CLOSE_CODE, reason="client too slow")
+        assert scope.cancel_called
 
     async def test_unauthorized_connection_closes_before_accept(self) -> None:
         """When `authorize_ws()` returns False, the endpoint closes with 1008 and never accepts.

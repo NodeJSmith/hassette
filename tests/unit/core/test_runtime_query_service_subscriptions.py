@@ -46,7 +46,7 @@ async def initialized_runtime(
     broadcast_calls: list[dict] = []
 
     async def drain() -> None:
-        while (msg := await queue.get()) is not None:
+        while isinstance(msg := await queue.get(), dict):
             broadcast_calls.append(msg)
 
     await svc.on_initialize()
@@ -54,7 +54,7 @@ async def initialized_runtime(
     try:
         yield svc, broadcast_calls
     finally:
-        # on_shutdown() closes every WS client queue with a None sentinel, which ends drain().
+        # on_shutdown() sends every WS client queue a SHUTDOWN signal, which ends drain().
         await svc.on_shutdown()
         await asyncio.wait_for(drain_task, timeout=5)
         harness.hassette._logging_service = previous_logging_service

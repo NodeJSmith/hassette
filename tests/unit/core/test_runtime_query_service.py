@@ -12,7 +12,7 @@ from pydantic import TypeAdapter, ValidationError
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppRegistry, StatusChange
 from hassette.core.pipeline_counters import PipelineCounter, PipelineCounters
-from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.core.runtime_query_service import _WS_CLIENT_QUEUE_MAX, RuntimeQueryService
 from hassette.events.hassette import (
     HassetteAppStateEvent,
     HassetteExecutionCompletedEvent,
@@ -20,6 +20,7 @@ from hassette.events.hassette import (
 )
 from hassette.schemas import NeedsRestartInfo
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
+from hassette.schemas.ws_queue import WsClientSignal
 from hassette.types.enums import BlockReason, ResourceRole
 from hassette.utils import date_utils, get_version
 from tests.support.app_registry_helpers import seed_failed, seed_running
@@ -28,7 +29,7 @@ from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from tests.support.web_mocks import create_mock_runtime_query_service
 
-WS_QUEUE_MAX = 256
+WS_QUEUE_MAX = _WS_CLIENT_QUEUE_MAX
 SUCCESS = ExecutionStatus.SUCCESS
 STATE_TIMESTAMP = "2024-01-01T00:00:00"
 
@@ -690,30 +691,50 @@ class TestWebSocketClientManagement:
 
         await runtime.unregister_ws_client(queue)
 
-    async def test_broadcast_drops_for_full_queue(self, runtime: RuntimeQueryService) -> None:
+    async def test_broadcast_to_full_queue_signals_too_slow_and_unregisters(self, runtime: RuntimeQueryService) -> None:
         queue = await runtime.register_ws_client()
-        # Fill the queue
         for i in range(WS_QUEUE_MAX):
             await queue.put({"type": "filler", "index": i})
 
-        # This should not raise, just drop
-        await runtime.broadcast({"type": "dropped"})
+        await runtime.broadcast({"type": "overflow"})
 
-        assert queue.qsize() == WS_QUEUE_MAX  # still full, message was dropped
+        # The backlog is replaced by the signal alone, so the send loop reaches it next.
+        assert queue.qsize() == 1
+        assert queue.get_nowait() is WsClientSignal.TOO_SLOW
+        assert queue not in runtime._ws_clients
 
-        await runtime.unregister_ws_client(queue)
+        # A later broadcast no longer reaches the cut-off client.
+        await runtime.broadcast({"type": "after"})
+        assert queue.empty()
 
-    async def test_broadcast_drop_increments_pipeline_counter(self, runtime: RuntimeQueryService) -> None:
+    async def test_too_slow_client_counted_and_logged_once_others_unaffected(
+        self, runtime: RuntimeQueryService
+    ) -> None:
         full = await runtime.register_ws_client()
         for i in range(WS_QUEUE_MAX):
             await full.put({"type": "filler", "index": i})
         open_queue = await runtime.register_ws_client()
+        logger = cast("MagicMock", runtime.logger)
 
         await runtime.broadcast({"type": "first"})
+        # The full client was unregistered by the first broadcast, so the second neither counts nor logs it again.
         await runtime.broadcast({"type": "second"})
 
-        assert runtime.hassette.pipeline_counters.get(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL) == 2
-        assert open_queue.qsize() == 2
+        assert runtime.hassette.pipeline_counters.get(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW) == 1
+        logger.warning.assert_called_once()
+        assert [cast("dict", open_queue.get_nowait())["type"] for _ in range(2)] == ["first", "second"]
+
+        await runtime.unregister_ws_client(open_queue)
+
+    async def test_shutdown_signals_every_client_even_a_full_one(self, runtime: RuntimeQueryService) -> None:
+        queues = [await runtime.register_ws_client() for _ in range(2)]
+        for i in range(WS_QUEUE_MAX):
+            await queues[0].put({"type": "filler", "index": i})
+
+        await runtime.on_shutdown()
+
+        assert [q.get_nowait() for q in queues] == [WsClientSignal.SHUTDOWN, WsClientSignal.SHUTDOWN]
+        assert not runtime._ws_clients
 
 
 class TestServiceStatusMapping:

@@ -1,7 +1,6 @@
 """RuntimeQueryService: aggregates and caches live system state for the web UI."""
 
 import asyncio
-import contextlib
 import dataclasses
 import json
 import time
@@ -34,6 +33,7 @@ from hassette.events import AnyEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppListingSnapshot, AppManifestInfo
+from hassette.schemas.ws_queue import WsClientSignal, WsQueueItem
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
 
@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from hassette.events.hassette import ExecutionCompletedPayload
 
 _WS_CLIENT_QUEUE_MAX = 256
-_WS_DROP_LOG_INTERVAL = 10.0
 
 RQS_LISTENER_PREFIX: Final = "hassette.rqs."
 
@@ -99,10 +98,8 @@ class RuntimeQueryService(Resource):
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self.bus = self.add_child(Bus)
-        self._ws_clients: set[asyncio.Queue[dict[str, Any] | None]] = set()
+        self._ws_clients: set[asyncio.Queue[WsQueueItem]] = set()
         self._lock = asyncio.Lock()
-        self._ws_drops_since_last_log: int = 0
-        self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
         # Execution completions (handler and job) accumulated within the current drain tick, flushed as a batch.
@@ -182,7 +179,7 @@ class RuntimeQueryService(Resource):
         mark_ready(self, reason="RuntimeQueryService initialized")
 
     async def on_shutdown(self) -> None:
-        """Cancel bus subscriptions, send a close sentinel to every WS client queue, and reset drop counters."""
+        """Cancel bus subscriptions and send a shutdown signal to every WS client queue."""
         # Remove bus listeners
         for sub in self._subscriptions:
             sub.cancel()
@@ -191,12 +188,8 @@ class RuntimeQueryService(Resource):
         # Close all WS client queues
         async with self._lock:
             for queue in self._ws_clients:
-                with contextlib.suppress(asyncio.QueueFull):
-                    queue.put_nowait(None)  # sentinel to close
+                replace_backlog(queue, WsClientSignal.SHUTDOWN)
             self._ws_clients.clear()
-
-        self._ws_drops_since_last_log = 0
-        self._ws_drops_last_logged = 0.0
 
     async def broadcast_envelope(self, event_type: str, data: Any) -> None:
         """Broadcast a WS envelope of the shape ``{"type", "data", "timestamp"}``.
@@ -486,20 +479,22 @@ class RuntimeQueryService(Resource):
 
         return issues
 
-    async def register_ws_client(self) -> asyncio.Queue[dict[str, Any] | None]:
+    async def register_ws_client(self) -> asyncio.Queue[WsQueueItem]:
         """Register a new WS client to receive broadcasts.
 
         Returns:
-            A bounded queue that receives each broadcast message, and ``None`` when the service
-            shuts down. Messages are dropped for this client while the queue is full.
+            A bounded queue that receives each broadcast message. It receives
+            ``WsClientSignal.SHUTDOWN`` when the service shuts down. A broadcast that finds it full
+            unregisters it and replaces its backlog with ``WsClientSignal.TOO_SLOW``: the client
+            has missed a message and must close and reconnect to resync.
         """
-        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=_WS_CLIENT_QUEUE_MAX)
+        queue: asyncio.Queue[WsQueueItem] = asyncio.Queue(maxsize=_WS_CLIENT_QUEUE_MAX)
         async with self._lock:
             self._ws_clients.add(queue)
         self.logger.debug("WebSocket client registered (total: %d)", len(self._ws_clients))
         return queue
 
-    async def unregister_ws_client(self, queue: asyncio.Queue[dict[str, Any] | None]) -> None:
+    async def unregister_ws_client(self, queue: asyncio.Queue[WsQueueItem]) -> None:
         """Stop broadcasting to a client queue returned by ``register_ws_client``; unknown queues are ignored."""
         async with self._lock:
             self._ws_clients.discard(queue)
@@ -507,32 +502,43 @@ class RuntimeQueryService(Resource):
         self.logger.debug("WebSocket client unregistered (total: %d)", count)
 
     async def broadcast(self, message: dict) -> None:
-        """Broadcast a message to all connected WebSocket clients."""
+        """Broadcast a message to all connected WebSocket clients.
+
+        A client whose queue is full is cut off rather than skipped, so it never misses a message
+        while its socket stays open (see ``register_ws_client``).
+        """
         # Pre-serialize once for all clients (handles enums, dataclasses, etc.)
         safe_message = json.loads(json.dumps(message, default=str))
-        should_log = False
-        log_since: int = 0
-        log_total: int = 0
-        log_clients: int = 0
         async with self._lock:
+            too_slow: list[asyncio.Queue[WsQueueItem]] = []
             for queue in self._ws_clients:
                 try:
                     queue.put_nowait(safe_message)
                 except asyncio.QueueFull:
-                    self.hassette.pipeline_counters.increment(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL)
-                    self._ws_drops_since_last_log += 1
-                    now = time.monotonic()
-                    if now - self._ws_drops_last_logged >= _WS_DROP_LOG_INTERVAL:
-                        should_log = True
-                        log_since = self._ws_drops_since_last_log
-                        log_total = self.hassette.pipeline_counters.get(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL)
-                        log_clients = len(self._ws_clients)
-                        self._ws_drops_since_last_log = 0
-                        self._ws_drops_last_logged = now
-        if should_log:
+                    too_slow.append(queue)
+            for queue in too_slow:
+                self._ws_clients.discard(queue)
+                replace_backlog(queue, WsClientSignal.TOO_SLOW)
+            remaining = len(self._ws_clients)
+        if too_slow:
+            self.hassette.pipeline_counters.increment(PipelineCounter.WS_CLIENT_CLOSED_TOO_SLOW, n=len(too_slow))
             self.logger.warning(
-                "Dropped %d messages since last log (total: %d, clients: %d)",
-                log_since,
-                log_total,
-                log_clients,
+                "Closing %d WebSocket client(s) with a full queue (%d messages); they will reconnect "
+                "(clients left: %d)",
+                len(too_slow),
+                _WS_CLIENT_QUEUE_MAX,
+                remaining,
             )
+
+
+def replace_backlog(queue: asyncio.Queue[WsQueueItem], signal: WsClientSignal) -> None:
+    """Discard everything waiting in ``queue`` and leave ``signal`` as its only item.
+
+    Emptying the queue first is what guarantees the signal fits, so it arrives even when the queue was full.
+    """
+    while True:
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+    queue.put_nowait(signal)

@@ -23,6 +23,7 @@ Modules:
 - ``execution_models.py`` — the latest-error record read per app by the execution queries
 - ``summary_models.py`` — app-health aggregates
 - ``log_models.py`` — log records and blocking events
+- ``ws_queue.py`` — items on a ``/ws`` client queue (``WsClientSignal``, ``WsQueueItem``)
 
 Served models, WS payloads, and the live system-status snapshot are defined only in
 ``hassette_wire`` — see that package for ``SystemStatusResponse``, ``ServiceInfo``,
