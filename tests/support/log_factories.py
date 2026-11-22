@@ -1,6 +1,7 @@
 """Shared test factories for log records, log entries, and log-capture handlers."""
 
 import logging
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from hassette_wire import LogAuthor
@@ -8,10 +9,31 @@ from hassette_wire import LogAuthor
 from hassette.logging_ import (
     LogCaptureHandler,
     LogIdentityFilter,
-    LogRecordEntry,
     _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
 )
 from hassette.logging_processors import persisted_exc_text, persisted_message
+
+
+@dataclass
+class LogRecordEntry:
+    """A single captured log record."""
+
+    seq: int
+    timestamp: float
+    level: str
+    logger_name: str
+    func_name: str
+    lineno: int
+    message: str
+    author: LogAuthor
+    exc_info: str | None = None
+    app_key: str | None = None
+    execution_id: str | None = None
+    instance_name: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the entry's fields as a plain dict."""
+        return asdict(self)
 
 
 def make_log_record_entry(

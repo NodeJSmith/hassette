@@ -56,7 +56,7 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 
 `tests/support/log_factories.py` — log records, entries, and capture handlers:
 
-- `make_log_record_entry(**kw)` — `hassette.logging_.LogRecordEntry` with every required field defaulted (distinct from the web-layer `make_log_entry()`)
+- `make_log_record_entry(**kw)` — `LogRecordEntry` (defined in `tests/support/log_factories.py`) with every required field defaulted (distinct from the web-layer `make_log_entry()`)
 - `make_log_record(**kw)` — `logging.LogRecord` with keyword defaults (name, level, pathname, lineno, msg, args, exc_info)
 - `build_log_entry(record)` — `LogRecordEntry` built from a `LogRecord` with correlation attrs and formatted traceback
 - `make_recording_log_capture_handler()` — `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()`
