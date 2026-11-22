@@ -18,8 +18,15 @@ TYPE_MATCHERS: dict[Any, MatchFn] = {}
 """Generic origins (list/dict/tuple/...) mapped to their deep match functions."""
 
 
-def register_type_matcher(*origins: Any):
-    """Decorator to register deep-matching for one or more generic origins."""
+def register_type_matcher(*origins: Any) -> Callable[[MatchFn], MatchFn]:
+    """Build a decorator that registers a deep-match function for the given generic origins.
+
+    Args:
+        *origins: Generic origins (e.g. ``list``, ``dict``) the decorated function matches values against.
+
+    Returns:
+        A decorator that registers the function in ``TYPE_MATCHERS`` and returns it unchanged.
+    """
 
     def decorator(fn: MatchFn) -> MatchFn:
         for origin in origins:
