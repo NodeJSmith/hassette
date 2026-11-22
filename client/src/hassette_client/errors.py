@@ -68,6 +68,9 @@ class HassetteConnectionError(HassetteClientError):
 
     A malformed ``base_url`` raises this too, so a config flow can treat it like an unreachable server.
     The server may or may not have received the request. A TLS or URL failure won't go away on its own.
+
+    :meth:`~hassette_client.HassetteClient.listen` also raises it when a stream that opened ends: the server
+    closed it, it missed its heartbeat, or it was reset. Connecting again is the caller's call.
     """
 
 

@@ -26,9 +26,8 @@ from logging import getLogger
 
 from hassette_wire import ProblemCode
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
+from starlette.requests import HTTPConnection, Request
 from starlette.responses import JSONResponse, Response
-from starlette.types import ASGIApp
 
 from hassette.web.auth import resolve_auth_outcome
 from hassette.web.auth.session import (
@@ -85,7 +84,7 @@ FAILED_AUTH_WINDOW_SECONDS = 300
 """Sliding window, in seconds, over which :data:`FAILED_AUTH_THRESHOLD` is evaluated (5 minutes)."""
 
 MAX_TRACKED_SOURCES = 1024
-"""Upper bound on distinct source addresses held by :class:`_FailedAuthTracker` at once.
+"""Upper bound on distinct source addresses held by :class:`FailedAuthTracker` at once.
 
 The tracker is a logging aid, not a control (rate limiting is an explicit Non-Goal — see
 design.md Non-Goals), so discarding the least-recently-touched source under pressure is
@@ -103,7 +102,7 @@ class _SourceAttempts:
     so a timestamp older than that is unreachable by any question the tracker can pose and the
     deque drops it for free. This cap is what keeps both retained memory and per-request work
     constant for a source under sustained load — an unbounded list makes each
-    :meth:`_FailedAuthTracker.record` O(attempts so far) and a burst O(n^2) overall, which one
+    :meth:`FailedAuthTracker.record` O(attempts so far) and a burst O(n^2) overall, which one
     unauthenticated peer can aim at the shared event loop.
 
     Mutated in place rather than replaced. The whole point of a fixed-size ring buffer is to avoid
@@ -116,12 +115,12 @@ class _SourceAttempts:
 
     Re-armed as soon as the in-window count falls back below the threshold, so a peer that goes
     quiet and later resumes gets a fresh warning rather than permanent silence. See
-    :meth:`_FailedAuthTracker.record` for where the re-arm check actually happens — it must run
+    :meth:`FailedAuthTracker.record` for where the re-arm check actually happens — it must run
     before the current attempt is appended, not after.
     """
 
 
-class _FailedAuthTracker:
+class FailedAuthTracker:
     """Coalesced failed-auth counter, keyed by source peer address.
 
     Bounded on both axes an unauthenticated peer controls:
@@ -217,7 +216,17 @@ class _FailedAuthTracker:
             del self._attempts[oldest]
 
 
-def _unauthorized_response() -> JSONResponse:
+def failed_auth_tracker(connection: HTTPConnection) -> FailedAuthTracker:
+    """The app's one ``FailedAuthTracker``, which ``create_fastapi_app`` stores on ``app.state``.
+
+    The HTTP gate and the ``/ws`` handshake feed this one tally, so a browser's rejected reconnect counts twice:
+    the handshake, then the web UI's confirming REST request.
+    """
+    return connection.app.state.failed_auth
+
+
+def unauthorized_response() -> JSONResponse:
+    """The 401 ``NOT_AUTHENTICATED`` problem response, shared by the HTTP gate and the ``/ws`` handshake."""
     return problem_response(ProblemCode.NOT_AUTHENTICATED, "Not authenticated")
 
 
@@ -228,10 +237,6 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
     mechanism. Registered in ``web/app.py`` — see that module for the registration-order rationale
     (CORS must wrap this middleware so a preflight is answered before it can 401).
     """
-
-    def __init__(self, app: ASGIApp) -> None:
-        super().__init__(app)
-        self._failed_auth = _FailedAuthTracker()
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Authenticate a gated request before passing it on, or reject it with a 401.
@@ -270,8 +275,8 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         outcome = resolve_auth_outcome(request, trusted_proxies, resolved_token, web_api_config.session_ttl)
 
         if not outcome.authenticated:
-            self._failed_auth.record(peer_address_or_unknown(request))
-            return _unauthorized_response()
+            failed_auth_tracker(request).record(peer_address_or_unknown(request))
+            return unauthorized_response()
 
         response = await call_next(request)
 
@@ -296,7 +301,7 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         issue a 401.
         """
         if response.status_code == 401:
-            self._failed_auth.record(peer_address_or_unknown(request))
+            failed_auth_tracker(request).record(peer_address_or_unknown(request))
         return response
 
 

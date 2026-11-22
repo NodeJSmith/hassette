@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from hassette_wire.apps import NeedsRestart
+from hassette_wire.apps import DeclaredEntity, NeedsRestart
 from hassette_wire.enums import OpenExecutionStatus, OpenResourceStatus
 from hassette_wire.literals import OpenExecutionKind
 
@@ -128,6 +128,35 @@ class AppsChangedWsMessage(BaseModel):
     timestamp: float
 
 
+class EntityStateChangedData(BaseModel):
+    """One app-declared entity's committed state changed.
+
+    ``boot_id`` and ``revision`` are the same counters ``GET /api/apps`` reports. Apply this message only when its
+    ``revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values, and a lost
+    message is repaired only by the next listing fetch. Declaration commits send no message: entities appear and
+    disappear only through the listing.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    boot_id: str
+    """Identifies the hassette boot that sent the message; a new value means the server restarted."""
+    revision: int
+    """The hassette-wide revision this change was committed at."""
+    app_key: str
+    instance_name: str
+    entity: DeclaredEntity
+    """The entity's full description and new state, as the listing reports it."""
+
+
+class EntityStateChangedWsMessage(BaseModel):
+    """Envelope for ``EntityStateChangedData``."""
+
+    type: Literal["entity_state_changed"]
+    data: EntityStateChangedData
+    timestamp: float
+
+
 class ExecutionCompletedData(BaseModel):
     """Payload for execution_completed WebSocket messages.
 
@@ -163,6 +192,7 @@ WsServerMessage = Annotated[
     | ConnectivityWsMessage
     | ServiceStatusWsMessage
     | ExecutionCompletedWsMessage
-    | AppsChangedWsMessage,
+    | AppsChangedWsMessage
+    | EntityStateChangedWsMessage,
     Field(discriminator="type"),
 ]

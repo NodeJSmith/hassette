@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from hassette_client.errors import (
     PROBLEM_MEDIA_TYPE,
+    HassetteClientError,
     HassetteConnectionError,
     HassetteHTTPError,
     HassetteTimeoutError,
@@ -209,22 +210,22 @@ class Transport:
                 return RawResponse(
                     response.status, media_type, kind, payload, truncated, response.headers.get("Location")
                 )
-        except TimeoutError as exc:
-            error = HassetteTimeoutError(f"{endpoint} to {self.display_url} timed out after {self.request_timeout}s")
-            raise log_raising(error, cause=exc) from exc
-        except aiohttp.InvalidURL as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
+            raise log_raising(self.failure(exc, endpoint), cause=exc) from exc
+
+    def failure(self, exc: TimeoutError | aiohttp.ClientError, endpoint: str) -> HassetteClientError:
+        """The client exception for a request to ``endpoint`` that failed below HTTP with ``exc``."""
+        if isinstance(exc, TimeoutError):
+            return HassetteTimeoutError(f"{endpoint} to {self.display_url} timed out after {self.request_timeout}s")
+        if isinstance(exc, aiohttp.InvalidURL):
             # Before ClientError, its base class. InvalidURL's own message is the URL, which can carry userinfo.
-            error = HassetteConnectionError(f"{endpoint} to {self.display_url} failed: the URL is invalid")
-            raise log_raising(error, cause=exc) from exc
-        except aiohttp.ClientResponseError as exc:
+            return HassetteConnectionError(f"{endpoint} to {self.display_url} failed: the URL is invalid")
+        if isinstance(exc, aiohttp.ClientResponseError):
             # Its message includes the request URL, userinfo and all, so only the type and status are kept.
-            error = HassetteConnectionError(
+            return HassetteConnectionError(
                 f"{endpoint} to {self.display_url} failed: {type(exc).__name__} ({exc.status})"
             )
-            raise log_raising(error, cause=exc) from exc
-        except aiohttp.ClientError as exc:
-            error = HassetteConnectionError(f"{endpoint} to {self.display_url} failed: {exc}")
-            raise log_raising(error, cause=exc) from exc
+        return HassetteConnectionError(f"{endpoint} to {self.display_url} failed: {exc}")
 
 
 def interpret_response(response: RawResponse, response_type: Any, endpoint: str, *, status_model_on_503: bool) -> Any:

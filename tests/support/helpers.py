@@ -90,7 +90,7 @@ EXIT_WATCHDOG_ERROR = "Hassette did not finish exiting in time"
 """Text of the ERROR the exit watchdog logs before its hard exit (``server.start_exit_watchdog``)."""
 
 _FAILED_AUTH_LOGGER = "hassette.web.middleware"
-"""Logger name `_FailedAuthTracker`'s coalesced WARN is emitted on, shared by every failed-auth
+"""Logger name `FailedAuthTracker`'s coalesced WARN is emitted on, shared by every failed-auth
 WARN-capture helper below."""
 
 STATE_CHANGED_TOPIC = str(Topic.HASS_EVENT_STATE_CHANGED)
@@ -658,7 +658,7 @@ def first_json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
 def capture_failed_auth_warn(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
     """Capture WARN records from the failed-auth middleware logger for the wrapped block.
 
-    Shared by `tests/unit/web/test_middleware.py` (drives `_FailedAuthTracker` directly) and
+    Shared by `tests/unit/web/test_middleware.py` (drives `FailedAuthTracker` directly) and
     `tests/integration/web_api/test_auth.py` (drives it indirectly through real requests) so
     both keep exactly one copy of the logger name being captured.
     """

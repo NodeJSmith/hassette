@@ -10,6 +10,7 @@ from hassette_wire import (
     ConnectedData,
     ConnectedWsMessage,
     ConnectivityWsMessage,
+    EntityStateChangedWsMessage,
     ExecutionCompletedData,
     ExecutionCompletedWsMessage,
     ExecutionStatus,
@@ -130,6 +131,15 @@ class TestWsServerMessageDiscriminates:
         msg = validate_envelope("connectivity", {"connected": True})
         assert isinstance(msg, ConnectivityWsMessage)
         assert msg.data.connected is True
+
+    def test_entity_state_changed(self) -> None:
+        entity = {"key": "temp", "platform": "sensor", "name": "Temp", "value": 21.5, "attributes": {}}
+        msg = validate_envelope(
+            "entity_state_changed",
+            {"boot_id": "b1", "revision": 3, "app_key": "my_app", "instance_name": "kitchen", "entity": entity},
+        )
+        assert isinstance(msg, EntityStateChangedWsMessage)
+        assert (msg.data.revision, msg.data.entity.value) == (3, 21.5)
 
     def test_service_status(self) -> None:
         msg = validate_envelope("service_status", {"resource_name": "telemetry", "status": "running"})

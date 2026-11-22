@@ -239,6 +239,194 @@
       "title": "ConnectivityWsMessage",
       "type": "object"
     },
+    "DeclaredEntity": {
+      "description": "A Home Assistant button, switch or sensor an app instance declares through ``self.integration``.\n\nNested in ``AppInstance.entities`` on ``GET /api/apps``. Every platform shares one flat shape so a client\nthat meets a platform it doesn't know can skip that entity and keep the rest: ``unit``, ``device_class``,\n``state_class`` and ``options`` are set for a sensor only.",
+      "properties": {
+        "key": {
+          "description": "The entity's key: lowercase letters, digits and ``_``, unique within its instance.",
+          "title": "Key",
+          "type": "string"
+        },
+        "platform": {
+          "description": "``button``, ``switch`` or ``sensor``.",
+          "enum": [
+            "button",
+            "switch",
+            "sensor"
+          ],
+          "title": "Platform",
+          "type": "string"
+        },
+        "name": {
+          "description": "The entity's display name.",
+          "title": "Name",
+          "type": "string"
+        },
+        "default_entity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The entity id the app suggests, applied only when the entity is first created in Home Assistant.",
+          "title": "Default Entity Id"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A sensor's unit of measurement.",
+          "title": "Unit"
+        },
+        "device_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A sensor's Home Assistant device class.",
+          "title": "Device Class"
+        },
+        "state_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A sensor's Home Assistant state class.",
+          "title": "State Class"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An enum sensor's allowed values.",
+          "title": "Options"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A switch's on/off state or a sensor's value; ``None`` for a button and for a sensor that is unknown. A\ntimestamp sensor's value is an ISO 8601 string with offset, a date sensor's an ISO 8601 date.",
+          "title": "Value"
+        },
+        "attributes": {
+          "additionalProperties": true,
+          "description": "The state attributes the app last set with the value.",
+          "title": "Attributes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "key",
+        "platform",
+        "name"
+      ],
+      "title": "DeclaredEntity",
+      "type": "object"
+    },
+    "EntityStateChangedData": {
+      "description": "One app-declared entity's committed state changed.\n\n``boot_id`` and ``revision`` are the same counters ``GET /api/apps`` reports. Apply this message only when its\n``revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values, and a lost\nmessage is repaired only by the next listing fetch. Declaration commits send no message: entities appear and\ndisappear only through the listing.",
+      "properties": {
+        "boot_id": {
+          "description": "Identifies the hassette boot that sent the message; a new value means the server restarted.",
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "revision": {
+          "description": "The hassette-wide revision this change was committed at.",
+          "title": "Revision",
+          "type": "integer"
+        },
+        "app_key": {
+          "title": "App Key",
+          "type": "string"
+        },
+        "instance_name": {
+          "title": "Instance Name",
+          "type": "string"
+        },
+        "entity": {
+          "$ref": "#/$defs/DeclaredEntity",
+          "description": "The entity's full description and new state, as the listing reports it."
+        }
+      },
+      "required": [
+        "boot_id",
+        "revision",
+        "app_key",
+        "instance_name",
+        "entity"
+      ],
+      "title": "EntityStateChangedData",
+      "type": "object"
+    },
+    "EntityStateChangedWsMessage": {
+      "description": "Envelope for ``EntityStateChangedData``.",
+      "properties": {
+        "type": {
+          "const": "entity_state_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/EntityStateChangedData"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "EntityStateChangedWsMessage",
+      "type": "object"
+    },
     "ExecutionCompletedData": {
       "description": "Payload for execution_completed WebSocket messages.\n\n``kind`` discriminates handler invocations from job executions.\n``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.",
       "properties": {
@@ -531,6 +719,7 @@
       "apps_changed": "#/$defs/AppsChangedWsMessage",
       "connected": "#/$defs/ConnectedWsMessage",
       "connectivity": "#/$defs/ConnectivityWsMessage",
+      "entity_state_changed": "#/$defs/EntityStateChangedWsMessage",
       "execution_completed": "#/$defs/ExecutionCompletedWsMessage",
       "log_hint": "#/$defs/LogHintWsMessage",
       "service_status": "#/$defs/ServiceStatusWsMessage"
@@ -558,6 +747,9 @@
     },
     {
       "$ref": "#/$defs/AppsChangedWsMessage"
+    },
+    {
+      "$ref": "#/$defs/EntityStateChangedWsMessage"
     }
   ]
 }
