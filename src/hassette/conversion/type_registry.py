@@ -255,10 +255,14 @@ class TypeRegistry:
             )
             return new_value
         except fn.error_types as exc:
-            default_err_msg = f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}"
-            err_msg = fn.error_message or default_err_msg
-            if get_format_fields(err_msg):
-                err_msg = err_msg.format(value=value, from_type=from_type, to_type=to_type)
+            # Only a user-supplied template is formatted: the default message embeds the raw value,
+            # which may itself contain braces.
+            if fn.error_message:
+                err_msg = fn.error_message
+                if get_format_fields(err_msg):
+                    err_msg = err_msg.format(value=value, from_type=from_type, to_type=to_type)
+            else:
+                err_msg = f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}"
 
             LOGGER.debug("Error converting %r (%s) to %s: %s", value, type(value).__name__, to_type.__name__, err_msg)
 
