@@ -323,7 +323,6 @@ class AppChangeReconcilerMixin:
             self.logger.debug("Handling app change event for files: %s", changed_file_paths)
 
             original_apps_config, current_apps_config = await self.refresh_config()
-            await self.resolve_only_apps()
 
             if self.bootstrap_coordinator.is_released() and self._pending_reconciliation is not None:
                 # A pre-release change is still queued. Fold it into this diff's baseline so the
@@ -389,6 +388,8 @@ class AppChangeReconcilerMixin:
             return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
+        # Restore the --app filter before the persist await, so status reads never see it cleared.
+        await self.resolve_only_apps()
         await self.persist_manifests()
         current_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
 

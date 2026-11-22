@@ -121,6 +121,28 @@ class TestRefreshConfig:
         assert "app_a" in original
         assert "app_a" in current
 
+    async def test_only_apps_filter_is_restored_before_manifests_persist(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """The --app filter is back in place before the persist await, so a status read during
+        that write never sees the filter cleared.
+        """
+        manifest1 = MagicMock()
+        manifest1.enabled = True
+        mock_registry.manifests = {"app_a": manifest1}
+        mock_registry.enabled_manifests = {"app_a": manifest1}
+        mock_hassette.config.apps.manifests = {"app_a": manifest1}
+        mock_hassette.config.only_apps = ("app_a",)
+        object.__setattr__(mock_hassette.config, "reload", Mock())
+        filters_seen_during_persist: list[object] = []
+        lifecycle_service.persist_manifests = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=lambda: filters_seen_during_persist.append(mock_registry.set_only_apps.call_args.args)
+        )
+
+        await lifecycle_service.refresh_config()
+
+        assert filters_seen_during_persist == [({"app_a"},)]
+
 
 class TestReconcileAppRegistrations:
     """Tests for reconcile_app_registrations — the post-ready reconciliation helper."""
