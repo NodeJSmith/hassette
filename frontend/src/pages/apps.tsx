@@ -20,7 +20,7 @@ import { useQueryParams } from "@/hooks/use-query-params";
 import { useScopedQuery } from "@/hooks/use-scoped-query";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-import { type AppStatusEntry, useAppStore } from "@/state/store";
+import { type LiveAppStatus, useAppStore } from "@/state/store";
 import {
   appLiveStatus,
   type AppRow,
@@ -110,7 +110,7 @@ function isFilterId(value: string | null): value is FilterId {
 
 function buildAppsCells(
   apps: AppRow[],
-  appStatuses: Record<string, AppStatusEntry>,
+  appStatuses: LiveAppStatus,
   windowSeconds: number | null,
   isMobile: boolean,
 ): StatsStripCell[] {

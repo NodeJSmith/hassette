@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecutionCompletedData } from "../api/ws-types";
 import type { ExecutionKind } from "../components/shared/execution-table";
-import { appStatusKey, useAppStore } from "../state/store";
+import { useAppStore } from "../state/store";
 import { createAppSummary, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
@@ -84,7 +84,11 @@ describe("AppDetailPage store subscriptions", () => {
     act(() => {
       useAppStore
         .getState()
-        .updateAppStatus(appStatusKey("other_app", "inst_0"), { status: "failed", instance_name: "inst_0" });
+        .updateAppStatus(
+          "other_app",
+          { status: "failed", instance_name: "inst_0", status_revision: 101 },
+          { app_status: "failed", status_revision: 101 },
+        );
     });
 
     expect(counter.renders).toBe(before);
@@ -97,7 +101,11 @@ describe("AppDetailPage store subscriptions", () => {
     act(() => {
       useAppStore
         .getState()
-        .updateAppStatus(appStatusKey("test_app", "inst_0"), { status: "failed", instance_name: "inst_0" });
+        .updateAppStatus(
+          "test_app",
+          { status: "failed", instance_name: "inst_0", status_revision: 101 },
+          { app_status: "failed", status_revision: 101 },
+        );
     });
 
     expect(counter.renders).toBeGreaterThan(before);

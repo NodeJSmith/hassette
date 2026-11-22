@@ -27,13 +27,28 @@ def app() -> MagicMock:
     return MagicMock(instance_name=NAME, class_name="KitchenApp")
 
 
+class ChangeOf:
+    """Equals a ``StatusChange`` whose transition fields match; ``status_revision`` and ``app_status`` are pinned by
+    ``test_app_registry_status_revision.py``.
+    """
+
+    def __init__(self, **fields: object) -> None:
+        self.fields = fields
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, StatusChange) and all(getattr(other, k) == v for k, v in self.fields.items())
+
+    def __repr__(self) -> str:
+        return f"ChangeOf({self.fields})"
+
+
 def change(
     previous: ResourceStatus,
     status: ResourceStatus,
     error: Exception | None = None,
     needs_restart: NeedsRestartInfo | None = None,
-) -> StatusChange:
-    return StatusChange(
+) -> ChangeOf:
+    return ChangeOf(
         app_key=APP_KEY,
         instance_name=NAME,
         class_name="KitchenApp",
@@ -108,7 +123,7 @@ class TestMissingEntry:
 
         result = registry.set_status(APP_KEY, NAME, ResourceStatus.FAILED, error=error)
 
-        assert result == StatusChange(
+        assert result == ChangeOf(
             app_key=APP_KEY,
             instance_name=NAME,
             class_name=manifest.class_name,

@@ -87,7 +87,8 @@ describe("useAppStore", () => {
           },
         },
         appStatus: {
-          "app-a:0": { status: "running", instance_name: "inst_0" },
+          instances: { "app-a:inst_0": { status: "running", instance_name: "inst_0", status_revision: 5 } },
+          apps: { "app-a": { app_status: "running", status_revision: 5 } },
         },
       });
 
@@ -96,7 +97,8 @@ describe("useAppStore", () => {
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
       expect(state.serviceStatus).toHaveProperty("svc");
-      expect(state.appStatus).toHaveProperty("app-a:0");
+      expect(state.appStatus.instances).toHaveProperty("app-a:inst_0");
+      expect(state.appStatus.apps).toHaveProperty("app-a");
     });
 
     it("on reconnect, clears serviceStatus/appStatus", () => {
@@ -112,7 +114,8 @@ describe("useAppStore", () => {
           },
         },
         appStatus: {
-          "app-a:0": { status: "running", instance_name: "inst_0" },
+          instances: { "app-a:inst_0": { status: "running", instance_name: "inst_0", status_revision: 5 } },
+          apps: { "app-a": { app_status: "running", status_revision: 5 } },
         },
       });
 
@@ -120,7 +123,7 @@ describe("useAppStore", () => {
 
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
-      expect(state.appStatus).toEqual({});
+      expect(state.appStatus).toEqual({ instances: {}, apps: {} });
       expect(state.serviceStatus).toEqual({});
     });
 
@@ -228,13 +231,24 @@ describe("useAppStore", () => {
   });
 
   describe("updateAppStatus / updateServiceStatus", () => {
-    it("updateAppStatus merges a new entry without clobbering existing ones", () => {
-      useAppStore.getState().updateAppStatus("app-a:0", { status: "running", instance_name: "inst_0" });
-      useAppStore.getState().updateAppStatus("app-b:0", { status: "stopped", instance_name: "inst_0" });
+    it("updateAppStatus merges a new delta into both maps without clobbering existing ones", () => {
+      const { updateAppStatus } = useAppStore.getState();
+      updateAppStatus(
+        "app-a",
+        { status: "running", instance_name: "inst_0", status_revision: 5 },
+        { app_status: "running", status_revision: 5 },
+      );
+      updateAppStatus(
+        "app-b",
+        { status: "stopped", instance_name: "inst_0", status_revision: 6 },
+        { app_status: "stopped", status_revision: 6 },
+      );
 
-      const state = useAppStore.getState();
-      expect(state.appStatus["app-a:0"].status).toBe("running");
-      expect(state.appStatus["app-b:0"].status).toBe("stopped");
+      const { appStatus } = useAppStore.getState();
+      expect(appStatus.instances["app-a:inst_0"].status).toBe("running");
+      expect(appStatus.instances["app-b:inst_0"].status_revision).toBe(6);
+      expect(appStatus.apps["app-a"]).toEqual({ app_status: "running", status_revision: 5 });
+      expect(appStatus.apps["app-b"]).toEqual({ app_status: "stopped", status_revision: 6 });
     });
 
     it("updateServiceStatus stores the entry under its resource name", () => {

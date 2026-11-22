@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import type { AppStatusEntry } from "../../state/store";
+import type { AppStatus } from "../../api/endpoints";
+import type { LiveAppStatus } from "../../state/store";
 import { createAppSummary, createInstance } from "../../test/factories";
 import { findDuplicateDisplayNames, getGroupKey, groupAndSortApps } from "./sidebar-groups";
 
-type LiveStatuses = Record<string, AppStatusEntry>;
+const NO_LIVE_STATUSES: LiveAppStatus = { instances: {}, apps: {} };
 
-const NO_LIVE_STATUSES: LiveStatuses = {};
+/** An app rollup delta at `revision` (the default row's `status_revision` is 100). */
+function liveRollup(appKey: string, status: AppStatus, revision: number): LiveAppStatus {
+  return { instances: {}, apps: { [appKey]: { app_status: status, status_revision: revision } } };
+}
 
 describe("getGroupKey", () => {
   it("groups a degraded manifest under the warn (WARNING) group, not healthy", () => {
@@ -21,7 +25,7 @@ describe("getGroupKey", () => {
     expect(getGroupKey(manifest, NO_LIVE_STATUSES)).toBe("warn");
   });
 
-  it("still reduces per-instance statuses for non-degraded multi-instance manifests", () => {
+  it("uses the row's server rollup, not a reduction of its instance statuses", () => {
     const manifest = createAppSummary({
       status: "running",
       instance_count: 2,
@@ -30,60 +34,33 @@ describe("getGroupKey", () => {
         createInstance({ instance_name: "inst_1", status: "starting" }),
       ],
     });
-    // "starting" is worse (lower priority number) than "running" in STATUS_PRIORITY, so the
-    // group is derived from that reduced status rather than the cached manifest.status.
     expect(getGroupKey(manifest, NO_LIVE_STATUSES)).toBe("ok");
   });
 
-  it("derives the group from live WS status, not a stale cached manifest.status", () => {
-    // Regression: manifest.status can lag a since-failed instance (see getGroupKey's doc comment).
-    // FAILING group membership must catch this via the live appStatus store.
-    const manifest = createAppSummary({
-      app_key: "stale_running_app",
-      status: "running",
-      instance_count: 1,
-      instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
-    });
-    const liveStatuses: LiveStatuses = {
-      "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" },
-    };
-    expect(getGroupKey(manifest, liveStatuses)).toBe("err");
+  it("derives the group from a newer live rollup, not a stale cached manifest.status", () => {
+    const manifest = createAppSummary({ app_key: "stale_running_app", status: "running" });
+    expect(getGroupKey(manifest, liveRollup("stale_running_app", "failed", 101))).toBe("err");
   });
 
-  it("groups a disabled app under DISABLED, not STOPPED, despite a leftover per-instance WS status", () => {
-    // Disabling an app tears down its instance, emitting a "stopped" WS event for that index
-    // that lingers in the live appStatus store after the manifest becomes disabled. The
-    // manifest-level config state must win over that stale per-instance status.
+  it("keeps the manifest's group when the live rollup is not strictly newer", () => {
+    const manifest = createAppSummary({ app_key: "app", status: "running" });
+    expect(getGroupKey(manifest, liveRollup("app", "failed", 100))).toBe("ok");
+    expect(getGroupKey(manifest, liveRollup("app", "failed", 99))).toBe("ok");
+  });
+
+  it("groups a refetched disabled app under DISABLED despite an older delta", () => {
     const manifest = createAppSummary({ app_key: "disabled_app", status: "disabled", instance_count: 1 });
-    const liveStatuses: LiveStatuses = {
-      "disabled_app:inst_0": { status: "stopped", instance_name: "inst_0" },
-    };
-    expect(getGroupKey(manifest, liveStatuses)).toBe("disabled");
+    expect(getGroupKey(manifest, liveRollup("disabled_app", "stopped", 95))).toBe("disabled");
   });
 
-  it("groups a blocked app under BLOCKED despite a leftover per-instance WS status", () => {
+  it("groups a refetched blocked app under BLOCKED despite an older delta", () => {
     const manifest = createAppSummary({ app_key: "blocked_app", status: "blocked", instance_count: 1 });
-    const liveStatuses: LiveStatuses = {
-      "blocked_app:inst_0": { status: "failed", instance_name: "inst_0" },
-    };
-    expect(getGroupKey(manifest, liveStatuses)).toBe("blocked");
+    expect(getGroupKey(manifest, liveRollup("blocked_app", "failed", 95))).toBe("blocked");
   });
 
-  it("clears a stale cached degraded status once live per-instance statuses fully recover", () => {
-    const manifest = createAppSummary({
-      app_key: "recovered_app",
-      status: "degraded",
-      instance_count: 2,
-      instances: [
-        createInstance({ app_key: "recovered_app", instance_name: "inst_0", status: "running" }),
-        createInstance({ app_key: "recovered_app", instance_name: "inst_1", status: "failed" }),
-      ],
-    });
-    const liveStatuses: LiveStatuses = {
-      "recovered_app:inst_0": { status: "running", instance_name: "inst_0" },
-      "recovered_app:inst_1": { status: "running", instance_name: "inst_1" },
-    };
-    expect(getGroupKey(manifest, liveStatuses)).toBe("ok");
+  it("clears a stale cached degraded status once a newer rollup reports recovery", () => {
+    const manifest = createAppSummary({ app_key: "recovered_app", status: "degraded" });
+    expect(getGroupKey(manifest, liveRollup("recovered_app", "running", 101))).toBe("ok");
   });
 });
 
@@ -121,9 +98,7 @@ describe("groupAndSortApps", () => {
       instance_count: 1,
       instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
     });
-    const liveStatuses: LiveStatuses = {
-      "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" },
-    };
+    const liveStatuses = liveRollup("stale_running_app", "failed", 101);
     const { groups } = groupAndSortApps([manifest], liveStatuses);
     expect(groups.get("err")).toEqual([manifest]);
     expect(groups.get("ok")).toEqual([]);

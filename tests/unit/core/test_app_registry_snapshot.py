@@ -121,6 +121,7 @@ class TestAppRegistryGetFullSnapshot:
             filename="a.py",
             enabled=True,
             status=AppStatus.RUNNING,
+            status_revision=0,
             instances=instances,  # pyright: ignore[reportArgumentType]
         )
         full_snap = AppFullSnapshot(manifests=manifests, only_apps=only_apps)  # pyright: ignore[reportArgumentType]

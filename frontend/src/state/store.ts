@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { ResourceStatus } from "../api/endpoints";
+import type { AppStatus, ResourceStatus } from "../api/endpoints";
 import type { ConnectedData, ExecutionCompletedData, NeedsRestart } from "../api/ws-types";
 import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
@@ -31,8 +31,11 @@ function isBoolean(v: unknown): v is boolean {
   return typeof v === "boolean";
 }
 
+/** One instance's latest `app_status_changed` delta. Applies over a snapshot row only when its `status_revision`
+ * is strictly greater than the row's (see `liveInstanceEntry` in `utils/app-data.ts`). */
 export interface AppStatusEntry {
   status: ResourceStatus;
+  status_revision: number;
   instance_name: string;
   previous_status?: ResourceStatus | null;
   class_name?: string | null;
@@ -40,6 +43,20 @@ export interface AppStatusEntry {
   /** Set when the instance needs a hassette restart; the first flag stands until restart. */
   needs_restart?: NeedsRestart | null;
 }
+
+/** An app's rollup from its latest `app_status_changed` delta, applied by the same rule as `AppStatusEntry`. */
+export interface AppRollupEntry {
+  app_status: AppStatus;
+  status_revision: number;
+}
+
+/** Every `app_status_changed` delta seen since the last connect: per instance (keyed by `appStatusKey`) and per app. */
+export interface LiveAppStatus {
+  instances: Record<string, AppStatusEntry>;
+  apps: Record<string, AppRollupEntry>;
+}
+
+const EMPTY_APP_STATUS: LiveAppStatus = { instances: {}, apps: {} };
 
 export function appStatusKey(appKey: string, instanceName: string): string {
   return `${appKey}:${instanceName}`;
@@ -92,10 +109,10 @@ export interface AppStore extends TelemetryHealth {
   setSessionExpired: () => void;
 
   // --- telemetry (health fields inherited from TelemetryHealth) ---
-  appStatus: Record<string, AppStatusEntry>;
+  appStatus: LiveAppStatus;
   serviceStatus: Record<string, ServiceStatusEntry>;
   executionCompleted: ExecutionCompletedData[] | null;
-  updateAppStatus: (key: string, entry: AppStatusEntry) => void;
+  updateAppStatus: (appKey: string, instance: AppStatusEntry, app: AppRollupEntry) => void;
   updateServiceStatus: (name: string, entry: ServiceStatusEntry) => void;
   setExecutionCompleted: (data: ExecutionCompletedData[]) => void;
   setTelemetryHealth: (data: Partial<TelemetryHealth>) => void;
@@ -162,7 +179,7 @@ export function initialState(): Omit<
     sessionExpired: false,
 
     // --- telemetry ---
-    appStatus: {},
+    appStatus: EMPTY_APP_STATUS,
     serviceStatus: {},
     executionCompleted: null,
     ...TELEMETRY_DEFAULTS,
@@ -191,7 +208,13 @@ export const useAppStore = create<AppStore>()((set) => ({
   setSessionExpired: () => set({ sessionExpired: true }),
 
   // --- telemetry ---
-  updateAppStatus: (key, entry) => set((state) => ({ appStatus: { ...state.appStatus, [key]: entry } })),
+  updateAppStatus: (appKey, instance, app) =>
+    set((state) => ({
+      appStatus: {
+        instances: { ...state.appStatus.instances, [appStatusKey(appKey, instance.instance_name)]: instance },
+        apps: { ...state.appStatus.apps, [appKey]: app },
+      },
+    })),
   updateServiceStatus: (name, entry) => set((state) => ({ serviceStatus: { ...state.serviceStatus, [name]: entry } })),
   setExecutionCompleted: (data) => set({ executionCompleted: data }),
   setTelemetryHealth: (data) => set(data),
@@ -240,17 +263,14 @@ export const useAppStore = create<AppStore>()((set) => ({
       serverUpdated: state.serverUpdated || isVersionChange(data.version),
       // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
       // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
-      // appStatus must clear here too: an instance's status/exception can change while
-      // disconnected (the missed app_status_changed event is never replayed), and
-      // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
-      // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
-      // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
-      // refetch it was supposed to be superseded by. Logs need no bump here: the unfiltered
+      // appStatus clears here too: a restarted server's deltas are compared against the refetched rows
+      // (see the reconnect invalidateQueries() call in use-websocket.ts), and an entry from before the
+      // disconnect has no reason to outlive them. Logs need no bump here: the unfiltered
       // `invalidateQueries()` in use-websocket.ts already covers the log query on reconnect,
       // same as every other cache entry.
       ...(isReconnect && {
         serviceStatus: {},
-        appStatus: {},
+        appStatus: EMPTY_APP_STATUS,
       }),
     })),
 }));

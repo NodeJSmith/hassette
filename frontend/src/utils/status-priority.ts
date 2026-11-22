@@ -4,7 +4,7 @@ type StatusPriorityKey = ResourceStatus | AppStatus | "shutting_down";
 
 /**
  * Canonical status priority ordering. Lower number = more severe / worse.
- * Used for both worst-of-children resolution (sidebar) and table column sorting.
+ * Used for status sorting (the apps table). The app-level rollup is the server's, never derived from this.
  *
  * This replaces two previously divergent maps. The table sort previously grouped
  * stopping/shutting_down with blocked (tier 1); they now sort between running

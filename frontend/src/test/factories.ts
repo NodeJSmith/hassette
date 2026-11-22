@@ -28,6 +28,8 @@ export const ZERO_STATUS_COUNTS = Object.freeze({
   disabled: 0,
   blocked: 0,
   degraded: 0,
+  starting: 0,
+  stopping: 0,
 });
 
 type AppSummary = components["schemas"]["AppSummary"];
@@ -70,6 +72,7 @@ export function createAppSummary(overrides: Partial<AppSummary> = {}): AppSummar
     enabled: true,
     autostart: true,
     status: "running",
+    status_revision: 100,
     block_reason: null,
     instance_count: 1,
     instances: [],
@@ -88,7 +91,7 @@ export function createAppList(overrides: Partial<AppListResponse> = {}): AppList
     apps: [createAppSummary()],
     only_apps: [],
     boot_id: "0123456789abcdef0123456789abcdef",
-    revision: 0,
+    entity_revision: 0,
     ...overrides,
   } satisfies AppListResponse;
 }

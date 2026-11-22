@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from hassette_wire import ResourceStatus
 
-from hassette.core.app_registry import StatusChange
 from hassette.events import (
     CallServiceEvent,
     ComponentLoadedEvent,
@@ -565,16 +564,15 @@ class SimulationMixin:
         """
         self._validate_timeout(timeout)
         app = self.require_app()
-        change = StatusChange(
+        event = HassetteAppStateEvent.from_app_status(
             app_key=app.app_key,
             instance_name=app.instance_name,
             class_name=app.class_name,
-            previous=previous_status,
             status=status,
-            error=exception,
+            previous_status=previous_status,
+            exception=exception,
             needs_restart=needs_restart,
         )
-        event = HassetteAppStateEvent.from_change(change)
         return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_app_running(

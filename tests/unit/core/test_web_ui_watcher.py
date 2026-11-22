@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -43,7 +43,7 @@ def test_watch_dirs_contains_static() -> None:
 def mock_hassette() -> MagicMock:
     hassette = make_mock_hassette(sealed=False)
     hassette.runtime_query_service = MagicMock()
-    hassette.runtime_query_service.broadcast = AsyncMock()
+    hassette.runtime_query_service.put_to_clients = MagicMock()
     return hassette
 
 
@@ -71,7 +71,7 @@ async def test_serve_waits_on_shutdown_when_disabled(watcher: WebUiWatcherServic
     # Set shutdown immediately so serve() returns
     watcher.shutdown_event.set()
     await watcher.serve()
-    cast("MagicMock", watcher.hassette.runtime_query_service).broadcast.assert_not_called()
+    cast("MagicMock", watcher.hassette.runtime_query_service).put_to_clients.assert_not_called()
 
 
 async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherService) -> None:
@@ -83,4 +83,4 @@ async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherServi
     ):
         await watcher.serve()
     cast("MagicMock", watcher.logger).warning.assert_called_once()
-    cast("MagicMock", watcher.hassette.runtime_query_service).broadcast.assert_not_called()
+    cast("MagicMock", watcher.hassette.runtime_query_service).put_to_clients.assert_not_called()

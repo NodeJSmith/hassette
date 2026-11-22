@@ -32,6 +32,34 @@ import {
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 
+const DELTA_REVISION = 7;
+
+/** Connect the hook and deliver an `app_status_changed` for `my_app:my_app_0` failing at `DELTA_REVISION`. */
+function receiveAppStatusChanged(overrides: Record<string, unknown>): void {
+  const { ws } = renderConnectedWebSocketHook();
+  const message = {
+    type: "app_status_changed",
+    data: {
+      app_key: "my_app",
+      status: "failed",
+      status_revision: DELTA_REVISION,
+      boot_id: "boot-1",
+      app_status: "failed",
+      previous_status: "running",
+      instance_name: "my_app_0",
+      class_name: "MyApp",
+      exception: null,
+      exception_type: null,
+      exception_traceback: null,
+      ...overrides,
+    },
+    timestamp: 1000,
+  };
+  act(() => {
+    ws.simulateMessage(message);
+  });
+}
+
 vi.mock("wouter", () => createWouterMock({ useLocation: vi.fn().mockReturnValue(["/", mockNavigate]) }));
 
 vi.mock("../api/endpoints", async () => {
@@ -483,28 +511,23 @@ describe("useWebSocket", () => {
   });
 
   it("maps app_status_changed needs_restart into appStatus state", () => {
-    const { ws } = renderConnectedWebSocketHook();
     const flag = { reason: "1 task still pending", pending_tasks: ["MyApp.poll"], flagged_at: 1000 };
+    receiveAppStatusChanged({ previous_status: "stopping", needs_restart: flag });
 
-    act(() => {
-      ws.simulateMessage({
-        type: "app_status_changed",
-        data: {
-          app_key: "my_app",
-          status: "failed",
-          previous_status: "stopping",
-          instance_name: "my_app_0",
-          class_name: "MyApp",
-          exception: null,
-          exception_type: null,
-          exception_traceback: null,
-          needs_restart: flag,
-        },
-        timestamp: 1000,
-      });
+    expect(useAppStore.getState().appStatus.instances["my_app:my_app_0"]?.needs_restart).toEqual(flag);
+  });
+
+  it("writes an app_status_changed delta to both the instance entry and the app rollup", () => {
+    receiveAppStatusChanged({ app_status: "degraded", exception: "boom" });
+
+    const { appStatus } = useAppStore.getState();
+    expect(appStatus.instances["my_app:my_app_0"]).toMatchObject({
+      status: "failed",
+      status_revision: DELTA_REVISION,
+      instance_name: "my_app_0",
+      exception: "boom",
     });
-
-    expect(useAppStore.getState().appStatus["my_app:my_app_0"]?.needs_restart).toEqual(flag);
+    expect(appStatus.apps["my_app"]).toEqual({ app_status: "degraded", status_revision: DELTA_REVISION });
   });
 
   it("defaults ready to false and ready_phase to null for pre-schema events", () => {

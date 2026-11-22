@@ -10,7 +10,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from hassette_wire import ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 from whenever import ZonedDateTime
 
 from hassette.core.app_registry import StatusChange
@@ -54,6 +54,8 @@ def change(**overrides: Any) -> StatusChange:
         "class_name": "PorchApp",
         "previous": ResourceStatus.STARTING,
         "status": ResourceStatus.RUNNING,
+        "status_revision": 1,
+        "app_status": AppStatus.RUNNING,
     }
     return StatusChange(**(fields | overrides))
 

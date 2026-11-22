@@ -2,7 +2,7 @@ import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { type AppStatusEntry, appStatusKey } from "../state/store";
+import { type AppStatusEntry, appStatusKey, type LiveAppStatus } from "../state/store";
 import { createAppActivityStats, createAppHealth, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
@@ -33,6 +33,17 @@ vi.mock("../components/shared/mini-sparkline", () => ({
   MiniSparkline: () => <svg data-testid="mini-sparkline" />,
 }));
 
+/** Live deltas for `my_app` instances, newer than the default row's `status_revision` (100). `appStatus` is the
+ * app rollup the same message carried; omit it for a delta that wasn't the newest. */
+function liveStatuses(entries: Omit<AppStatusEntry, "status_revision">[], appStatus?: AppRow["status"]): LiveAppStatus {
+  return {
+    instances: Object.fromEntries(
+      entries.map((e) => [appStatusKey("my_app", e.instance_name), { ...e, status_revision: 101 }]),
+    ),
+    apps: appStatus ? { my_app: { app_status: appStatus, status_revision: 101 } } : {},
+  };
+}
+
 function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
   return {
     app_key: "my_app",
@@ -40,6 +51,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     display_name: "My App",
     filename: "my_app.py",
     status: "running",
+    status_revision: 100,
     block_reason: null,
     enabled: true,
     autostart: true,
@@ -61,7 +73,12 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
 }
 
 function renderRow(props: Partial<Parameters<typeof AppTableRow>[0]> = {}) {
-  const defaults = { app: createAppRow(), appStatuses: {}, isExpanded: false, onToggle: vi.fn() };
+  const defaults = {
+    app: createAppRow(),
+    appStatuses: { instances: {}, apps: {} },
+    isExpanded: false,
+    onToggle: vi.fn(),
+  };
   return renderWithAppState(
     <table>
       <tbody>
@@ -177,8 +194,7 @@ describe("AppTableRow", () => {
     expect(errorCell.getAttribute("aria-label")).toMatch(/^collapse error/i);
   });
 
-  it("appStatuses overrides app.status in the badge", () => {
-    const entry: AppStatusEntry = { status: "running", instance_name: "inst_0" };
+  it("a newer app rollup in appStatuses overrides app.status in the badge", () => {
     const { getByTestId } = renderRow({
       app: createAppRow({
         app_key: "my_app",
@@ -186,7 +202,7 @@ describe("AppTableRow", () => {
         instance_count: 1,
         instances: [createInstance({ app_key: "my_app", instance_name: "inst_0", status: "stopped" })],
       }),
-      appStatuses: { [appStatusKey("my_app", "inst_0")]: entry },
+      appStatuses: liveStatuses([{ status: "running", instance_name: "inst_0" }], "running"),
     });
     expect(getByTestId("status-pill").textContent).toBe("running");
   });
@@ -270,10 +286,10 @@ describe("AppTableRow", () => {
         },
       ],
     });
-    const appStatuses: Record<string, AppStatusEntry> = {
-      [appStatusKey("my_app", "inst_0")]: { status: "running", instance_name: "inst_0" },
-      [appStatusKey("my_app", "inst_1")]: { status: "failed", instance_name: "inst_1" },
-    };
+    const appStatuses = liveStatuses([
+      { status: "running", instance_name: "inst_0" },
+      { status: "failed", instance_name: "inst_1" },
+    ]);
     const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
     const row0 = getByTestId("instance-row-my_app-inst_0");
     const row1 = getByTestId("instance-row-my_app-inst_1");
@@ -308,11 +324,7 @@ describe("AppTableRow", () => {
         },
       ],
     });
-    const appStatuses: Record<string, AppStatusEntry> = {
-      // Recovered: live status is "running" with a cleared exception — the cached "boom" must
-      // not keep showing.
-      [appStatusKey("my_app", "inst_0")]: { status: "running", instance_name: "inst_0", exception: null },
-    };
+    const appStatuses = liveStatuses([{ status: "running", instance_name: "inst_0", exception: null }]);
     const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
     const row0 = getByTestId("instance-row-my_app-inst_0");
     expect(row0.textContent).not.toContain("boom");
@@ -343,10 +355,7 @@ describe("AppTableRow", () => {
         },
       ],
     });
-    const appStatuses: Record<string, AppStatusEntry> = {
-      // Newly failed: live status carries an exception the cached manifest never had.
-      [appStatusKey("my_app", "inst_1")]: { status: "failed", instance_name: "inst_1", exception: "kaboom" },
-    };
+    const appStatuses = liveStatuses([{ status: "failed", instance_name: "inst_1", exception: "kaboom" }]);
     const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
     const row1 = getByTestId("instance-row-my_app-inst_1");
     expect(row1.textContent).toContain("kaboom");
@@ -599,9 +608,7 @@ describe("AppTableRow", () => {
 
     it("shows the flag the moment a live WS status event carries it", () => {
       const app = createAppRow({ instances: [createInstance({ app_key: "my_app" })] });
-      const appStatuses: Record<string, AppStatusEntry> = {
-        [appStatusKey("my_app", "inst_0")]: { status: "failed", instance_name: "inst_0", needs_restart: flag },
-      };
+      const appStatuses = liveStatuses([{ status: "failed", instance_name: "inst_0", needs_restart: flag }]);
       const { getByTestId } = renderRow({ app, appStatuses });
       expect(getByTestId("needs-restart-badge").getAttribute("title")).toContain("1 task still pending");
     });
@@ -638,9 +645,7 @@ describe("AppTableRow", () => {
           }),
         ],
       });
-      const appStatuses: Record<string, AppStatusEntry> = {
-        [appStatusKey("my_app", "inst_0")]: { status: "failed", instance_name: "inst_0", needs_restart: flag },
-      };
+      const appStatuses = liveStatuses([{ status: "failed", instance_name: "inst_0", needs_restart: flag }]);
       const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
       expect(within(getByTestId("app-row-my_app")).getByTestId("needs-restart-badge").textContent).toBe(
         "2 need restart",

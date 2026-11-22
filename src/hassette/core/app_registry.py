@@ -1,5 +1,6 @@
 """App registry for tracking app state with queryable interface."""
 
+import time
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -72,10 +73,13 @@ class StatusChange:
     app_key: str
     instance_name: str
     class_name: str
-    previous: ResourceStatus | None
-    """The status before the write. Always set by ``set_status``; ``None`` only in events the test harness
-    simulates without a known previous status."""
+    previous: ResourceStatus
+    """The status before the write; a missing entry reads as NOT_STARTED."""
     status: ResourceStatus
+    status_revision: int
+    """The registry's ``status_revision`` after this write."""
+    app_status: AppStatus
+    """The app-level rollup (``AppRegistry.app_status``) after this write."""
     error: Exception | None = None
     needs_restart: NeedsRestartInfo | None = None
     """The entry's needs-restart flag after the write. Only a FAILED change can carry one, since every other
@@ -92,9 +96,17 @@ class AppRegistry:
     ``resolve_instance_infos``.
 
     Position carries no identity here. Display order is derived on each read by ``display_names``.
+
+    ``status_revision`` orders every snapshot against every ``StatusChange``. It is seeded from the wall clock in
+    microseconds, so a restarted process starts above the previous one's last value, and rises by one on each
+    change ``set_status`` returns and on every other write that can change what a snapshot reports as status: a
+    registration onto a missing entry, a ``block_app`` or ``unblock_apps`` that changed a block, and every
+    ``set_manifests``. It never resets
+    within a process (``clear_all`` runs only at exit), so two reads at one revision report identical status.
     """
 
     def __init__(self) -> None:
+        self._status_revision = time.time_ns() // 1_000
         self._instances: dict[str, dict[str, InstanceEntry]] = defaultdict(dict)
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
@@ -180,17 +192,67 @@ class AppRegistry:
             self._instances[app_key][instance_name] = InstanceEntry(app=live_app, status=to)
 
         if not is_change:
+            if current is None:
+                # A registration onto a missing entry: no event, but the snapshot now tracks the name.
+                self._status_revision += 1
             return None
-        self.logger.debug("App '%s' instance '%s': %s -> %s", app_key, instance_name, previous, to)
+        self._status_revision += 1
+        self.logger.debug(
+            "App '%s' instance '%s': %s -> %s (status_revision %d)",
+            app_key,
+            instance_name,
+            previous,
+            to,
+            self._status_revision,
+        )
         return StatusChange(
             app_key=app_key,
             instance_name=instance_name,
             class_name=self._class_name(app_key, live_app or previous_app),
             previous=previous,
             status=to,
+            status_revision=self._status_revision,
+            app_status=self.app_status(app_key),
             error=error if to is ResourceStatus.FAILED else None,
             needs_restart=flag if to is ResourceStatus.FAILED else None,
         )
+
+    @property
+    def status_revision(self) -> int:
+        """The revision of the registry's current status state; see the class docstring."""
+        return self._status_revision
+
+    def app_status(self, app_key: str, manifest: "AppManifest | None" = None) -> AppStatus:
+        """The app-level rollup of ``app_key``'s status, the one rule every snapshot and ``StatusChange`` uses.
+
+        The first match wins: DISABLED, BLOCKED, DEGRADED (a failed instance and any live one), FAILED (failed, none
+        live), STARTING (any NOT_STARTED or STARTING), STOPPING (any STOPPING), RUNNING, then STOPPED (nothing
+        tracked). A flagged instance is stored as FAILED, so it counts as failed. Without a manifest (an app removed
+        from config) only the DISABLED and BLOCKED checks are skipped, so a removed app still stopping reads STOPPING.
+
+        ``manifest`` defaults to the loaded manifest for ``app_key``.
+        """
+        entries = self._instances.get(app_key, {})
+        if manifest is None:
+            manifest = self._manifests.get(app_key)
+        if manifest is not None:
+            if not manifest.enabled:
+                return AppStatus.DISABLED
+            if app_key in self._blocked_apps:
+                return AppStatus.BLOCKED
+        # A FAILED entry is the only entry without its App; every other stored status is live.
+        statuses = {entry.status for entry in entries.values()}
+        has_failed = ResourceStatus.FAILED in statuses
+        has_live = bool(statuses - {ResourceStatus.FAILED})
+        if has_failed:
+            return AppStatus.DEGRADED if has_live else AppStatus.FAILED
+        if statuses & {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING}:
+            return AppStatus.STARTING
+        if ResourceStatus.STOPPING in statuses:
+            return AppStatus.STOPPING
+        if ResourceStatus.RUNNING in statuses:
+            return AppStatus.RUNNING
+        return AppStatus.STOPPED
 
     def _remove(self, app_key: str, instance_name: str) -> None:
         """Remove one entry, and ``app_key``'s map with it once empty, so iteration never sees an empty map."""
@@ -323,14 +385,18 @@ class AppRegistry:
 
     def block_app(self, app_key: str, reason: BlockReason) -> None:
         """Record that an app was intentionally not started."""
-        self._blocked_apps[app_key] = reason
-        self.logger.debug("Blocked app '%s' reason: %s", app_key, reason)
+        if self._blocked_apps.get(app_key) != reason:
+            self._blocked_apps[app_key] = reason
+            self._status_revision += 1
+            self.logger.debug("Blocked app '%s' reason: %s", app_key, reason)
 
     def unblock_apps(self, reason: BlockReason) -> set[str]:
         """Remove and return all apps blocked for the given reason."""
         matching = {k for k, r in self._blocked_apps.items() if r == reason}
         for k in matching:
             del self._blocked_apps[k]
+        if matching:
+            self._status_revision += 1
         return matching
 
     def is_blocked(self, app_key: str) -> bool:
@@ -357,8 +423,9 @@ class AppRegistry:
         self._debug_capture.clear()
 
     def set_manifests(self, manifests: dict[str, "AppManifest"]) -> None:
-        """Update the app manifests configuration."""
+        """Replace the app manifests; any replacement can change a snapshot's status, so it bumps the revision."""
         self._manifests = manifests.copy()
+        self._status_revision += 1
 
     def set_only_apps(self, app_keys: Iterable[str]) -> None:
         """Set the exclusive-app filter. An empty iterable clears it."""
@@ -486,28 +553,13 @@ class AppRegistry:
         ``stale_failed_names``) is still included too: this is a union of tracked and configured
         names (``display_names``), so a live orphan is never dropped from view.
 
-        ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked names only
-        (instance entries, through ``resolve_instance_info``) — a
+        ``status`` is ``app_status``, derived from tracked names only (instance entries) — a
         configured-but-not-yet-started app is correctly STOPPED, not DEGRADED, even though
-        ``instances`` also lists its not-yet-tracked instances. A flagged name counts as failed.
+        ``instances`` also lists its not-yet-tracked instances. ``status_revision`` is the registry's
+        current value, so it covers ``status`` and every instance beside it.
         """
         tracked = self.resolve_instance_infos(app_key, manifest)
-        # The frontend's ``appLiveStatus`` (frontend/src/utils/app-data.ts) mirrors this rollup rule (#4147).
-        has_running = any(not is_failed_info(info) for info in tracked.values())
-        has_failed = any(is_failed_info(info) for info in tracked.values())
-
-        if not manifest.enabled:
-            status = AppStatus.DISABLED
-        elif app_key in self._blocked_apps:
-            status = AppStatus.BLOCKED
-        elif has_running and has_failed:
-            status = AppStatus.DEGRADED
-        elif has_running:
-            status = AppStatus.RUNNING
-        elif has_failed:
-            status = AppStatus.FAILED
-        else:
-            status = AppStatus.STOPPED
+        status = self.app_status(app_key, manifest)
 
         instances: list[AppInstanceInfo] = []
         error_message: str | None = None
@@ -539,6 +591,7 @@ class AppRegistry:
             filename=manifest.filename,
             enabled=manifest.enabled,
             status=status,
+            status_revision=self._status_revision,
             autostart=manifest.autostart,
             block_reason=block_reason.value if block_reason else None,
             instance_count=len(instances),
@@ -567,7 +620,8 @@ class AppRegistry:
             display_name=app_key,
             filename="",
             enabled=True,
-            status=AppStatus.FAILED,
+            status=self.app_status(app_key),
+            status_revision=self._status_revision,
             instance_count=len(instances),
             instances=instances,
             error_message=first_failed.error_message if first_failed else None,
@@ -613,18 +667,20 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     whether the app is present in ``registry``'s in-memory manifests:
 
     - If present: status/instances are derived from the registry's live state via
-      ``build_manifest_info()`` (priority: disabled > blocked > degraded > running > failed >
-      stopped), and ``in_current_config`` is ``True``.
-    - If absent (a DB-only / removed app): status defaults to ``AppStatus.STOPPED`` with
-      zero instances, and ``in_current_config`` is ``False`` — unless an instance of it is still
-      flagged needs-restart, in which case it is FAILED and lists its flagged instances
-      (``AppRegistry.build_orphaned_flag_info``).
+      ``build_manifest_info()`` (the rollup is ``AppRegistry.app_status``), and ``in_current_config`` is ``True``.
+    - If absent (a DB-only / removed app): status is whatever ``AppRegistry.app_status`` yields for the app's
+      tracked entries (STOPPED once nothing is tracked, STOPPING while its instances shut down), with zero
+      instances, and ``in_current_config`` is ``False`` — unless an instance of it is still flagged needs-restart,
+      in which case it lists its instances (``AppRegistry.build_orphaned_flag_info``).
+
+    Every row carries the registry's ``status_revision`` at the moment of the overlay. The overlay never awaits, so
+    one call's rows share one revision.
 
     Static metadata (``class_name``, ``display_name``, ``description``, ``filename``, ``autostart``) always
     comes from the DB row, never from the in-memory manifest — the DB is the source of truth
     for metadata, the registry is the source of truth for live status.
     ``enabled`` is the exception: it is also the highest-priority input to the registry's
-    status derivation (``disabled > blocked > degraded > running > failed > stopped``), so
+    status derivation (``AppRegistry.app_status``), so
     when the app is in-memory it is sourced from the registry alongside ``status`` —
     otherwise a stale DB row could produce a response where ``status == "disabled"`` but
     ``enabled == True`` (or vice versa), a state ``build_manifest_info()`` itself could never
@@ -666,7 +722,8 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         else:
             info = AppManifestInfo(
                 app_key=app_key,
-                status=AppStatus.STOPPED,
+                status=registry.app_status(app_key),
+                status_revision=registry.status_revision,
                 enabled=bool(db_row["enabled"]),
                 in_current_config=False,
                 **static_fields,
@@ -681,10 +738,10 @@ def listed_apps(infos: Iterable[AppManifestInfo]) -> list[AppManifestInfo]:
     """The apps an app list shows: every configured app, and a removed one only while an instance is flagged.
 
     A removed app's ``app_manifests`` row outlives it until its history ages out of retention
-    (``build_prune_removed_app_manifests_query``), and ``overlay_runtime_state`` reports such a row as
-    STOPPED. Lists leave it out so it never reads as a stopped app; ``GET /apps/{app_key}`` still
-    answers for it. A removed app with a flagged needs-restart instance stays listed, as FAILED, because
-    that instance's work may still be running.
+    (``build_prune_removed_app_manifests_query``), and ``overlay_runtime_state`` reports such a row with no
+    instances, as STOPPED once nothing of it is tracked. Lists leave it out; ``GET /apps/{app_key}`` still
+    answers for it. A removed app with a flagged needs-restart instance stays listed, as FAILED (DEGRADED beside a
+    live sibling), because that instance's work may still be running.
     """
     # A removed app's snapshot lists instances only through build_orphaned_flag_info, i.e. flagged ones.
     return [info for info in infos if info.in_current_config or info.instances]

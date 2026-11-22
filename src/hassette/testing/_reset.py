@@ -54,7 +54,7 @@ async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capabi
 
 
 def reset_integration(service: "IntegrationService") -> None:
-    """Forget every committed entity and owner and zero the revision.
+    """Forget every committed entity and owner and zero the entity revision.
 
     A harness's in-memory integration service keeps what one test committed until this runs, so the next
     test on a shared harness would otherwise see its entities. ``boot_id`` stays: it identifies the service
@@ -65,7 +65,7 @@ def reset_integration(service: "IntegrationService") -> None:
     """
     service._entities.clear()
     service._owners.clear()
-    service.revision = 0
+    service.entity_revision = 0
 
 
 async def reset_scheduler(scheduler: "Scheduler") -> None:

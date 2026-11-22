@@ -43,8 +43,7 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
   // buttons on the parent manifest's own status in that case; the backend guards it too
   // (AppLifecycleService rejects starts for blocked apps).
   //
-  // Deliberately narrower than appLiveStatus()'s "disabled" | "blocked" override
-  // (configStatusOverride): the backend explicitly permits a transient start of a disabled
+  // Deliberately "blocked" only, not "disabled": the backend explicitly permits a transient start of a disabled
   // app's instance (CAN_START.disabled is true on purpose), so once that instance is actually
   // running, this must reflect its live status — not freeze on "disabled" and hide
   // Stop/Reload forever. "blocked" has no such transient-start path; the backend rejects it
@@ -52,10 +51,10 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
   const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
   const instanceScoped = !!manifest && manifest.instance_count > 1 && !showParentOverview;
   const instanceOrphaned = instanceScoped && currentInstance?.in_current_config === false;
-  // A removed app's app-level status is only ever failed or stopped. Those offer Start and never
-  // Stop (CAN_STOP), and the backend 404s Start for an app with no manifest, so its app-level
-  // actions are hidden. When it still tracks more than one instance, each instance's page keeps
-  // the Stop that ActionButtons offers an out-of-config instance (instanceOrphaned).
+  // A removed app has no manifest, so the backend 404s Start and Reload for it, and the framework
+  // already stops its instances. Its app-level actions are hidden whatever its status. When it still
+  // tracks more than one instance, each instance's page keeps the Stop that ActionButtons offers an
+  // out-of-config instance (instanceOrphaned).
   const appRemoved = manifest?.in_current_config === false;
   const hideAppActions = appRemoved && !instanceScoped;
 

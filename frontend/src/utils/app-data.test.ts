@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppActivity, AppStatus, ResourceStatus } from "../api/endpoints";
-import type { AppStatusEntry } from "../state/store";
+import type { AppStatusEntry, LiveAppStatus } from "../state/store";
 import { createAppActivityStats, createAppGridEntry, createAppHealth, createInstance } from "../test/factories";
-import { appLiveStatus, appNeedsRestart, compareAppRows, hasFailedActivityPart, toAppRow } from "./app-data";
+import {
+  appLiveStatus,
+  appNeedsRestart,
+  compareAppRows,
+  hasFailedActivityPart,
+  instanceLiveError,
+  instanceLiveNeedsRestart,
+  instanceLiveStatus,
+  toAppRow,
+} from "./app-data";
 
-const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
+const NO_LIVE_STATUSES: LiveAppStatus = { instances: {}, apps: {} };
+/** The `status_revision` every test row is read at. */
+const ROW_REVISION = 100;
 
 /** A grid row for `appKey` whose cached instances have the given statuses, named `inst_<position>`. */
 function instanceRow(appKey: string, status: AppStatus, instanceStatuses: ResourceStatus[]) {
@@ -14,6 +25,7 @@ function instanceRow(appKey: string, status: AppStatus, instanceStatuses: Resour
       app: {
         app_key: appKey,
         status,
+        status_revision: ROW_REVISION,
         instance_count: instanceStatuses.length,
         instances: instanceStatuses.map((s, index) =>
           createInstance({ app_key: appKey, instance_name: `inst_${index}`, status: s }),
@@ -23,109 +35,94 @@ function instanceRow(appKey: string, status: AppStatus, instanceStatuses: Resour
   );
 }
 
+/** A store holding one instance delta (and the app rollup it carried) at `revision`. */
+function liveDelta(
+  appKey: string,
+  entry: Omit<AppStatusEntry, "status_revision">,
+  appStatus: AppStatus,
+  revision: number,
+): LiveAppStatus {
+  return {
+    instances: { [`${appKey}:${entry.instance_name}`]: { ...entry, status_revision: revision } },
+    apps: { [appKey]: { app_status: appStatus, status_revision: revision } },
+  };
+}
+
 describe("appLiveStatus", () => {
-  it("returns row.status directly for single-instance apps", () => {
-    const row = toAppRow(createAppGridEntry({ app: { app_key: "solo_app", status: "running", instances: [] } }));
-    expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("running");
-  });
-
-  it("returns disabled as-is instead of letting a leftover per-instance WS status override it", () => {
-    // Disabling an app tears down its instance, which emits a "stopped" WS event for that
-    // instance. That event lingers in the live appStatus store after the manifest becomes
-    // disabled — the config state must win, not the stale per-instance status.
-    const row = toAppRow(createAppGridEntry({ app: { app_key: "disabled_app", status: "disabled", instances: [] } }));
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "disabled_app:inst_0": { status: "stopped", instance_name: "inst_0" },
-    };
-    expect(appLiveStatus(liveStatuses, row)).toBe("disabled");
-  });
-
-  it("returns blocked as-is instead of letting a leftover per-instance WS status override it", () => {
-    const row = toAppRow(createAppGridEntry({ app: { app_key: "blocked_app", status: "blocked", instances: [] } }));
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "blocked_app:inst_0": { status: "failed", instance_name: "inst_0" },
-    };
-    expect(appLiveStatus(liveStatuses, row)).toBe("blocked");
-  });
-
-  it("derives degraded from a live running+failed mix, not from cached row.status", () => {
-    const row = instanceRow("multi_app", "degraded", ["running", "failed"]);
-    expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("degraded");
-  });
-
-  it("reports degraded from a live running+failed mix even when row.status is stale 'running'", () => {
-    // The dashboard grid query is invalidated on execution events, not app_status_changed, so
-    // row.status can lag the live WS view — a manifest that just degraded may still read
-    // "running" from the cache until an unrelated execution refetches it.
-    const row = instanceRow("multi_app", "running", ["running", "running"]);
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
-      "multi_app:inst_1": { status: "failed", instance_name: "inst_1" },
-    };
-    expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
-  });
-
-  it.each(["starting", "stopping", "not_started"] as const)(
-    "derives degraded from a failed instance beside a %s one, as the server's rollup does",
-    (sibling) => {
-      const row = instanceRow("multi_app", "degraded", ["failed", "running"]);
-      const liveStatuses: Record<string, AppStatusEntry> = {
-        "multi_app:inst_0": { status: "failed", instance_name: "inst_0" },
-        "multi_app:inst_1": { status: sibling, instance_name: "inst_1" },
-      };
-      expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
-    },
-  );
-
-  it("reports failed, not degraded, for a failed instance beside a stopped one", () => {
-    const row = instanceRow("multi_app", "failed", ["failed", "stopped"]);
-    expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("failed");
-  });
-
-  it("clears a stale degraded row.status once live statuses show full recovery", () => {
-    const row = instanceRow("multi_app", "degraded", ["running", "failed"]);
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
-      "multi_app:inst_1": { status: "running", instance_name: "inst_1" },
-    };
-    expect(appLiveStatus(liveStatuses, row)).toBe("running");
-  });
-
-  it("ignores a store entry for a name the cached row does not list", () => {
-    // A removed instance's last status lingers in the store; only the refetched row decides membership.
-    const row = instanceRow("multi_app", "running", ["running", "running"]);
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
-      "multi_app:inst_1": { status: "running", instance_name: "inst_1" },
-      "multi_app:removed": { status: "failed", instance_name: "removed" },
-    };
-    expect(appLiveStatus(liveStatuses, row)).toBe("running");
-  });
-
-  it("does not let a stale failed entry of a removed instance degrade a single-instance row", () => {
-    const row = instanceRow("multi_app", "running", ["running"]);
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:removed": { status: "failed", instance_name: "removed" },
-    };
-    expect(appLiveStatus(liveStatuses, row)).toBe("running");
-  });
-
-  it("does not count a just-added name until the refetched row lists it", () => {
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
-      "multi_app:inst_1": { status: "failed", instance_name: "inst_1" },
-    };
-    const before = instanceRow("multi_app", "running", ["running"]);
-    expect(appLiveStatus(liveStatuses, before)).toBe("running");
-
-    const after = instanceRow("multi_app", "running", ["running", "running"]);
-    expect(appLiveStatus(liveStatuses, after)).toBe("degraded");
-  });
-
-  it("still reduces per-instance statuses for multi-instance apps that are not degraded", () => {
-    const row = instanceRow("multi_app", "running", ["running", "starting"]);
-    // "starting" is worse (lower priority number) than "running" in STATUS_PRIORITY.
+  it("returns the row's server rollup when no delta has arrived", () => {
+    const row = instanceRow("multi_app", "starting", ["running", "starting"]);
     expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("starting");
+  });
+
+  it("applies a delta's app_status only when strictly newer than the row", () => {
+    const row = instanceRow("app", "running", ["running"]);
+    const failing = (revision: number) =>
+      liveDelta("app", { instance_name: "inst_0", status: "failed" }, "failed", revision);
+
+    expect(appLiveStatus(failing(ROW_REVISION + 1), row)).toBe("failed");
+    // A tie goes to the snapshot, and an older delta never overrides it.
+    expect(appLiveStatus(failing(ROW_REVISION), row)).toBe("running");
+    expect(appLiveStatus(failing(ROW_REVISION - 1), row)).toBe("running");
+  });
+
+  it("lets a refetched disabled row win over the delta that preceded the disable", () => {
+    // Disabling sends no delta; it bumps the revision and reaches the row through apps_changed.
+    const live = liveDelta("app", { instance_name: "inst_0", status: "running" }, "running", ROW_REVISION - 5);
+    expect(appLiveStatus(live, instanceRow("app", "disabled", []))).toBe("disabled");
+  });
+
+  it("does not derive a rollup from instance deltas", () => {
+    const live: LiveAppStatus = {
+      instances: { "app:inst_1": { instance_name: "inst_1", status: "failed", status_revision: ROW_REVISION + 1 } },
+      apps: {},
+    };
+    expect(appLiveStatus(live, instanceRow("app", "running", ["running", "running"]))).toBe("running");
+  });
+});
+
+describe("instance live helpers", () => {
+  const row = instanceRow("app", "failed", ["failed"]);
+  const inst = { ...row.instances[0], error_message: "boom" };
+
+  it("apply a newer delta, including its null exception", () => {
+    const live = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "running", exception: null },
+      "running",
+      ROW_REVISION + 1,
+    );
+    expect(instanceLiveStatus(live, row, inst)).toBe("running");
+    expect(instanceLiveError(live, row, inst)).toBeNull();
+  });
+
+  it("keep the snapshot instance on a tie", () => {
+    const live = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "running", exception: null },
+      "running",
+      ROW_REVISION,
+    );
+    expect(instanceLiveStatus(live, row, inst)).toBe("failed");
+    expect(instanceLiveError(live, row, inst)).toBe("boom");
+  });
+
+  it("clear a cached needs-restart flag only through a newer delta", () => {
+    const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
+    const flagged = { ...inst, needs_restart: flag };
+    const older = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "stopping", needs_restart: null },
+      "stopping",
+      ROW_REVISION - 1,
+    );
+    expect(instanceLiveNeedsRestart(older, row, flagged)).toEqual(flag);
+    const newer = liveDelta(
+      "app",
+      { instance_name: "inst_0", status: "running", needs_restart: null },
+      "running",
+      ROW_REVISION + 1,
+    );
+    expect(instanceLiveNeedsRestart(newer, row, flagged)).toBeNull();
   });
 });
 
@@ -201,66 +198,46 @@ describe("hasFailedActivityPart", () => {
 });
 
 describe("appNeedsRestart", () => {
+  const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
+
   it("ignores a flag on a name the grid hasn't listed", () => {
     // A config reload added inst_1 after the grid loaded; it counts once the refetched row lists it.
     const row = instanceRow("multi_app", "running", ["running"]);
-    const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_1": { status: "failed", instance_name: "inst_1", needs_restart: flag },
-    };
-
-    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 0, flag: null });
-    const refetched = instanceRow("multi_app", "running", ["running", "running"]);
-    expect(appNeedsRestart(liveStatuses, refetched)).toEqual({ count: 1, flag });
-  });
-
-  it("keeps a cached flag when the instance's last WS event carried none", () => {
-    // The STOPPING event arrived before the flag was set, and the FAILED event that carried it was lost.
-    const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "failed",
-          instance_count: 1,
-          instances: [
-            createInstance({ app_key: "multi_app", instance_name: "inst_0", status: "failed", needs_restart: flag }),
-          ],
-        },
-      }),
+    const live = liveDelta(
+      "multi_app",
+      { instance_name: "inst_1", status: "failed", needs_restart: flag },
+      "failed",
+      ROW_REVISION + 1,
     );
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_0": { status: "stopping", instance_name: "inst_0", needs_restart: null },
-    };
 
-    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 1, flag });
+    expect(appNeedsRestart(live, row)).toEqual({ count: 0, flag: null });
+    const refetched = instanceRow("multi_app", "running", ["running", "running"]);
+    expect(appNeedsRestart(live, refetched)).toEqual({ count: 1, flag });
   });
 
-  it("counts flags that come from the cached row and a WS event on different instances", () => {
-    const cachedFlag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
+  it("counts flags that come from the cached row and a newer delta on different instances", () => {
     const liveFlag = { reason: "task poll still pending", pending_tasks: ["poll"], flagged_at: 2 };
     const row = toAppRow(
       createAppGridEntry({
         app: {
           app_key: "multi_app",
           status: "failed",
+          status_revision: ROW_REVISION,
           instance_count: 2,
           instances: [
-            createInstance({
-              app_key: "multi_app",
-              instance_name: "inst_0",
-              status: "failed",
-              needs_restart: cachedFlag,
-            }),
+            createInstance({ app_key: "multi_app", instance_name: "inst_0", status: "failed", needs_restart: flag }),
             createInstance({ app_key: "multi_app", instance_name: "inst_1", status: "running" }),
           ],
         },
       }),
     );
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:inst_1": { status: "failed", instance_name: "inst_1", needs_restart: liveFlag },
-    };
+    const live = liveDelta(
+      "multi_app",
+      { instance_name: "inst_1", status: "failed", needs_restart: liveFlag },
+      "failed",
+      ROW_REVISION + 1,
+    );
 
-    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 2, flag: null });
+    expect(appNeedsRestart(live, row)).toEqual({ count: 2, flag: null });
   });
 });

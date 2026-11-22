@@ -510,7 +510,11 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
 
         def broadcast_sync(msg: dict) -> None:
             """Push msg to all connected WS clients synchronously from the test thread."""
-            future = asyncio.run_coroutine_threadsafe(runtime_query_service.broadcast(msg), loop)
+
+            async def put() -> None:
+                runtime_query_service.put_to_clients(msg)
+
+            future = asyncio.run_coroutine_threadsafe(put(), loop)
             future.result(timeout=5)
 
         yield SimpleNamespace(url=url, broadcast_sync=broadcast_sync)

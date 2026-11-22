@@ -326,6 +326,16 @@ GET /api/executions/{execution_id} removed the required property `logs_truncated
 GET /api/executions/{execution_id} removed the required property `records` from the response with the `200` status
 GET /api/executions/{execution_id} removed the required property `truncated` from the response with the `200` status
 
-# #4219: GET /api/apps carries boot_id and revision (required); hassette-client's floor moves to API schema 7.
+# #4219: GET /api/apps carries boot_id and entity_revision (required; named entity_revision by #4147); hassette-client's
+# floor moves to API schema 7.
 GET /api/apps removed the required property `boot_id` from the response with the `200` status
-GET /api/apps removed the required property `revision` from the response with the `200` status
+GET /api/apps removed the required property `entity_revision` from the response with the `200` status
+
+# #4147: every AppSummary carries status_revision, and app_status_changed carries status_revision, boot_id and
+# app_status (all required, unreleased in schema 7).
+GET /api/apps removed the required property `apps/items/status_revision` from the response with the `200` status
+GET /api/apps/{app_key} removed the required property `status_revision` from the response with the `200` status
+GET /api/telemetry/app-grid removed the required property `apps/items/app/status_revision` from the response with the `200` status
+GET /__ws__/server-messages removed the required property `oneOf[subschema #1: AppStatusChangedWsMessage]/data/app_status` from the response with the `200` status
+GET /__ws__/server-messages removed the required property `oneOf[subschema #1: AppStatusChangedWsMessage]/data/boot_id` from the response with the `200` status
+GET /__ws__/server-messages removed the required property `oneOf[subschema #1: AppStatusChangedWsMessage]/data/status_revision` from the response with the `200` status

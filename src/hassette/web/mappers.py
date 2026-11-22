@@ -121,6 +121,7 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
         enabled=manifest.enabled,
         autostart=manifest.autostart,
         status=manifest.status,
+        status_revision=manifest.status_revision,
         block_reason=manifest.block_reason,
         instance_count=manifest.instance_count,
         instances=[app_instance_from(inst) for inst in manifest.instances],
@@ -132,7 +133,7 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
     # dup-ignore-end
 
 
-def app_list_response_from(full: AppFullSnapshot, *, boot_id: str, revision: int) -> AppListResponse:
+def app_list_response_from(full: AppFullSnapshot, *, boot_id: str, entity_revision: int) -> AppListResponse:
     """Convert an ``AppFullSnapshot`` to ``AppListResponse``, with the entity revision its instances were read at."""
     return AppListResponse(
         total=full.total,
@@ -142,7 +143,7 @@ def app_list_response_from(full: AppFullSnapshot, *, boot_id: str, revision: int
         apps=[app_summary_from(manifest) for manifest in full.manifests],
         only_apps=list(full.only_apps),
         boot_id=boot_id,
-        revision=revision,
+        entity_revision=entity_revision,
     )
 
 

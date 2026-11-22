@@ -190,7 +190,7 @@ async def test_app_list_reports_capture_for_each_instance(handler: AppHandler) -
     response = app_list_response_from(
         AppFullSnapshot(manifests=tuple(infos), total=len(infos), status_counts=tally_app_statuses(infos)),
         boot_id=STUB_BOOT_ID,
-        revision=0,
+        entity_revision=0,
     )
 
     (summary,) = response.apps

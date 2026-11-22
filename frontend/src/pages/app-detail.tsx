@@ -23,8 +23,8 @@ import { useQueryParams } from "../hooks/use-query-params";
 import { isExecutionDefined, useAppExecution } from "../hooks/use-scoped-execution";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
-import { appStatusKey, useAppStore } from "../state/store";
-import { appLiveStatus } from "../utils/app-data";
+import { useAppStore } from "../state/store";
+import { appLiveStatus, instanceLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab, instanceQueryString, parseInstanceParam } from "../utils/app-routes";
 
 const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
@@ -158,11 +158,9 @@ export function AppDetailPage({ params }: Props) {
   // selector must keep returning a primitive for that to hold; a fresh object would compare
   // unequal on every store write.
   const liveStatus = useAppStore((s) => {
-    if (showParentOverview) return manifest ? appLiveStatus(s.appStatus, manifest) : "unknown";
-    const wsStatus = currentInstance
-      ? s.appStatus[appStatusKey(appKey, currentInstance.instance_name)]?.status
-      : undefined;
-    return wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
+    if (!manifest) return "unknown";
+    if (showParentOverview || !currentInstance) return appLiveStatus(s.appStatus, manifest);
+    return instanceLiveStatus(s.appStatus, manifest, currentInstance);
   });
 
   const hasData = !manifestLoading && listenersData !== undefined && jobsData !== undefined;
@@ -198,6 +196,7 @@ export function AppDetailPage({ params }: Props) {
         {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
             appKey={appKey}
+            statusRevision={manifest.status_revision}
             instances={manifest.instances}
             currentInstanceName={instanceName}
             onNavigate={(name) => {
@@ -233,6 +232,7 @@ export function AppDetailPage({ params }: Props) {
           {showParentOverview && manifest ? (
             <MultiInstanceOverview
               appKey={appKey}
+              statusRevision={manifest.status_revision}
               displayName={manifest.display_name ?? appKey}
               instances={manifest.instances ?? []}
               instanceCount={manifest.instance_count}

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useManifests } from "@/hooks/use-manifests";
 import { useSidebarHidden } from "@/hooks/use-sidebar-hidden";
 import { cn } from "@/lib/utils";
-import { type AppStatusEntry, useAppStore } from "@/state/store";
+import { type LiveAppStatus, useAppStore } from "@/state/store";
 import { appLiveStatus, instanceLiveStatus } from "@/utils/app-data";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "@/utils/app-routes";
 import { COMPACT_STATUS_SHAPE_SIZE, GROUP_HEADER_STATUS_SHAPE_SIZE, STATUS_SHAPE_SIZE } from "@/utils/constants";
@@ -36,7 +36,7 @@ interface AppEntryProps {
   manifest: AppManifest;
   location: string;
   searchString: string;
-  appStatuses: Record<string, AppStatusEntry>;
+  appStatuses: LiveAppStatus;
   labelIsAmbiguous: boolean;
 }
 
@@ -96,10 +96,8 @@ function AppEntry({ manifest, location, searchString, appStatuses, labelIsAmbigu
                 const pathMatches = location === appPath || location.startsWith(appPath + "/");
                 const instanceParam = new URLSearchParams(searchString).get("instance");
                 const instActive = pathMatches && instanceParam === inst.instance_name;
-                // Live overlay for this one instance, same staleness reasoning as displayStatus
-                // above but a single-key lookup, not appLiveStatus's rollup — see
-                // instanceLiveStatus's own doc comment for the distinction.
-                const instStatus = instanceLiveStatus(appStatuses, manifest.app_key, inst);
+                // Live overlay for this one instance, same staleness reasoning as displayStatus above.
+                const instStatus = instanceLiveStatus(appStatuses, manifest, inst);
                 return (
                   <li key={inst.instance_name} className="flex items-center gap-1">
                     <span className="shrink-0 font-mono text-xs text-[var(--ink-4)] select-none">└</span>

@@ -29,6 +29,10 @@ TEST_TIMESTAMP = 1234567890.0
 
 MESSAGE_ADAPTER = TypeAdapter(WsServerMessage)
 
+WS_ORDERING_FIELDS = {"status_revision": 1, "boot_id": "b1", "app_status": "running"}
+"""Ordering fields the WS delta carries and the user-facing bus payload doesn't (spec 160 D2), with sample values."""
+WS_ONLY_APP_STATUS_FIELDS = set(WS_ORDERING_FIELDS)
+
 
 def validate_envelope(msg_type: str, data: object) -> WsServerMessage:
     """Validate a raw WS envelope and return the message the discriminated union narrowed it to."""
@@ -36,11 +40,11 @@ def validate_envelope(msg_type: str, data: object) -> WsServerMessage:
 
 
 class TestAppStatusChangedDataMatchesDataclass:
-    """Verify AppStatusChangedData mirrors events.hassette.AppStateChangePayload."""
+    """Verify AppStatusChangedData mirrors events.hassette.AppStateChangePayload, plus its ordering fields."""
 
     def test_field_names_match(self) -> None:
         dataclass_fields = {f.name for f in dataclasses.fields(AppStateChangePayload)}
-        assert dataclass_fields == set(AppStatusChangedData.model_fields)
+        assert dataclass_fields | WS_ONLY_APP_STATUS_FIELDS == set(AppStatusChangedData.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = AppStateChangePayload(
@@ -54,14 +58,16 @@ class TestAppStatusChangedDataMatchesDataclass:
             exception_traceback=None,
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
-        data = AppStatusChangedData.model_validate(serialized)
+        data = AppStatusChangedData.model_validate(serialized | WS_ORDERING_FIELDS)
         assert data.app_key == "my_app"
         assert data.status == ResourceStatus.RUNNING
         assert data.instance_name == "my_app_0"
         assert data.class_name == "MyApp"
 
     def test_optional_fields_default_to_none(self) -> None:
-        data = AppStatusChangedData(app_key="test", instance_name="instance_0", status=ResourceStatus.RUNNING)
+        data = AppStatusChangedData.model_validate(
+            {"app_key": "test", "instance_name": "instance_0", "status": ResourceStatus.RUNNING, **WS_ORDERING_FIELDS}
+        )
         assert data.previous_status is None
         assert data.class_name is None
         assert data.exception is None
@@ -110,7 +116,8 @@ class TestWsServerMessageDiscriminates:
 
     def test_app_status_changed(self) -> None:
         msg = validate_envelope(
-            "app_status_changed", {"app_key": "my_app", "instance_name": "my_app_0", "status": "running"}
+            "app_status_changed",
+            {"app_key": "my_app", "instance_name": "my_app_0", "status": "running", **WS_ORDERING_FIELDS},
         )
         assert isinstance(msg, AppStatusChangedWsMessage)
         assert msg.data.app_key == "my_app"
@@ -136,10 +143,10 @@ class TestWsServerMessageDiscriminates:
         entity = {"key": "temp", "platform": "sensor", "name": "Temp", "value": 21.5, "attributes": {}}
         msg = validate_envelope(
             "entity_state_changed",
-            {"boot_id": "b1", "revision": 3, "app_key": "my_app", "instance_name": "kitchen", "entity": entity},
+            {"boot_id": "b1", "entity_revision": 3, "app_key": "my_app", "instance_name": "kitchen", "entity": entity},
         )
         assert isinstance(msg, EntityStateChangedWsMessage)
-        assert (msg.data.revision, msg.data.entity.value) == (3, 21.5)
+        assert (msg.data.entity_revision, msg.data.entity.value) == (3, 21.5)
 
     def test_service_status(self) -> None:
         msg = validate_envelope("service_status", {"resource_name": "telemetry", "status": "running"})

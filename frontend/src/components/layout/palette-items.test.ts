@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as endpoints from "../../api/endpoints";
-import type { AppStatusEntry } from "../../state/store";
+import type { LiveAppStatus } from "../../state/store";
 import { createAppSummary, createInstance } from "../../test/factories";
 import { buildActionItems, buildAppItems } from "./palette-items";
 
-const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
+const NO_LIVE_STATUSES: LiveAppStatus = { instances: {}, apps: {} };
+
+/** A delta for one instance and its app's rollup, newer than the default row's `status_revision` (100). */
+function liveDelta(appKey: string, status: "running" | "failed"): LiveAppStatus {
+  return {
+    instances: { [`${appKey}:inst_0`]: { status, instance_name: "inst_0", status_revision: 101 } },
+    apps: { [appKey]: { app_status: status, status_revision: 101 } },
+  };
+}
 
 // vitest.config.ts sets neither clearMocks nor restoreMocks, so spies on the endpoints
 // namespace keep their call history across tests. Without this reset, the
@@ -63,7 +71,7 @@ describe("buildAppItems", () => {
           instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
         }),
       ],
-      { "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" } },
+      liveDelta("stale_running_app", "failed"),
       vi.fn(),
       vi.fn(),
     );
@@ -106,7 +114,10 @@ describe("buildAppItems", () => {
           ],
         }),
       ],
-      { "multi_app:inst_1": { status: "failed", instance_name: "inst_1" } },
+      {
+        instances: { "multi_app:inst_1": { status: "failed", instance_name: "inst_1", status_revision: 101 } },
+        apps: {},
+      },
       vi.fn(),
       vi.fn(),
     );
@@ -162,9 +173,7 @@ describe("buildActionItems", () => {
         instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
       }),
     ];
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" },
-    };
+    const liveStatuses = liveDelta("stale_running_app", "failed");
     const items = buildActionItems(manifests, liveStatuses, vi.fn());
 
     items.find((i) => i.id === "action-stop-failing")?.action();
@@ -183,38 +192,11 @@ describe("buildActionItems", () => {
         instances: [createInstance({ app_key: "recovered_app", instance_name: "inst_0", status: "failed" })],
       }),
     ];
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "recovered_app:inst_0": { status: "running", instance_name: "inst_0" },
-    };
+    const liveStatuses = liveDelta("recovered_app", "running");
     const items = buildActionItems(manifests, liveStatuses, vi.fn());
 
     items.find((i) => i.id === "action-stop-failing")?.action();
 
     expect(endpoints.stopApp).not.toHaveBeenCalledWith("recovered_app");
-  });
-
-  it("includes a crashed app (via live WS status) in stop-failing", () => {
-    // isFailureStatus (shared with FailedAppsAlert) marks "crashed" as a failure status.
-    // Apps don't normally report ResourceStatus.CRASHED, but the bulk command should still
-    // include one via the live overlay, since it routes through the same shared predicate as
-    // FailedAppsAlert rather than its own list.
-    vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [
-      createAppSummary({
-        app_key: "crashed_app",
-        status: "running",
-        in_current_config: true,
-        instance_count: 1,
-        instances: [createInstance({ app_key: "crashed_app", instance_name: "inst_0", status: "running" })],
-      }),
-    ];
-    const liveStatuses: Record<string, AppStatusEntry> = {
-      "crashed_app:inst_0": { status: "crashed", instance_name: "inst_0" },
-    };
-    const items = buildActionItems(manifests, liveStatuses, vi.fn());
-
-    items.find((i) => i.id === "action-stop-failing")?.action();
-
-    expect(endpoints.stopApp).toHaveBeenCalledWith("crashed_app");
   });
 });

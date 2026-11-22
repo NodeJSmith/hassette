@@ -15,7 +15,7 @@ Covers:
 from typing import TYPE_CHECKING
 
 import pytest
-from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
+from hassette_wire import AppStatus, BackpressurePolicy, ExecutionMode, ResourceStatus
 
 from hassette import C
 from hassette.core.app_registry import StatusChange
@@ -47,6 +47,8 @@ def running_change(*, app_key: str) -> StatusChange:
         class_name="MyApp",
         previous=ResourceStatus.STARTING,
         status=ResourceStatus.RUNNING,
+        status_revision=1,
+        app_status=AppStatus.RUNNING,
     )
 
 

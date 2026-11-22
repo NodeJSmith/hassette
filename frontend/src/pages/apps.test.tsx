@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { appStatusKey, useAppStore } from "../state/store";
+import { useAppStore } from "../state/store";
 import {
   createAppActivityStats,
   createAppGridEntry,
@@ -121,12 +121,16 @@ describe("AppsPage", () => {
     // it is the boundary AppsPage subscribes to.
     act(() => {
       const { updateAppStatus } = useAppStore.getState();
-      updateAppStatus(appStatusKey("b", "inst_0"), { status: "stopped", instance_name: "inst_0" });
-      updateAppStatus(appStatusKey("c", "inst_0"), { status: "failed", instance_name: "inst_0" });
-      // "disabled" is a manifest-level config state that appLiveStatus resolves before it
-      // consults appStatuses, so a per-instance status left over from before the app was
-      // disabled must not mask it.
-      updateAppStatus(appStatusKey("d", "inst_0"), { status: "stopped", instance_name: "inst_0" });
+      const delta = (status: "stopped" | "failed", revision: number) => ({
+        instance: { status, instance_name: "inst_0", status_revision: revision },
+        app: { app_status: status, status_revision: revision },
+      });
+      // Newer than the grid rows' status_revision (100), so the rollup applies.
+      updateAppStatus("b", delta("stopped", 101).instance, delta("stopped", 101).app);
+      updateAppStatus("c", delta("failed", 101).instance, delta("failed", 101).app);
+      // Disabling sends no delta: the refetched row's revision is newer than any delta from
+      // before the disable, so that leftover delta must not mask "disabled".
+      updateAppStatus("d", delta("stopped", 95).instance, delta("stopped", 95).app);
     });
 
     expect(getStatValue(strip, "total")).toBe("4");

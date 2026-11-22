@@ -50,7 +50,7 @@ import { LoginPage } from "./pages/login";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { SessionExpiredPage } from "./pages/session-expired";
-import { type AppStatusEntry, RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
+import { type LiveAppStatus, RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
 import { appLiveStatus } from "./utils/app-data";
 import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
 import { COMPACT_STATUS_SHAPE_SIZE } from "./utils/constants";
@@ -446,7 +446,7 @@ interface FailedApp {
  * selector and the `useMemo` below so the two can never drift out of lockstep with each other
  * (a field added to `FailedApp` only has to be added here, not mirrored into a second hand-joined
  * key string). */
-function computeFailedApps(manifests: AppManifest[], appStatuses: Record<string, AppStatusEntry>): FailedApp[] {
+function computeFailedApps(manifests: AppManifest[], appStatuses: LiveAppStatus): FailedApp[] {
   return manifests
     .filter((m) => isFailureStatus(appLiveStatus(appStatuses, m)))
     .map((m) => ({

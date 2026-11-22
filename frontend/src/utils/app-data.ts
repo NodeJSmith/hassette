@@ -7,7 +7,7 @@ import type {
   NeedsRestart,
   ResourceStatus,
 } from "@/api/endpoints";
-import { type AppStatusEntry, appStatusKey } from "@/state/store";
+import { type AppStatusEntry, appStatusKey, type LiveAppStatus } from "@/state/store";
 import type { SortState } from "@/utils/sort";
 
 import { statusPriority } from "./status-priority";
@@ -92,105 +92,67 @@ export function totalRuns(row: Pick<AppRow, "stats">): number | null {
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
 export type AppSortState = SortState<AppSortKey>;
 
-/** "disabled" and "blocked" are manifest-level configuration states, not derived from instance
- *  activity, so they must override any live or synthetic per-instance status a caller uses to
- *  decide what to render or which actions to allow — a leftover per-instance WS status, or a
- *  not-yet-tracked configured instance's synthetic "stopped" placeholder (see
- *  AppRegistry.build_manifest_info() on the backend), would otherwise mask the app-level
- *  config state. Single source of truth for this rule — `appLiveStatus` and the per-instance
- *  action-button gating in `AppTableRow`/`AppDetailHeader` all call this instead of
- *  reimplementing the `"disabled" | "blocked"` check inline. */
-export function configStatusOverride(status: AppStatus | ResourceStatus): "disabled" | "blocked" | undefined {
-  return status === "disabled" || status === "blocked" ? status : undefined;
+/** The snapshot fields a live delta is compared against: the app key and the revision the row was read at. */
+type StatusRow = Pick<AppRow, "app_key" | "status_revision">;
+
+/** The apply rule for every `app_status_changed` delta: it wins only when strictly newer than the snapshot row, so a
+ *  tie goes to the row. Writes that send no delta (blocking, config changes, registration) bump the revision too and
+ *  reach the row through the `apps_changed` refetch, so they come out right with no special case. */
+function isNewer(entry: { status_revision: number } | undefined, row: StatusRow): boolean {
+  return entry !== undefined && entry.status_revision > row.status_revision;
 }
 
-/** Resolve the live status for an app row's parent view.
- *  Single-instance: WS status for that instance.
- *  Multi-instance: overlays live per-instance WS statuses (falling back to the snapshot's
- *  per-instance status where no WS update has arrived yet) and derives "degraded" from that
- *  live view whenever a "failed" instance sits beside an active one, meaning any status but
- *  "failed" and "stopped" ("starting", "stopping" and "not_started" count). This is the server's
- *  rollup rule (`AppRegistry.build_manifest_info`): a "stopped" instance isn't running, so it
- *  doesn't make a failed sibling "degraded". This must be computed from live data, not read
- *  off the cached `row.status`: the app-grid query is
- *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
- *  stale in either direction (still "running" after an instance fails, or still "degraded"
- *  after all instances recover) for as long as no execution event happens to refetch it.
- *
- *  Only the cached `row.instances` count: the WS store is an overlay on them, never a source of
- *  membership. A store entry for a name the row doesn't list (a removed instance, or one added
- *  before the refetch lands) is ignored until the refetched row lists it.
- *
- *  Config states win over any live status — see `configStatusOverride`. */
-export function appLiveStatus(
-  appStatuses: Record<string, AppStatusEntry>,
-  row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
-): AppStatus | ResourceStatus {
-  const override = configStatusOverride(row.status);
-  if (override) return override;
-  const instances = row.instances ?? [];
-  // Fast path for the common case (0 or 1 instances): no per-instance reduction needed.
-  if (instances.length <= 1) {
-    const live =
-      instances.length === 1 ? appStatuses[appStatusKey(row.app_key, instances[0].instance_name)] : undefined;
-    return live?.status ?? row.status;
-  }
-  const liveStatuses = instances.map(
-    (inst) => appStatuses[appStatusKey(row.app_key, inst.instance_name)]?.status ?? inst.status,
-  );
-  const hasFailed = liveStatuses.includes("failed");
-  const hasActive = liveStatuses.some((live) => live !== "failed" && live !== "stopped");
-  if (hasFailed && hasActive) return "degraded";
-  return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
+/** The instance's stored delta when it applies over `row`, else `undefined`. */
+function liveInstanceEntry(live: LiveAppStatus, row: StatusRow, instanceName: string): AppStatusEntry | undefined {
+  const entry = live.instances[appStatusKey(row.app_key, instanceName)];
+  return isNewer(entry, row) ? entry : undefined;
 }
 
-/** Resolve the live status for a single instance row: the WS status for that exact name,
- *  falling back to the cached instance's own status. Unlike `appLiveStatus`, this is a plain
- *  single-key overlay, not a rollup — no degraded derivation, since
- *  a per-instance row only ever represents the one name it's given, not the whole app. */
+/** The app's status: the server rollup from the newest delta when it applies over `row`, else the row's own. */
+export function appLiveStatus(live: LiveAppStatus, row: StatusRow & Pick<AppRow, "status">): AppStatus {
+  const entry = live.apps[row.app_key];
+  return entry !== undefined && isNewer(entry, row) ? entry.app_status : row.status;
+}
+
+/** One instance's status: its delta's when it applies over `row`, else the snapshot instance's own. */
 export function instanceLiveStatus(
-  appStatuses: Record<string, AppStatusEntry>,
-  appKey: string,
+  live: LiveAppStatus,
+  row: StatusRow,
   inst: { instance_name: string; status: ResourceStatus },
 ): ResourceStatus {
-  return appStatuses[appStatusKey(appKey, inst.instance_name)]?.status ?? inst.status;
+  return liveInstanceEntry(live, row, inst.instance_name)?.status ?? inst.status;
 }
 
-/** Resolve the live error message for a single instance row. Once a WS `app_status_changed`
- *  event has been seen for this instance, its `exception` field is authoritative — including
- *  `null`, which means the instance recovered and the cached manifest's `error_message` (from
- *  before the config reload that produced this row) must not keep showing. Only fall back to
- *  the cached value when no live status has been observed for this instance yet. */
+/** One instance's error message. An applying delta's `exception` is authoritative, including `null`
+ *  (the instance recovered). */
 export function instanceLiveError(
-  appStatuses: Record<string, AppStatusEntry>,
-  appKey: string,
+  live: LiveAppStatus,
+  row: StatusRow,
   inst: { instance_name: string; error_message?: string | null },
 ): string | null | undefined {
-  const entry = appStatuses[appStatusKey(appKey, inst.instance_name)];
+  const entry = liveInstanceEntry(live, row, inst.instance_name);
   return entry ? entry.exception : inst.error_message;
 }
 
-/** Resolve the live needs-restart flag for a single instance: the latest WS `app_status_changed` event's
- *  flag, else the cached row's. A flag never clears before restart, so a WS entry with no flag (a STOPPING
- *  event sent before the flag was set, say) doesn't hide the cached one. */
+/** One instance's needs-restart flag: an applying delta's, else the snapshot instance's. A newer delta with no flag
+ *  does clear a cached one: revisions order the two, so the delta is the later write. */
 export function instanceLiveNeedsRestart(
-  appStatuses: Record<string, AppStatusEntry>,
-  appKey: string,
+  live: LiveAppStatus,
+  row: StatusRow,
   inst: { instance_name: string; needs_restart?: NeedsRestart | null },
 ): NeedsRestart | null {
-  const entry = appStatuses[appStatusKey(appKey, inst.instance_name)];
-  return entry?.needs_restart ?? inst.needs_restart ?? null;
+  const entry = liveInstanceEntry(live, row, inst.instance_name);
+  return entry ? (entry.needs_restart ?? null) : (inst.needs_restart ?? null);
 }
 
 /** An app's needs-restart summary for its row: how many instances are flagged, and the flag itself when
- *  exactly one is, so the row can show that instance's reason. Counts only the row's cached instances,
- *  with WS flags overlaid, as in `appLiveStatus`. */
+ *  exactly one is, so the row can show that instance's reason. Counts only the row's own instances. */
 export function appNeedsRestart(
-  appStatuses: Record<string, AppStatusEntry>,
-  row: Pick<AppRow, "app_key" | "instances">,
+  live: LiveAppStatus,
+  row: StatusRow & Pick<AppRow, "instances">,
 ): { count: number; flag: NeedsRestart | null } {
   const flags = row.instances.flatMap((inst) => {
-    const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, inst);
+    const flag = instanceLiveNeedsRestart(live, row, inst);
     return flag ? [flag] : [];
   });
   return { count: flags.length, flag: flags.length === 1 ? flags[0] : null };
@@ -200,15 +162,10 @@ function hasError(row: AppRow): boolean {
   return Boolean(row.error_message);
 }
 
-export function compareAppRows(
-  a: AppRow,
-  b: AppRow,
-  sort: AppSortState,
-  appStatuses: Record<string, AppStatusEntry>,
-): number {
+export function compareAppRows(a: AppRow, b: AppRow, sort: AppSortState, live: LiveAppStatus): number {
   const direction = sort.dir === "asc" ? 1 : -1;
-  const aStatus = appLiveStatus(appStatuses, a);
-  const bStatus = appLiveStatus(appStatuses, b);
+  const aStatus = appLiveStatus(live, a);
+  const bStatus = appLiveStatus(live, b);
   switch (sort.key) {
     case "name":
       return direction * a.display_name.localeCompare(b.display_name) || a.app_key.localeCompare(b.app_key);

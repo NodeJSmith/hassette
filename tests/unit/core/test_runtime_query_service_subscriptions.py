@@ -32,7 +32,7 @@ async def initialized_runtime(
 
     Lets a test exercise the bus subscriptions on_initialize() registers (topic and ``where=``
     filter), which calling a handler directly cannot detect. Broadcasts are captured through a
-    real WS client queue, so the real ``broadcast()`` path runs. The harness config needs
+    real WS client queue, so the real ``put_to_clients()`` path runs. The harness config needs
     ``web_api.run=True``: on_initialize() returns early without subscribing otherwise.
     """
     # with_bus() doesn't call wire_services(), so hassette.logging_service is unset.

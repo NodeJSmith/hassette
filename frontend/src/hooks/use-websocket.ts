@@ -8,7 +8,7 @@ import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
 import { resolveWsUrl } from "../lib/base-path";
 import { queryKeys } from "../lib/query-keys";
-import { appStatusKey, type ConnectionStatus, useAppStore } from "../state/store";
+import { type ConnectionStatus, useAppStore } from "../state/store";
 
 export const MAX_BACKOFF_MS = 30_000;
 export const INITIAL_BACKOFF_MS = 1_000;
@@ -136,14 +136,19 @@ export function useWebSocket(): void {
           }
 
           case "app_status_changed":
-            useAppStore.getState().updateAppStatus(appStatusKey(msg.data.app_key, msg.data.instance_name), {
-              status: msg.data.status,
-              instance_name: msg.data.instance_name,
-              previous_status: msg.data.previous_status,
-              class_name: msg.data.class_name,
-              exception: msg.data.exception,
-              needs_restart: msg.data.needs_restart ?? null,
-            });
+            useAppStore.getState().updateAppStatus(
+              msg.data.app_key,
+              {
+                status: msg.data.status,
+                status_revision: msg.data.status_revision,
+                instance_name: msg.data.instance_name,
+                previous_status: msg.data.previous_status,
+                class_name: msg.data.class_name,
+                exception: msg.data.exception,
+                needs_restart: msg.data.needs_restart ?? null,
+              },
+              { app_status: msg.data.app_status, status_revision: msg.data.status_revision },
+            );
             break;
 
           case "log_hint":

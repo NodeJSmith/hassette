@@ -94,18 +94,20 @@ What a reload picks up depends on what triggered it:
 
 ## Understand App States
 
-The **STATUS** badge on each row reflects the app's current lifecycle state — usually one of six values.
+The **STATUS** badge on each row reflects the app's current lifecycle state. When more than one applies, the first in this table wins.
 
 | State | Meaning |
 |-------|---------|
-| `RUNNING` | The app is processing events normally. |
-| `STOPPED` | The app was stopped via the UI or REST API, or it has `autostart = false` and has not been started yet. It will not process events until started. Apps with `autostart = false` show a **no autostart** chip in the APP column. |
-| `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
-| `DEGRADED` | A multi-instance app has at least one running instance and at least one failed instance. The app is partially working — check which instance failed in the [Multi-instance apps](#multi-instance-apps) view above. |
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** runs its instances for this session, but the app's badge still reads `DISABLED`. Setting `enabled = true` in config makes the change permanent. |
 | `BLOCKED` | Hassette is restricted to a different set of apps via [`hassette run --app <key>`](../core-concepts/apps/index.md#restricting-which-apps-run), so this app is excluded. The block lasts for the life of the process. |
+| `DEGRADED` | A multi-instance app has at least one failed instance and at least one that is still running, starting or stopping. The app is partially working — check which instance failed in the [Multi-instance apps](#multi-instance-apps) view above. |
+| `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
+| `STARTING` | An instance is starting up (running its `on_initialize`). A multi-instance app shows this while any one instance restarts. |
+| `STOPPING` | An instance is shutting down. A multi-instance app shows this while any one instance stops. |
+| `RUNNING` | The app is processing events normally. |
+| `STOPPED` | The app was stopped via the UI or REST API, or it has `autostart = false` and has not been started yet. It will not process events until started. Apps with `autostart = false` show a **no autostart** chip in the APP column. |
 
-An individual *instance* row (inside a [multi-instance app](#multi-instance-apps)) carries its own status. The parent badge can also briefly show a transitional state such as `STARTING` or `STOPPING` while one of its instances changes state.
+An individual *instance* row (inside a [multi-instance app](#multi-instance-apps)) carries its own status. `STARTING` and `STOPPING` apps aren't counted in the stats strip above the table, and no filter chip selects them, so they show only under **all**.
 
 ![A STOPPED app row with the "no autostart" chip](../../_static/web_ui_no_autostart_chip.png)
 

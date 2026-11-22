@@ -49,6 +49,7 @@ def manifest_body(status: Any, instance_status: str = "running") -> dict[str, An
         "filename": "a.py",
         "enabled": True,
         "status": status,
+        "status_revision": 1,
         "instances": [{"app_key": "a", "index": 0, "instance_name": "a", "class_name": "A", "status": instance_status}],
     }
 
@@ -81,11 +82,20 @@ def test_unknown_values_in_list_json_and_nested_models() -> None:
 
 
 def test_unknown_value_in_optional_open_field() -> None:
-    data = {"app_key": "a", "instance_name": "instance_0", "status": "running", "previous_status": "hibernating"}
+    data = {
+        "app_key": "a",
+        "instance_name": "instance_0",
+        "status": "running",
+        "previous_status": "hibernating",
+        "status_revision": 1,
+        "boot_id": "b1",
+        "app_status": "hibernating",
+    }
 
     parsed = AppStatusChangedData.model_validate(data, context=LENIENT_CONTEXT)
 
     assert parsed.previous_status == UnknownValue("hibernating")
+    assert parsed.app_status == UnknownValue("hibernating")
     assert isinstance(parsed.previous_status, UnknownValue)
     absent = AppStatusChangedData.model_validate({**data, "previous_status": None}, context=LENIENT_CONTEXT)
     assert absent.previous_status is None

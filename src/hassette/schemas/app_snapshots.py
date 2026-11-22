@@ -118,6 +118,8 @@ class AppManifestInfo:
     filename: str
     enabled: bool
     status: AppStatus
+    status_revision: int
+    """The registry's ``status_revision`` when this snapshot was read; it covers ``status`` and ``instances``."""
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppSummary)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
@@ -190,12 +192,12 @@ def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, 
 class AppListingSnapshot:
     """The app list's manifests with each instance's declared entities, and the revision they were read at.
 
-    Built in one synchronous step, so ``revision`` covers every entity it carries.
+    Built in one synchronous step, so ``entity_revision`` covers every entity it carries.
     """
 
     manifests: tuple[AppManifestInfo, ...]
     boot_id: str
-    revision: int
+    entity_revision: int
 
 
 __all__ = [

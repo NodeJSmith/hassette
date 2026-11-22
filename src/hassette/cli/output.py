@@ -65,7 +65,7 @@ STATUS_STYLES: dict[str, str] = {
     **dict.fromkeys(("running", "success", "ok", "excellent", "good"), "green"),
     **dict.fromkeys(("failed", "error", "critical", "bad", "err"), "red"),
     **dict.fromkeys(("warning", "warn", "degraded", "timed_out", "blocked"), "yellow"),
-    **dict.fromkeys(("stopped", "disabled", "cancelled", "starting", "skipped"), "dim"),
+    **dict.fromkeys(("stopped", "disabled", "cancelled", "starting", "stopping", "skipped"), "dim"),
 }
 
 

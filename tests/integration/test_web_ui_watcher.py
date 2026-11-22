@@ -5,7 +5,7 @@ avoiding real filesystem watcher timing issues.
 """
 
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,7 +21,7 @@ def mock_hassette() -> MagicMock:
         web_api={"ui_hot_reload": True},
     )
     hassette.runtime_query_service = MagicMock()
-    hassette.runtime_query_service.broadcast = AsyncMock()
+    hassette.runtime_query_service.put_to_clients = MagicMock()
     return hassette
 
 
@@ -31,8 +31,8 @@ def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
 
 
 @pytest.fixture
-def broadcast(mock_hassette: MagicMock) -> AsyncMock:
-    return mock_hassette.runtime_query_service.broadcast
+def put_to_clients(mock_hassette: MagicMock) -> MagicMock:
+    return mock_hassette.runtime_query_service.put_to_clients
 
 
 def fake_awatch(*changes_batches: set[tuple[int, str]]):
@@ -45,7 +45,7 @@ def fake_awatch(*changes_batches: set[tuple[int, str]]):
     return _awatch
 
 
-async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
+async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService, put_to_clients: MagicMock) -> None:
     css_path = str(_WEB_DIR / "static/css/style.css")
     fake = fake_awatch({(2, css_path)})
 
@@ -53,32 +53,34 @@ async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService, br
         await watcher.serve()
 
     assert watcher.is_ready()
-    broadcast.assert_awaited_once_with({"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}})
+    put_to_clients.assert_called_once_with(
+        {"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}}
+    )
 
 
-async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
+async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService, put_to_clients: MagicMock) -> None:
     js_path = str(_WEB_DIR / "static/js/app.js")
     fake = fake_awatch({(2, js_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    broadcast.assert_awaited_once_with({"type": "dev_reload", "data": {"path": "static/js/app.js", "kind": "js"}})
+    put_to_clients.assert_called_once_with({"type": "dev_reload", "data": {"path": "static/js/app.js", "kind": "js"}})
 
 
-async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
+async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherService, put_to_clients: MagicMock) -> None:
     tmpl_path = str(_WEB_DIR / "templates/pages/dashboard.html")
     fake = fake_awatch({(2, tmpl_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    broadcast.assert_awaited_once_with(
+    put_to_clients.assert_called_once_with(
         {"type": "dev_reload", "data": {"path": "templates/pages/dashboard.html", "kind": "template"}}
     )
 
 
-async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
+async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService, put_to_clients: MagicMock) -> None:
     fake = fake_awatch(
         {
             (2, str(_WEB_DIR / "static/css/style.css")),
@@ -89,13 +91,13 @@ async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService, br
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    assert broadcast.await_count == 2
-    kinds = {call.args[0]["data"]["kind"] for call in broadcast.await_args_list}
+    assert put_to_clients.call_count == 2
+    kinds = {call.args[0]["data"]["kind"] for call in put_to_clients.call_args_list}
     assert kinds == {"css", "js"}
 
 
-async def test_disabled_config_does_not_broadcast(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
+async def test_disabled_config_does_not_broadcast(watcher: WebUiWatcherService, put_to_clients: MagicMock) -> None:
     watcher.hassette.config.web_api.ui_hot_reload = False
     watcher.shutdown_event.set()
     await watcher.serve()
-    broadcast.assert_not_awaited()
+    put_to_clients.assert_not_called()

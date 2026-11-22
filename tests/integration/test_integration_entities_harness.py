@@ -124,11 +124,11 @@ async def test_set_replaces_attributes_and_identical_set_writes_nothing() -> Non
     async with AppTestHarness(EntitiesApp, config={"instance_name": "entities"}) as harness:
         service = harness.require_harness().integration_service
         await harness.app.temp.set(22, attributes={"x": 1})
-        revision = service.revision
+        revision = service.entity_revision
         await harness.app.temp.set(22, attributes={"x": 1})
-        assert service.revision == revision
+        assert service.entity_revision == revision
         await harness.app.temp.set(23)
-        assert service.revision == revision + 1
+        assert service.entity_revision == revision + 1
         assert harness.app.temp.state == EntityState(23, {})
 
 

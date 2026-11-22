@@ -1279,8 +1279,8 @@ export interface components {
          * AppListResponse
          * @description Response for ``GET /api/apps``: every app with status counts.
          *
-         *     ``boot_id`` and ``revision`` order the declared entities it carries (``AppInstance.entities``) against other
-         *     listings. An instance's availability follows its ``status``, not ``revision``.
+         *     ``boot_id`` and ``entity_revision`` order the declared entities it carries (``AppInstance.entities``) against
+         *     other listings. An instance's availability follows its ``status``, ordered by ``AppSummary.status_revision``.
          */
         AppListResponse: {
             /** Total */
@@ -1295,18 +1295,18 @@ export interface components {
             only_apps?: string[];
             /**
              * Boot Id
-             * @description Identifies this run of hassette; it changes on every restart. ``revision`` values are comparable only
+             * @description Identifies this run of hassette; it changes on every restart. ``entity_revision`` values are comparable only
              *     between responses carrying the same ``boot_id``: on a new one, discard every revision seen before.
              */
             boot_id: string;
             /**
-             * Revision
+             * Entity Revision
              * @description Declared-entity revision this listing was read at. Starts at 0 each boot and increases on every declaration
              *     commit and entity state change, skipping values. The listing reflects every declaration and value change up to
              *     this revision, so a client may apply it to an instance whose last applied revision is equal or older. It doesn't
-             *     order availability: starting or stopping an instance changes its ``status``, not ``revision``.
+             *     order availability: that is ``AppSummary.status_revision``.
              */
-            revision: number;
+            entity_revision: number;
         };
         /**
          * AppSource
@@ -1325,9 +1325,12 @@ export interface components {
         /**
          * AppStatus
          * @description An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``).
+         *
+         *     Members are listed in rollup order: the first that applies is the app's status. Only tracked instances count;
+         *     a configured instance that isn't tracked (shown as ``stopped``) never does.
          * @enum {string}
          */
-        AppStatus: "disabled" | "blocked" | "degraded" | "running" | "failed" | "stopped";
+        AppStatus: "disabled" | "blocked" | "degraded" | "failed" | "starting" | "stopping" | "running" | "stopped";
         /**
          * AppSummary
          * @description What an app is: its config identity, lifecycle status and instances.
@@ -1359,6 +1362,16 @@ export interface components {
              */
             description?: string | null;
             status: components["schemas"]["AppStatus"];
+            /**
+             * Status Revision
+             * @description The app-status revision this summary was read at; it covers ``status`` and every instance's ``status``,
+             *     ``error_message`` and ``needs_restart``. An ``app_status_changed`` message updates this app only when its
+             *     ``status_revision`` is strictly greater, so on a tie the summary wins. Refetch on ``apps_changed``: writes that
+             *     send no ``app_status_changed`` (blocking, config changes, registration) are delivered that way. Revisions
+             *     strictly increase within a run and, since they are seeded from the server's clock, across restarts unless the
+             *     clock steps backwards. They skip values, so they can't detect a lost message.
+             */
+            status_revision: number;
             /** Block Reason */
             block_reason?: string | null;
             /**

@@ -70,9 +70,13 @@ together?
 
 ## App Status Writes and the Needs-Restart Flag
 `AppRegistry.set_status()` in `src/hassette/core/app_registry.py` is the only writer of app instance status,
-and lifecycle code reaches it only through `AppInstanceLifecycleMixin.set_app_status()`, which writes, records
-a `lifecycle_events` row and sends the event in one call. Does a new status write go through `set_app_status()`
-rather than calling `registry.set_status()` directly (whose returned change would then go unsent and unrecorded)? The needs-restart flag lives on
+and lifecycle code reaches it only through `AppInstanceLifecycleMixin.set_app_status()`, which writes, publishes
+the change to `/ws` clients, records a `lifecycle_events` row and sends the event in one call. Does a new status
+write go through `set_app_status()` rather than calling `registry.set_status()` directly (whose returned change
+would then go unsent and unrecorded)? Does anything new sit between the write and the publish with an `await`,
+which would let a later write's delta reach clients first? Does a new registry write that changes what a snapshot
+reports (status, block reason, manifest) bump `status_revision`, and is a write with no `StatusChange` followed by
+an `apps_changed` so clients refetch? The needs-restart flag lives on
 the FAILED entry and is set by the FAILED write itself (`needs_restart=`); its `StatusChange` and
 `HassetteAppStateEvent` carry it. Does a consumer of app status events read the flag from the event rather than
 the registry, which may already hold a later write? Does every new FAILED outcome in

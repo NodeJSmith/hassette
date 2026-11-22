@@ -1,6 +1,6 @@
 import type { AppStatus, ResourceStatus } from "@/api/endpoints";
 import type { components } from "@/api/generated-types";
-import type { AppStatusEntry } from "@/state/store";
+import type { LiveAppStatus } from "@/state/store";
 import { appLiveStatus } from "@/utils/app-data";
 
 type AppManifest = components["schemas"]["AppSummary"];
@@ -55,7 +55,7 @@ export interface GroupedApps {
   allHealthy: boolean;
 }
 
-export function groupAndSortApps(manifests: AppManifest[], appStatuses: Record<string, AppStatusEntry>): GroupedApps {
+export function groupAndSortApps(manifests: AppManifest[], appStatuses: LiveAppStatus): GroupedApps {
   const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((def) => [def.key, []]));
   for (const manifest of manifests) {
     const key = getGroupKey(manifest, appStatuses);
@@ -80,7 +80,7 @@ export function findDuplicateDisplayNames(manifests: AppManifest[]): Set<string>
 }
 
 /** Groups from the live WS-overlaid status, not manifest.status — see appLiveStatus. */
-export function getGroupKey(manifest: AppManifest, appStatuses: Record<string, AppStatusEntry>): GroupKey {
+export function getGroupKey(manifest: AppManifest, appStatuses: LiveAppStatus): GroupKey {
   const status = appLiveStatus(appStatuses, manifest);
   // Fallback: any status not in the map (e.g. a new backend enum value before types are
   // regenerated) defaults to the healthy group rather than surfacing a false error state.
