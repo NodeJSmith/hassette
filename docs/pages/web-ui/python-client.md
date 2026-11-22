@@ -216,8 +216,11 @@ Each `AppStatusChangedWsMessage` reports one instance's new `status`, plus `app_
 
 - **Strictly newer wins.** Apply a message to an app only when its `status_revision` is greater than the `status_revision` of the `AppSummary` you last applied for that app. On a tie, keep the summary. Write `>`, not `>=`.
 - **Refetch on `AppsChangedWsMessage`.** Disabling or blocking an app, a config change, and registering an instance change status without sending `AppStatusChangedWsMessage`. They send `AppsChangedWsMessage` once the load pass ends, so listen for it and refetch.
-- **No boot check needed.** `status_revision` is seeded from the server's clock, so it keeps increasing across restarts and a summary from before a restart doesn't outrank a message from after it. The exception is a host whose clock steps backwards across the restart (a device with no battery-backed clock, before it syncs time): old summaries then win until your next fetch. `boot_id` still tells you a restart happened, if you keep other state per server process.
+- **No boot check needed.** `status_revision` is seeded from the server's clock, so it keeps increasing across restarts and a summary from before a restart doesn't outrank a message from after it. `boot_id` still tells you a restart happened, if you keep other state per server process.
 - **Revisions skip.** Writes that send no message move `status_revision` too, so a gap doesn't mean a message was lost. As with entity messages, a dropped message is repaired only by the next fetch.
+
+!!! warning "A clock that steps backwards hides status messages"
+    If the server's clock steps backwards across a restart (a device with no battery-backed clock, before it syncs time), the summaries you kept from before the restart outrank every new `AppStatusChangedWsMessage`, and those messages are ignored. The next `get_apps()` replaces the kept summaries and fixes it, which is one more reason to keep fetching on a timer.
 
 For availability, read each instance's `status`, not the app-level `app_status`: an app with several instances reads `starting` or `stopping` while any one of them is restarting.
 

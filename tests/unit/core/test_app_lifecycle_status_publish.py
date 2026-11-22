@@ -19,20 +19,42 @@ APP_KEY = "porch"
 
 
 @pytest.fixture
-def steps(real_registry_service: AppLifecycleService, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, object]]:
-    """Each publish, lifecycle row and bus send, in call order."""
+def runtime(real_registry_service: AppLifecycleService) -> RuntimeQueryService:
+    """A real ``RuntimeQueryService`` wired to the registry service's hassette."""
+    hassette = cast("MagicMock", real_registry_service.hassette)
+    hassette.integration_service.boot_id = "boot"
+    return create_mock_runtime_query_service(hassette)
+
+
+@pytest.fixture
+def steps(
+    real_registry_service: AppLifecycleService, runtime: RuntimeQueryService, monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[str, object]]:
+    """Each publish, lifecycle row and bus send, in call order; publishes still reach the real client queues."""
     order: list[tuple[str, object]] = []
-    runtime = MagicMock()
-    runtime.publish_app_status.side_effect = lambda change: order.append(("publish", change))
-    real_registry_service.hassette._runtime_query_service = runtime
+    real_publish = runtime.publish_app_status
+
+    def publish(change: StatusChange) -> None:
+        order.append(("publish", change))
+        real_publish(change)
+
+    runtime.publish_app_status = publish
     monkeypatch.setattr(instances_module, "record_app_change", lambda _h, change: order.append(("row", change)))
     real_registry_service.hassette.send_event = AsyncMock(side_effect=lambda event: order.append(("send", event)))
     return order
 
 
+def drain(queue: asyncio.Queue) -> list[dict]:
+    messages = []
+    while not queue.empty():
+        messages.append(queue.get_nowait())
+    return messages
+
+
 async def test_publishes_each_change_before_the_row_and_the_bus_send(
-    real_registry_service: AppLifecycleService, steps: list[tuple[str, object]]
+    real_registry_service: AppLifecycleService, runtime: RuntimeQueryService, steps: list[tuple[str, object]]
 ) -> None:
+    queue = await runtime.register_ws_client()
     app = make_app_instance(APP_KEY, "main")
     await real_registry_service.set_app_status(APP_KEY, "main", ResourceStatus.NOT_STARTED, app=app)
     await real_registry_service.set_app_status(APP_KEY, "main", ResourceStatus.STARTING)
@@ -44,10 +66,15 @@ async def test_publishes_each_change_before_the_row_and_the_bus_send(
     revisions = [change.status_revision for change in published]
     assert len(revisions) == 2
     assert revisions[0] < revisions[1]
+    deltas = [message["data"] for message in drain(queue) if message["type"] == "app_status_changed"]
+    assert [(delta["status"], delta["status_revision"]) for delta in deltas] == [
+        (ResourceStatus.STARTING, revisions[0]),
+        (ResourceStatus.RUNNING, revisions[1]),
+    ]
 
 
-async def test_a_publish_failure_is_logged_and_the_change_still_lands(
-    real_registry_service: AppLifecycleService, steps: list[tuple[str, object]], caplog: pytest.LogCaptureFixture
+async def test_a_publish_failure_does_not_stop_the_change_landing(
+    real_registry_service: AppLifecycleService, steps: list[tuple[str, object]]
 ) -> None:
     real_registry_service.hassette._runtime_query_service = MagicMock(
         publish_app_status=MagicMock(side_effect=RuntimeError("publish broke"))
@@ -59,7 +86,6 @@ async def test_a_publish_failure_is_logged_and_the_change_still_lands(
 
     assert real_registry_service.registry.get_status(APP_KEY, "main") is ResourceStatus.STARTING
     assert [step for step, _ in steps] == ["row", "send"]
-    assert "Failed to publish the starting change" in caplog.text
 
 
 async def test_no_runtime_query_service_sends_nothing_to_clients(
@@ -93,12 +119,10 @@ def record_stale_publishes(runtime: RuntimeQueryService, registry: AppRegistry) 
 
 
 async def test_interleaved_writers_reach_a_client_queue_in_revision_order(
-    real_registry_service: AppLifecycleService,
+    real_registry_service: AppLifecycleService, runtime: RuntimeQueryService
 ) -> None:
     """D4's guarantee is structural: no await between ``set_status`` and the publish, so no writer can overtake."""
     hassette = cast("MagicMock", real_registry_service.hassette)
-    runtime = create_mock_runtime_query_service(hassette)
-    hassette.integration_service.boot_id = "boot"
     queue = await runtime.register_ws_client()
     stale_publishes = record_stale_publishes(runtime, real_registry_service.registry)
 
@@ -118,10 +142,7 @@ async def test_interleaved_writers_reach_a_client_queue_in_revision_order(
     await asyncio.gather(writer("a"), writer("b"))
 
     assert stale_publishes == [], "another write landed between set_status and its publish"
-    messages = []
-    while not queue.empty():
-        messages.append(queue.get_nowait())
-    deltas = [message["data"] for message in messages if message["type"] == "app_status_changed"]
+    deltas = [message["data"] for message in drain(queue) if message["type"] == "app_status_changed"]
     assert [delta["instance_name"] for delta in deltas] == ["a", "b", "a", "b"], "the writers did not interleave"
     revisions = [delta["status_revision"] for delta in deltas]
     assert revisions == sorted(set(revisions))

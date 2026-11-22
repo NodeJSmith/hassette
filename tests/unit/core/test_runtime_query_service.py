@@ -303,7 +303,7 @@ class TestConcurrentAppHandlerTeardown:
         runtime.hassette.integration_service.boot_id = "boot-1"
         registry = AppRegistry()
         # A flag that landed after this STARTING change must not show on it.
-        seed_failed(registry, "stuck_app", "Other[0]", needs_restart="flagged after this change")
+        seed_failed(registry, "stuck_app", "StuckApp[0]", needs_restart="flagged after this change")
         runtime.hassette.app_handler.registry = registry
 
         runtime.publish_app_status(
