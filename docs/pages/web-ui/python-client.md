@@ -189,6 +189,25 @@ Inside Home Assistant, don't retry in the integration at all. Raise `ConfigEntry
 
 `get_ready()` and `get_telemetry_status()` return their result even when the server answers 503, because for those two endpoints the 503 is the answer. Check `ready` on the `get_ready()` result, or `degraded` on the `get_telemetry_status()` result, rather than catching an error. A 503 whose body isn't that result, such as a proxy's page reporting that Hassette is down, raises `ServiceUnavailableError` from these two as well. Every other method raises on any 503. [Configure Health Checks](health-endpoints.md) explains what each endpoint reports.
 
+## Streaming entity state
+
+`get_apps()` gives you a snapshot. To hear about a declared sensor or switch the moment its app sets it, open Hassette's WebSocket stream with `listen()`:
+
+```python
+await client.listen(on_message, types=[EntityStateChangedWsMessage], on_connected=refresh)
+```
+
+`listen()` connects with the client's session and token, waits until the stream is receiving, awaits `on_connected()`, then awaits `on_message` for each message whose type you listed in `types`. Messages arrive one at a time, in the order the server sent them. Types you didn't list are skipped without being parsed, including types added in a newer Hassette, so a change to a message you don't use never breaks your stream. The message classes come from `hassette_wire`; `AppStatusChangedWsMessage` is the other one an integration usually wants, for an instance starting or stopping.
+
+`listen()` never returns and never reconnects. Run it as a background task. When the stream ends, it raises `HassetteConnectionError`: the server closed it, the connection stopped answering the heartbeat sent every 30 seconds, or it was reset. A bad token raises `AuthenticationError`, as it does on any other method. A Hassette server older than the release that added `listen()` rejects the token with a bare 403 instead, which raises `ForbiddenError`, and sends no entity messages at all, so keep the poll described below. Connecting again is your decision; cancel the task to close the stream.
+
+Each `EntityStateChangedWsMessage` carries one entity's full state, in the same shape as an entry of `AppInstance.entities`, plus the `boot_id` and `revision` it was committed at. Apply them with these rules:
+
+- **Only newer revisions.** Apply a pushed entity only when its `revision` is newer than the last one you applied for the same `boot_id`. Messages reach each client in revision order, but a listing you fetch can already include a change whose message is still on its way.
+- **Revisions skip.** `revision` counts every change across all of Hassette's instances, and adding or removing entities when an instance starts moves it too, so a gap between two messages doesn't mean you missed one.
+- **Only a listing repairs a lost message.** Hassette drops messages for a client that falls too far behind, and nothing in the stream tells you it happened. Keep fetching `get_apps()` on a timer as well, and refetch it in `on_connected()` on every connect, including the first: changes made before the stream opened are only in that listing.
+- **Entities appear and disappear through the listing.** The stream only reports new state for entities that already exist; a new or removed entity shows up in the next `get_apps()`.
+
 ## Talking to an older or newer server
 
 `hassette-client` is released alongside Hassette, but the two often upgrade at different times. A freshly installed client may meet last month's server, or a Home Assistant integration may update its client before Hassette. Three rules cover the gap:

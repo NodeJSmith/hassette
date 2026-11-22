@@ -1,6 +1,8 @@
 """The typed async client for hassette's HTTP API."""
 
 import math
+from collections.abc import Awaitable, Callable, Collection
+from typing import NoReturn
 
 import aiohttp
 from hassette_wire import (
@@ -38,6 +40,8 @@ from hassette_wire import (
     UnattributedBlockingResponse,
 )
 
+from hassette_client import stream
+from hassette_client.stream import MessageT
 from hassette_client.transport import DEFAULT_REQUEST_TIMEOUT, Transport, path_segment
 
 
@@ -115,6 +119,46 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         return await self._transport.request("GET", "/api/apps", AppListResponse)
+
+    async def listen(
+        self,
+        on_message: Callable[[MessageT], Awaitable[None]],
+        *,
+        types: Collection[type[MessageT]],
+        on_connected: Callable[[], Awaitable[None]] | None = None,
+    ) -> NoReturn:
+        """Stream the server's ``/api/ws`` messages of the requested types until the connection ends.
+
+        Run it as a background task. It connects with this client's session and token, waits for the server's
+        ``connected`` message, awaits ``on_connected()``, then awaits ``on_message`` for each message whose type
+        is in ``types``, one at a time and in arrival order. Every other message type, including types newer than
+        this client, is skipped without being parsed. It never returns and never reconnects: when the stream ends
+        it raises, and the caller decides whether to connect again. Cancelling the task closes the socket.
+
+        A protocol heartbeat every 30 seconds ends a connection that stopped answering within about 45 seconds.
+        A callback that blocks for that long can end a healthy stream on older aiohttp releases.
+
+        Args:
+            on_message: Called with each requested message, parsed leniently as its ``hassette_wire`` class.
+                An exception it raises propagates out of ``listen``.
+            types: The ``hassette_wire`` ``WsMessage`` classes to receive, such as
+                ``EntityStateChangedWsMessage`` and ``AppStatusChangedWsMessage``.
+            on_connected: Called once the stream is receiving, before any message is passed on. Fetch the state
+                you track here (``get_apps()`` for entity state) on every connect, including the first: anything
+                changed before the stream opened is only in that fetch, and a message received while it runs is
+                passed on only after it returns. Apply a pushed ``EntityStateChangedWsMessage`` only when its
+                ``revision`` is newer than the listing's for the same ``boot_id``.
+
+        Raises:
+            ValueError: A class in ``types`` isn't a ``/ws`` message, or is ``ConnectedWsMessage``.
+            AuthenticationError: The server rejected the token. Other error statuses raise the class
+                ``HassetteHTTPError`` documents for them.
+            HassetteTimeoutError: Connecting, or the ``connected`` message, took longer than ``request_timeout``.
+            HassetteConnectionError: The connection failed, or the stream ended after it opened: the server
+                closed it, it stopped answering heartbeats, or it was reset.
+            ResponseValidationError: A message of a requested type didn't parse, or a frame wasn't JSON.
+        """
+        await stream.listen(self._transport, on_message, types, on_connected)
 
     async def get_app(self, app_key: str) -> AppSummary:
         """Get one app with its instances and status.

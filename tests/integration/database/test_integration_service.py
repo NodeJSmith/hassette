@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 import pytest
+from hassette_wire import EntityStateChangedWsMessage
+from pydantic import TypeAdapter
 
 from hassette.core import integration_store
 from hassette.core.database_service import DatabaseService
@@ -19,6 +21,7 @@ from hassette.integration.errors import IntegrationDeclarationClosedError, Integ
 from hassette.testing import wait_for
 from tests.support.factories import make_app
 from tests.support.helpers import async_noop
+from tests.support.web_mocks import create_mock_runtime_query_service
 
 FEED = Declaration(key="feed", platform=IntegrationPlatform.BUTTON, name="Feed")
 SHOW = Declaration(key="show", platform=IntegrationPlatform.SWITCH, name="Show", initial=True)
@@ -26,6 +29,9 @@ TEMP = Declaration(key="temp", platform=IntegrationPlatform.SENSOR, name="Temp",
 TEMP_AS_ENUM = Declaration(
     key="temp", platform=IntegrationPlatform.SENSOR, name="Temp", device_class="enum", options=("hot", "cold")
 )
+
+
+ENTITY_MESSAGE = TypeAdapter(EntityStateChangedWsMessage)
 
 
 def owner(instance_name: str = "kitchen") -> Any:
@@ -586,3 +592,59 @@ async def test_concurrent_declarations_of_one_key_reject_the_second(
     assert sum(isinstance(result, ValueError) for result in results) == 1
     await integration._commit_declarations()
     assert [entity.declaration.key for entity in service.entities("my_app", "kitchen")] == ["feed"]
+
+
+async def entity_messages(db: DatabaseService) -> "asyncio.Queue[dict[str, Any] | None]":
+    """Wire a real ``RuntimeQueryService`` onto the mock hassette and register one ``/ws`` client queue."""
+    runtime = create_mock_runtime_query_service(cast("MagicMock", db.hassette))
+    return await runtime.register_ws_client()
+
+
+def drain(queue: "asyncio.Queue[dict[str, Any] | None]") -> list[EntityStateChangedWsMessage]:
+    messages = []
+    while not queue.empty():
+        message = queue.get_nowait()
+        assert message is not None
+        messages.append(ENTITY_MESSAGE.validate_python(message))
+    return messages
+
+
+async def test_sets_reach_ws_clients_in_revision_order(db: DatabaseService) -> None:
+    service = await start_service(db)
+    await service.commit_instance(owner(), [SHOW, TEMP], {})
+    queue = await entity_messages(db)
+    live = service._owners[("my_app", "kitchen")]
+
+    await asyncio.gather(*(service.set_state(live, TEMP, EntityState(value, {})) for value in range(5)))
+    # Published inside the write job itself, so it's queued the moment the job returns, with no loop tick between.
+    await service.set_job(live, SHOW, EntityState(False, {"by": "test"}))
+    assert queue.qsize() == 6
+
+    messages = drain(queue)
+    assert [m.data.revision for m in messages] == list(range(2, 8))
+    assert [m.data.entity.value for m in messages] == [0, 1, 2, 3, 4, False]
+    last = messages[-1].data
+    assert (last.boot_id, last.revision) == (service.boot_id, service.revision)
+    assert (last.app_key, last.instance_name) == ("my_app", "kitchen")
+    assert (last.entity.key, last.entity.platform, last.entity.attributes) == ("show", "switch", {"by": "test"})
+
+
+async def test_unchanged_set_and_declaration_commit_publish_nothing(db: DatabaseService) -> None:
+    service = await start_service(db)
+    queue = await entity_messages(db)
+    await service.commit_instance(owner(), [TEMP], {"temp": EntityState(5, {})})
+    await service.set_state(service._owners[("my_app", "kitchen")], TEMP, EntityState(5, {}))
+
+    assert service.revision == 1
+    assert queue.empty()
+
+
+async def test_failed_set_publishes_nothing(db: DatabaseService, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = await start_service(db)
+    await service.commit_instance(owner(), [TEMP], {})
+    queue = await entity_messages(db)
+    monkeypatch.setattr(integration_store, "update_state", fail_with_disk_error)
+
+    with pytest.raises(aiosqlite.OperationalError):
+        await service.set_state(service._owners[("my_app", "kitchen")], TEMP, EntityState(5, {}))
+    assert queue.empty()

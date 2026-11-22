@@ -287,7 +287,7 @@ class IntegrationService(Resource):
         await self.run_write(self.set_job(owner, declaration, state))
 
     async def set_job(self, owner: "Integration", declaration: Declaration, state: EntityState) -> None:
-        """``set()``'s write job: a no-op if nothing changed, else write the row, then update memory."""
+        """``set()``'s write job: a no-op if nothing changed, else write the row, update memory, and publish it."""
         instance = owner.instance_key
         current = self.committed(instance, declaration)
         if not self.is_owner(owner) or current is None:
@@ -295,8 +295,15 @@ class IntegrationService(Resource):
         if current.state == state:
             return
         await self.persist_state(instance, declaration, state)
-        self._entities[instance][(declaration.key, declaration.platform)] = CommittedEntity(current.declaration, state)
+        entity = CommittedEntity(current.declaration, state)
+        self._entities[instance][(declaration.key, declaration.platform)] = entity
         self.revision += 1
+        # Awaited inside the write job, so /ws clients receive entity messages in revision order (spec 159 D2).
+        # Without a web server (the app-testing harness) there is no RuntimeQueryService and no client to tell.
+        # The public accessor raises when the service isn't wired, so read the slot, which core/ owns.
+        runtime = self.hassette._runtime_query_service
+        if runtime is not None:
+            await runtime.publish_entity_state(self.boot_id, self.revision, instance, entity)
 
     async def dispatch_command(
         self, app_key: str, instance_name: str, key: str, platform: str, value: bool | None = None

@@ -16,7 +16,7 @@ from logging import getLogger
 from types import MappingProxyType
 
 from starlette.datastructures import State
-from starlette.requests import HTTPConnection, Request
+from starlette.requests import HTTPConnection
 
 from hassette.exceptions import TrustedProxyConfigError
 
@@ -112,7 +112,7 @@ def peer_address(connection: HTTPConnection) -> str | None:
     return client.host if client is not None else None
 
 
-def peer_address_or_unknown(request: Request) -> str:
+def peer_address_or_unknown(connection: HTTPConnection) -> str:
     """:func:`peer_address`, falling back to the literal ``"unknown"`` when the transport reports no client.
 
     Shared by every route handler that logs a source IP alongside a mutation action
@@ -121,7 +121,7 @@ def peer_address_or_unknown(request: Request) -> str:
     the same null-safe fallback rather than repeating ``peer_address(request) or "unknown"`` at
     each call site.
     """
-    return peer_address(request) or "unknown"
+    return peer_address(connection) or "unknown"
 
 
 def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:

@@ -128,6 +128,10 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
 }
 """One call per route each public method serves, passing every keyword filter the method takes."""
 
+WEBSOCKET_METHODS = frozenset({"listen"})
+"""Public methods that open ``/api/ws`` rather than call an HTTP route; OpenAPI doesn't describe WebSockets, and
+the WS contract check (``tools/check_wire_compat.py``) covers that stream's messages."""
+
 STATUS_MODEL_503_METHODS = frozenset({"get_ready", "get_telemetry_status"})
 """The methods whose route answers a 503 with its status model rather than a problem body."""
 
@@ -197,7 +201,7 @@ def test_calls_cover_every_public_client_method() -> None:
         name for name, _ in inspect.getmembers(HassetteClient, inspect.iscoroutinefunction) if not name.startswith("_")
     }
 
-    assert public == set(CALLS)
+    assert public == set(CALLS) | WEBSOCKET_METHODS
 
 
 async def test_every_keyword_filter_is_sent_under_its_own_name(client: HassetteClient, server: FakeServer) -> None:

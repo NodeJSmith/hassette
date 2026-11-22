@@ -8,10 +8,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
+import httpx2
 import pytest
 import websockets.exceptions
 from fastapi import FastAPI
-from hassette_wire import ResourceStatus
+from hassette_wire import ProblemCode, ResourceStatus
 from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -19,10 +20,11 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
-from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
+from hassette.web.middleware import FAILED_AUTH_THRESHOLD
 from hassette.web.routes.ws import WsConnectionState, _read_client, websocket_endpoint
+from tests.support.helpers import assert_failed_auth_warn_count, capture_failed_auth_warn
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
@@ -33,7 +35,7 @@ LOOPBACK_PEER_IP = "127.0.0.1"
 """The peer address uvicorn reports for the live-server tests' own client, so a `trusted_proxies`
 entry naming it makes those connections trusted."""
 
-HANDSHAKE_REJECTED_STATUS = 403
+HANDSHAKE_REJECTED_STATUS = 401
 """HTTP status the websockets client sees when the server rejects the WS handshake pre-accept."""
 
 WS_PATH = "/api/ws"
@@ -355,7 +357,7 @@ class TestWebSocketEdgeCases:
         mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
 
     async def test_unauthorized_connection_closes_before_accept(self) -> None:
-        """When `authorize_ws()` returns False, the endpoint closes with 1008 and never accepts.
+        """When `authorize_ws()` returns False, the endpoint sends a 401 denial, counts it, and never accepts.
 
         Fast, mocked unit-level counterpart to
         `TestWebSocketAuthorization.test_unauthenticated_connection_rejected_before_accept`,
@@ -367,13 +369,18 @@ class TestWebSocketEdgeCases:
         mock_runtime = AsyncMock()
         mock_ws = AsyncMock(spec=WebSocket)
         mock_ws.app.state.hassette.runtime_query_service = mock_runtime
-        mock_ws.close = AsyncMock()
+        mock_ws.send_denial_response = AsyncMock()
         mock_ws.accept = AsyncMock()
+        mock_ws.client = None
+        tracker = mock_ws.app.state.failed_auth = MagicMock()
 
         with patch("hassette.web.routes.ws.authorize_ws", return_value=False):
             await websocket_endpoint(mock_ws)
 
-        mock_ws.close.assert_awaited_once_with(code=WS_POLICY_VIOLATION_CLOSE_CODE)
+        [response] = mock_ws.send_denial_response.await_args.args
+        assert response.status_code == 401
+        assert json.loads(response.body)["code"] == ProblemCode.NOT_AUTHENTICATED
+        tracker.record.assert_called_once_with("unknown")
         mock_ws.accept.assert_not_awaited()
         mock_runtime.register_ws_client.assert_not_awaited()
 
@@ -460,25 +467,35 @@ class TestWebSocketAuthorization:
     async def test_unauthenticated_connection_rejected_before_accept(self, live_auth_server: str) -> None:
         """An unauthenticated WS upgrade never reaches `accept()` -- no data can flow.
 
-        The design specifies the server closes with WS code 1008 before calling `accept()`.
-        Empirically confirmed here: under uvicorn's `ws="websockets-sansio"` backend, a pre-accept
-        `websocket.close()` ASGI message is never translated into a WebSocket close *frame* on the
-        wire at all. `websockets_sansio_impl.py`'s `send()` hardcodes an HTTP 403 Forbidden
-        handshake rejection for any pre-accept `websocket.close`
-        (`response = self.conn.reject(HTTPStatus.FORBIDDEN, "")`), discarding whatever code the
-        application passed. A real client (this test, or a browser's native `WebSocket`) therefore
-        never observes close code 1008 -- it sees a failed handshake (403), and a browser's
-        `onclose` would fire with code 1006 (abnormal closure) per the WebSocket spec's handling of
-        a rejected upgrade. The security property this is actually protecting -- no application
-        data reaches an unauthenticated peer, because `accept()` is never called -- does hold; only
-        the specific "delivered as WS close code 1008" mechanism does not survive contact with this
-        backend. See this task's Verify section / CONTESTED note for the full account.
+        The endpoint answers with REST's 401 problem response through the ASGI WebSocket Denial
+        Response extension, which uvicorn's `websockets-sansio` backend implements (0.52.1 and later
+        send it as valid HTTP). A browser's native `WebSocket` can't read the status and
+        sees `onclose` with code 1006; non-browser clients see the 401.
         """
         with pytest.raises(websockets.exceptions.InvalidStatus) as exc_info:
             async with websockets.connect(live_auth_server, open_timeout=5):
                 pass
 
         assert exc_info.value.response.status_code == HANDSHAKE_REJECTED_STATUS
+        assert exc_info.value.response.headers.get_all("Content-Type") == ["application/problem+json"]
+        assert json.loads(exc_info.value.response.body)["code"] == ProblemCode.NOT_AUTHENTICATED
+
+    async def test_ws_and_http_failures_share_one_failed_auth_count(
+        self, auth_hassette: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Rejected handshakes count toward the same coalesced WARN as REST's 401s from the same source."""
+        app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
+        with serve_ws_app(app) as url, capture_failed_auth_warn(caplog):
+            for _ in range(FAILED_AUTH_THRESHOLD - 1):
+                with pytest.raises(websockets.exceptions.InvalidStatus):
+                    async with websockets.connect(url, open_timeout=5):
+                        pass
+            assert_failed_auth_warn_count(caplog, 0)
+            http_url = url.replace("ws://", "http://").removesuffix(WS_PATH) + "/api/config"
+            async with httpx2.AsyncClient() as http:
+                assert (await http.get(http_url)).status_code == 401
+
+        assert_failed_auth_warn_count(caplog, 1)
 
     async def test_valid_session_cookie_is_accepted(self, live_auth_server: str) -> None:
         cookie_value = mint_session_cookie(WEB_API_TEST_TOKEN)
@@ -516,9 +533,8 @@ class TestWebSocketTrustedPeerPrecedence:
     remaining gap: the peer address comes from uvicorn over a real TCP handshake, so a regression in
     how the peer is *read* -- not just how it is compared -- surfaces here.
 
-    Rejection arrives as an HTTP 403 handshake failure rather than WS close code 1008. See
-    `TestWebSocketAuthorization.test_unauthenticated_connection_rejected_before_accept` for why this
-    backend never puts the application's close code on the wire.
+    Rejection arrives as an HTTP 401 handshake failure. See
+    `TestWebSocketAuthorization.test_unauthenticated_connection_rejected_before_accept`.
     """
 
     async def test_no_authorization_header_from_trusted_peer_is_accepted(self, live_trusted_peer_server: str) -> None:

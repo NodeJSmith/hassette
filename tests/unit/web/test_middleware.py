@@ -1,4 +1,4 @@
-"""Unit tests for :class:`hassette.web.middleware._FailedAuthTracker`.
+"""Unit tests for :class:`hassette.web.middleware.FailedAuthTracker`.
 
 Covers the tracker's WARN-on-threshold coalescing plus both of the bounds an unauthenticated peer
 could otherwise push on:
@@ -25,13 +25,13 @@ from hassette.web.middleware import (
     FAILED_AUTH_THRESHOLD,
     FAILED_AUTH_WINDOW_SECONDS,
     MAX_TRACKED_SOURCES,
-    _FailedAuthTracker,
+    FailedAuthTracker,
 )
 from tests.support.helpers import assert_failed_auth_warn_count, capture_failed_auth_warn
 
 
 class _FakeClock:
-    """Deterministic stand-in for :func:`time.monotonic`, injected into ``_FailedAuthTracker``.
+    """Deterministic stand-in for :func:`time.monotonic`, injected into ``FailedAuthTracker``.
 
     Tests advance it explicitly instead of mutating ``_SourceAttempts.timestamps`` directly, so
     elapsed-time scenarios stay expressed in terms of the tracker's public ``record()`` behavior
@@ -50,7 +50,7 @@ class _FakeClock:
 
 class TestFailedAuthTracker:
     def test_record_below_threshold_does_not_warn(self, caplog: pytest.LogCaptureFixture) -> None:
-        tracker = _FailedAuthTracker()
+        tracker = FailedAuthTracker()
 
         with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
@@ -59,7 +59,7 @@ class TestFailedAuthTracker:
         assert_failed_auth_warn_count(caplog, 0)
 
     def test_record_reaching_threshold_warns_exactly_once(self, caplog: pytest.LogCaptureFixture) -> None:
-        tracker = _FailedAuthTracker()
+        tracker = FailedAuthTracker()
 
         with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD + 5):
@@ -68,7 +68,7 @@ class TestFailedAuthTracker:
         assert_failed_auth_warn_count(caplog, 1)
 
     def test_distinct_sources_tracked_independently(self, caplog: pytest.LogCaptureFixture) -> None:
-        tracker = _FailedAuthTracker()
+        tracker = FailedAuthTracker()
 
         with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
@@ -82,7 +82,7 @@ class TestFailedAuthTracker:
         """The core security property: an attacker varying the source address per request cannot
         grow the tracker without bound, even across far more distinct sources than the cap.
         """
-        tracker = _FailedAuthTracker()
+        tracker = FailedAuthTracker()
 
         for i in range(MAX_TRACKED_SOURCES * 10):
             tracker.record(f"203.0.113.{i}")
@@ -92,7 +92,7 @@ class TestFailedAuthTracker:
 
     def test_recently_touched_source_survives_eviction_pressure(self) -> None:
         """LRU eviction drops the least-recently-touched source first, not an arbitrary one."""
-        tracker = _FailedAuthTracker()
+        tracker = FailedAuthTracker()
 
         tracker.record("203.0.113.1")
         for i in range(MAX_TRACKED_SOURCES * 2):
@@ -107,7 +107,7 @@ class TestFailedAuthTracker:
         timestamp list, so retained entries equaled the request count and cumulative work was
         quadratic — one unauthenticated peer aiming the event loop at itself.
         """
-        tracker = _FailedAuthTracker()
+        tracker = FailedAuthTracker()
 
         for _ in range(FAILED_AUTH_THRESHOLD * 500):
             tracker.record("203.0.113.1")
@@ -121,7 +121,7 @@ class TestFailedAuthTracker:
         than to the source's lifetime — permanent silence after one burst would be a regression.
         """
         fake_clock = _FakeClock()
-        tracker = _FailedAuthTracker(clock=fake_clock)
+        tracker = FailedAuthTracker(clock=fake_clock)
 
         with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
@@ -138,7 +138,7 @@ class TestFailedAuthTracker:
     def test_attempts_aged_out_of_window_do_not_count_toward_threshold(self, caplog: pytest.LogCaptureFixture) -> None:
         """Stale attempts are evicted rather than counted, so the window stays a real sliding window."""
         fake_clock = _FakeClock()
-        tracker = _FailedAuthTracker(clock=fake_clock)
+        tracker = FailedAuthTracker(clock=fake_clock)
 
         with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
@@ -163,7 +163,7 @@ class TestFailedAuthTracker:
         the append can never observe the dip to 9 survivors that should have re-armed the latch.
         """
         fake_clock = _FakeClock()
-        tracker = _FailedAuthTracker(clock=fake_clock)
+        tracker = FailedAuthTracker(clock=fake_clock)
 
         with capture_failed_auth_warn(caplog):
             tracker.record("203.0.113.1")  # the eventual "oldest" survivor

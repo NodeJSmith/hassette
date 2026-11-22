@@ -181,6 +181,10 @@ export function useWebSocket(): void {
             void queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus() });
             break;
 
+          case "entity_state_changed":
+            // No page renders declared entities yet, so there is nothing to update (#4387 adds a consumer).
+            break;
+
           default: {
             const _exhaustive: never = msg;
             void _exhaustive;
@@ -201,12 +205,11 @@ export function useWebSocket(): void {
         useAppStore.getState().setConnection(closedStatus());
 
         if (!openedThisAttempt) {
-          // Closed before onopen ever fired for this attempt. On this backend a pre-accept
-          // auth rejection never delivers a real WS close(1008) frame — it manifests exactly
-          // the same way as any other pre-open failure (no WS support on the server, a
-          // transient network blip, the server still starting up). The WS handshake itself
-          // carries no usable status here, so confirm via a real HTTP response before treating
-          // this as an auth rejection — a REST 401 is unambiguous where "closed early" is not.
+          // Closed before onopen ever fired for this attempt. The server rejects a bad credential
+          // with an HTTP 401 on the handshake, but a browser can't read a handshake's status, so
+          // it looks exactly like any other pre-open failure (no WS support on the server, a
+          // transient network blip, the server still starting up). Confirm via a real HTTP
+          // response before treating this as an auth rejection — a REST 401 is unambiguous.
           void confirmAuthRejection();
           return;
         }

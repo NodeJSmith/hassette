@@ -30,11 +30,6 @@ from hassette.web.auth.session import (
 from hassette.web.auth.tokens import get_auth_token
 from hassette.web.auth.trusted_proxies import TrustedProxySet, get_trusted_proxies, is_trusted_peer, peer_address
 
-WS_POLICY_VIOLATION_CLOSE_CODE = 1008
-"""WebSocket close code for a policy violation (RFC 6455 §7.4.1) — used for an unauthorized
-pre-``accept()`` rejection. See :func:`authorize_ws` and design.md's WebSocket auth section for why
-this code is not literally observed by the client on this project's uvicorn backend."""
-
 
 @dataclass(frozen=True)
 class AuthOutcome:
@@ -142,8 +137,8 @@ def authorize_ws(websocket: WebSocket) -> bool:
         websocket: The incoming WebSocket connection, checked before ``accept()`` is called.
 
     Returns:
-        ``True`` if the connection should be accepted; ``False`` if it should be closed with code
-        :data:`WS_POLICY_VIOLATION_CLOSE_CODE` instead of being accepted.
+        ``True`` if the connection should be accepted; ``False`` if the handshake should be rejected. The caller
+        records the failed attempt and sends the rejection.
     """
     hassette = websocket.app.state.hassette
     web_api_config = hassette.config.web_api

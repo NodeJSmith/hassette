@@ -10,7 +10,8 @@ export type WsServerMessage =
   | ConnectivityWsMessage
   | ServiceStatusWsMessage
   | ExecutionCompletedWsMessage
-  | AppsChangedWsMessage;
+  | AppsChangedWsMessage
+  | EntityStateChangedWsMessage;
 /**
  * Enumeration for resource status.
  */
@@ -185,6 +186,83 @@ export interface AppsChangedWsMessage {
  * stale, refetch" rather than inspect the payload.
  */
 export type AppsChangedData = Record<string, never>;
+/**
+ * Envelope for ``EntityStateChangedData``.
+ */
+export interface EntityStateChangedWsMessage {
+  type: "entity_state_changed";
+  data: EntityStateChangedData;
+  timestamp: number;
+}
+/**
+ * One app-declared entity's committed state changed.
+ *
+ * ``boot_id`` and ``revision`` are the same counters ``GET /api/apps`` reports. Apply this message only when its
+ * ``revision`` is newer than the last one applied for the same ``boot_id``; revisions skip values, and a lost
+ * message is repaired only by the next listing fetch. Declaration commits send no message: entities appear and
+ * disappear only through the listing.
+ */
+export interface EntityStateChangedData {
+  /**
+   * Identifies the hassette boot that sent the message; a new value means the server restarted.
+   */
+  boot_id: string;
+  /**
+   * The hassette-wide revision this change was committed at.
+   */
+  revision: number;
+  app_key: string;
+  instance_name: string;
+  entity: DeclaredEntity;
+}
+/**
+ * The entity's full description and new state, as the listing reports it.
+ */
+export interface DeclaredEntity {
+  /**
+   * The entity's key: lowercase letters, digits and ``_``, unique within its instance.
+   */
+  key: string;
+  /**
+   * ``button``, ``switch`` or ``sensor``.
+   */
+  platform: "button" | "switch" | "sensor";
+  /**
+   * The entity's display name.
+   */
+  name: string;
+  /**
+   * The entity id the app suggests, applied only when the entity is first created in Home Assistant.
+   */
+  default_entity_id?: string | null;
+  /**
+   * A sensor's unit of measurement.
+   */
+  unit?: string | null;
+  /**
+   * A sensor's Home Assistant device class.
+   */
+  device_class?: string | null;
+  /**
+   * A sensor's Home Assistant state class.
+   */
+  state_class?: string | null;
+  /**
+   * An enum sensor's allowed values.
+   */
+  options?: string[] | null;
+  /**
+   * A switch's on/off state or a sensor's value; ``None`` for a button and for a sensor that is unknown. A
+   * timestamp sensor's value is an ISO 8601 string with offset, a date sensor's an ISO 8601 date.
+   */
+  value?: number | string | boolean | null;
+  /**
+   * The state attributes the app last set with the value.
+   */
+  attributes?: {
+    [k: string]: unknown;
+  };
+}
 
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.

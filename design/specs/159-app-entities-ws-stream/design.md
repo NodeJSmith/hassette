@@ -340,8 +340,19 @@ hass-hassette needs to tell "never connected" from "connected, then ended".
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- Raised the `uvicorn[standard]` floor to `>=0.52.1` (lock moves 0.40.0 → 0.54.0): before 0.52.1 the pinned `websockets-sansio` backend appends the app's `Content-Type`/`Content-Length` to its own on a denial response (Kludex/uvicorn#3041), which made D9's 401 an invalid HTTP response that clients reject, so D9 can't hold on older releases.
+- Starlette 1.3's `send_denial_response` raises `RuntimeError` on a server without the denial extension rather than falling back to a 403 close, as D9's situation assumed. Hassette always runs its own uvicorn, which has the extension, so the route calls it unconditionally; the route docstring no longer promises a fallback.
+- The failed-auth tracker moved from a `DefaultDenyMiddleware` attribute to `app.state.failed_auth` (created in `create_fastapi_app`, read through `failed_auth_tracker()`), and `_FailedAuthTracker`/`_unauthorized_response` lost their underscores: the `/ws` route has to reach the same tracker and response, and the middleware instance isn't reachable from a route. The unused `WS_POLICY_VIOLATION_CLOSE_CODE` constant was deleted.
+- `listen` raises `ValueError` for a `types` entry that isn't a `/ws` message class, and for `ConnectedWsMessage`, which `on_connected` stands in for. `on_connected` is optional, for callers that track no state.
+- Connecting and waiting for `connected` share the client's `request_timeout` and raise `HassetteTimeoutError`, so a server that accepts the socket but never says `connected` can't hang `listen` before the heartbeat applies.
+- aiohttp follows redirects on a WebSocket handshake and offers no switch to stop it, so a redirected handshake is reported from its first hop as `RedirectError` with that hop's `Location`. A handshake answered 1xx/2xx without upgrading raises `HassetteConnectionError`. The handshake body isn't read, so the status alone picks the class (401 → `AuthenticationError`).
+- A text frame that isn't a JSON object raises `ResponseValidationError`: it can't be told apart from a malformed message of a requested type. A frame whose `type` isn't a string is skipped like an unknown type, and binary frames are skipped at debug; a binary *first* frame fails like any other non-`connected` first message.
+- `Transport`'s below-HTTP exception mapping became `Transport.failure()` so `listen` maps connect failures the same way.
+- `publish_entity_state` reuses `web.mappers.declared_entity_from`, so a pushed entity is built exactly as the listing builds it; `core` already imports `web` (`web_api_service`).
+- The docs section has no complete runnable example. The persona review asked for one; D5's ratified "no docs-page example" was kept, and the section shows the call shape in one line instead.

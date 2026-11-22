@@ -14,6 +14,7 @@ from hassette_wire import (
     AppStatusChangedData,
     BootIssue,
     ConnectivityData,
+    EntityStateChangedData,
     ExecutionCompletedData,
     LogLevel,
     ServiceInfo,
@@ -31,11 +32,13 @@ from hassette.core.state_proxy import StateProxy
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events import AnyEvent
+from hassette.integration.declarations import CommittedEntity
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppListingSnapshot, AppManifestInfo
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
+from hassette.web.mappers import declared_entity_from
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -55,6 +58,7 @@ SEVERITY_WARN: Final = "warn"
 SEVERITY_ERR: Final = "err"
 
 WS_EVENT_CONNECTIVITY: Final = "connectivity"
+WS_EVENT_ENTITY_STATE_CHANGED: Final = "entity_state_changed"
 
 SERVICE_ROLE_PATH = "payload.data.role"
 
@@ -257,6 +261,24 @@ class RuntimeQueryService(Resource):
     async def on_ws_disconnected(self) -> None:
         """Broadcast a ``connectivity`` message reporting the Home Assistant connection as down."""
         await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=False))
+
+    async def publish_entity_state(
+        self, boot_id: str, revision: int, instance: tuple[str, str], entity: CommittedEntity
+    ) -> None:
+        """Broadcast one committed entity state change as ``entity_state_changed``.
+
+        ``IntegrationService.set_job`` awaits this inline after it bumps the revision, so messages reach every
+        client queue in revision order. Keep it that way: take every value as an argument, read no
+        ``IntegrationService`` state, and never spawn the broadcast as a task.
+        """
+        payload = EntityStateChangedData(
+            boot_id=boot_id,
+            revision=revision,
+            app_key=instance[0],
+            instance_name=instance[1],
+            entity=declared_entity_from(entity),
+        )
+        await self.build_and_broadcast(WS_EVENT_ENTITY_STATE_CHANGED, payload)
 
     async def on_execution_completed(self, event: AnyEvent) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.
