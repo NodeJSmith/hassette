@@ -122,26 +122,28 @@ class TestRefreshConfig:
         assert "app_a" in current
 
     async def test_only_apps_filter_is_restored_before_manifests_persist(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+        self, real_registry_service: AppLifecycleService, mock_hassette: MagicMock
     ) -> None:
         """The --app filter is back in place before the persist await, so a status read during
         that write never sees the filter cleared.
         """
         manifest1 = MagicMock()
         manifest1.enabled = True
-        mock_registry.manifests = {"app_a": manifest1}
-        mock_registry.enabled_manifests = {"app_a": manifest1}
+        registry = real_registry_service.registry
+        registry.set_manifests({"app_a": manifest1})
+        registry.set_only_apps({"app_a"})
         mock_hassette.config.apps.manifests = {"app_a": manifest1}
         mock_hassette.config.only_apps = ("app_a",)
         object.__setattr__(mock_hassette.config, "reload", Mock())
-        filters_seen_during_persist: list[object] = []
-        lifecycle_service.persist_manifests = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
-            side_effect=lambda: filters_seen_during_persist.append(mock_registry.set_only_apps.call_args.args)
+        filters_seen_during_persist: list[frozenset[str]] = []
+        real_registry_service.persist_manifests = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=lambda: filters_seen_during_persist.append(registry.only_apps)
         )
 
-        await lifecycle_service.refresh_config()
+        await real_registry_service.refresh_config()
 
-        assert filters_seen_during_persist == [({"app_a"},)]
+        assert filters_seen_during_persist == [frozenset({"app_a"})]
+        assert registry.only_apps == frozenset({"app_a"})
 
 
 class TestReconcileAppRegistrations:
