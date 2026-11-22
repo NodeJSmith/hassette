@@ -25,6 +25,9 @@ class FalseySentinel(enum.Enum):
 
     The member set is closed: ``FalseySentinel("NAME")`` does not create a new sentinel and the class
     cannot be subclassed. Code that needs its own sentinel should define its own ``Enum``.
+
+    Compare members with ``is``, not truthiness: valid values such as ``0``, ``False`` and ``""`` are
+    falsey too, so ``if not x`` cannot tell a sentinel apart from them or from ``None``.
     """
 
     MISSING_VALUE = enum.auto()
@@ -41,10 +44,16 @@ class FalseySentinel(enum.Enum):
 
 
 MISSING_VALUE = FalseySentinel.MISSING_VALUE
-"""Sentinel value to indicate a missing value."""
+"""Returned by accessors and ``D.Maybe*`` dependencies when a field or attribute does not exist.
+
+Different from ``None``, which means the field exists and is null.
+"""
 
 NOT_PROVIDED = FalseySentinel.NOT_PROVIDED
-"""Sentinel value to indicate a value was not provided."""
+"""Default for optional parameters, such as ``on_state_change(changed_from=..., changed_to=...)``.
+
+Marks an argument the caller didn't pass, so ``None`` stays usable as a real value.
+"""
 
 ANY_VALUE = FalseySentinel.ANY_VALUE
-"""Sentinel value to indicate any value is acceptable (used in predicates for presence checks)."""
+"""Predicate condition that matches every value without testing it."""
