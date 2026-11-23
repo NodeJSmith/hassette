@@ -80,7 +80,7 @@ class PendingReconciliation:
 
     original_apps_config: dict[str, "AppManifest"]
     current_apps_config: dict[str, "AppManifest"]
-    changed_paths: frozenset[Path] | None
+    changed_paths: frozenset[Path]
 
 
 class ActionOutcomes:

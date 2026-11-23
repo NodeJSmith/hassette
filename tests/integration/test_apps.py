@@ -70,7 +70,7 @@ class TestApps:
                 self.app_handler.registry.set_manifests(new_manifests)
                 mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_manifests)
 
-            await self.app_handler.lifecycle.handle_change_event()
+            await self.app_handler.lifecycle.handle_change_event(frozenset())
             await asyncio.wait_for(event.wait(), timeout=timeout)
 
     async def test_apps_are_working(self) -> None:
@@ -129,7 +129,7 @@ class TestApps:
         results.clear()
         event.clear()
 
-        await self.app_handler.lifecycle.handle_change_event()
+        await self.app_handler.lifecycle.handle_change_event(frozenset())
 
         # will timeout, because we dont fire since there are no changes
         with pytest.raises(asyncio.TimeoutError):
