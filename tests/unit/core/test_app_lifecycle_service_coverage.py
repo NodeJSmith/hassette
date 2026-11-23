@@ -73,7 +73,7 @@ class ChangeEventLockRace:
         Drives the rest of the race, not just its assertions: starts the second caller, checks it is
         parked on the lock, then opens the gate and waits for both callers to finish.
         """
-        second_task = asyncio.create_task(self.lifecycle_service.handle_change_event())
+        second_task = asyncio.create_task(self.lifecycle_service.handle_change_event(frozenset()))
         # Deterministically wait until the second call has actually queued on the lock
         # (asyncio.Lock.acquire() appends a waiter future synchronously, before its own await)
         # rather than assuming a single scheduler tick is enough — see regression-test-patterns.md's
@@ -233,7 +233,7 @@ class TestHandleChangeEventBranches:
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = is_released
         apply_changes = stub_detected_changes(lifecycle_service, changes)
 
-        await lifecycle_service.handle_change_event()
+        await lifecycle_service.handle_change_event(frozenset())
 
         apply_changes.assert_not_called()
         assert_load_completed_count(event_capture, expected_broadcasts)
@@ -263,7 +263,7 @@ class TestHandleChangeEventBranches:
 
         lifecycle_service.apply_changes = capture_apply  # pyright: ignore[reportAttributeAccessIssue]
 
-        await lifecycle_service.handle_change_event()
+        await lifecycle_service.handle_change_event(frozenset())
 
         assert len(applied) == 1
         assert applied[0].new_apps == frozenset({"unblocked_app"})
@@ -339,31 +339,6 @@ class TestHandleChangeEventBranches:
         assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
         # dup-ignore-end
 
-    async def test_pre_release_second_change_with_unscoped_paths_degrades_scope_to_unknown(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-    ) -> None:
-        """A second deferred change whose changed_file_paths is None can't be scoped, so the
-        queued paths degrade to None ("assume everything may have changed") instead of being
-        unioned -- the merged baseline still comes from the first (queue-opening) change.
-        """
-        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"my_app"}))
-
-        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/first.py")}))
-        first_original_snapshot = lifecycle_service._pending_reconciliation.original_apps_config  # pyright: ignore[reportOptionalMemberAccess]
-
-        await lifecycle_service.handle_change_event(changed_file_paths=None)
-
-        # dup-ignore-start: pyright null-narrowing guard — two-line pattern with no third
-        # copy to extract (see .claude/rules/tests-unit-core.md).
-        pending = lifecycle_service._pending_reconciliation
-        assert pending is not None
-        assert pending.original_apps_config is first_original_snapshot
-        assert pending.changed_paths is None
-        # dup-ignore-end
-
     async def test_stale_pre_release_diff_is_merged_into_post_release_change(
         self,
         lifecycle_service: AppLifecycleService,
@@ -431,7 +406,7 @@ class TestHandleChangeEventBranches:
         lifecycle_service.resolve_only_apps = AsyncMock()
         lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
 
-        first_task = await race.start_first(lifecycle_service.handle_change_event())
+        first_task = await race.start_first(lifecycle_service.handle_change_event(frozenset()))
 
         await race.run_concurrent_call_and_assert_serialized(first_task)
 
@@ -452,7 +427,7 @@ class TestReplayPreReleaseReconciliationBranches:
         """
         event_capture.install(mock_hassette)
         lifecycle_service._pending_reconciliation = PendingReconciliation(
-            original_apps_config={}, current_apps_config={}, changed_paths=None
+            original_apps_config={}, current_apps_config={}, changed_paths=frozenset()
         )
         lifecycle_service.resolve_only_apps = AsyncMock()
         apply_changes = stub_detected_changes(lifecycle_service, make_change_set(metadata_apps={"app_a"}))
@@ -474,7 +449,7 @@ class TestReplayPreReleaseReconciliationBranches:
         """A deferred reconciliation that replays as a genuine no-op must not broadcast."""
         event_capture.install(mock_hassette)
         lifecycle_service._pending_reconciliation = PendingReconciliation(
-            original_apps_config={}, current_apps_config={}, changed_paths=None
+            original_apps_config={}, current_apps_config={}, changed_paths=frozenset()
         )
         lifecycle_service.resolve_only_apps = AsyncMock()
         apply_changes = stub_detected_changes(lifecycle_service, make_change_set())
@@ -499,7 +474,7 @@ class TestReplayPreReleaseReconciliationSerialization:
         lifecycle_service._pending_reconciliation = PendingReconciliation(
             original_apps_config={},
             current_apps_config={},
-            changed_paths=None,
+            changed_paths=frozenset(),
         )
 
         lifecycle_service.resolve_only_apps = race.gated_call  # pyright: ignore[reportAttributeAccessIssue]
@@ -524,7 +499,7 @@ class TestReplayPreReleaseReconciliationSerialization:
 
 class TestTakePreReleaseReconciliation:
     def test_returns_all_none_when_nothing_is_queued(self, lifecycle_service: AppLifecycleService) -> None:
-        """With no pending reconciliation, take() returns (None, None, None) rather than raising --
+        """With no pending reconciliation, take() returns (None, None, frozenset()) rather than raising --
         the caller-side null check this enables is what lets callers treat a fresh queue and an
         emptied one identically.
         """
@@ -532,7 +507,7 @@ class TestTakePreReleaseReconciliation:
 
         result = lifecycle_service._take_pre_release_reconciliation()
 
-        assert result == (None, None, None)
+        assert result == (None, None, frozenset())
 
 
 class TestRefreshConfigFailure:

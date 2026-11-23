@@ -150,7 +150,7 @@ class AppLifecycleService(
         *,
         original_apps_config: dict[str, "AppManifest"],
         current_apps_config: dict[str, "AppManifest"],
-        changed_file_paths: frozenset[Path] | None,
+        changed_file_paths: frozenset[Path],
     ) -> None:
         pending = self._pending_reconciliation
 
@@ -159,11 +159,6 @@ class AppLifecycleService(
             # and paths become the queue's baseline and paths.
             merged_original = original_apps_config
             merged_paths = changed_file_paths
-        elif changed_file_paths is None or pending.changed_paths is None:
-            # Either this call or a previous one couldn't scope its paths, so the merged scope
-            # degrades to "unknown" (None means "assume everything may have changed").
-            merged_original = pending.original_apps_config
-            merged_paths = None
         else:
             # Keep the original pre-existing baseline (the "before" snapshot from the first
             # deferred change), union the newly-touched paths onto the ones already queued.
@@ -178,11 +173,11 @@ class AppLifecycleService(
 
     def _take_pre_release_reconciliation(
         self,
-    ) -> tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path] | None]:
+    ) -> tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path]]:
         pending = self._pending_reconciliation
         self._pending_reconciliation = None
         if pending is None:
-            return None, None, None
+            return None, None, frozenset()
         return pending.original_apps_config, pending.current_apps_config, pending.changed_paths
 
     async def bootstrap_apps(self, *, admission_mode: AppAdmissionMode) -> None:

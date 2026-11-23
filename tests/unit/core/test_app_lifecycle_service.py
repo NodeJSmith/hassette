@@ -73,7 +73,7 @@ class TestOnlyAppRegistryAgreement:
 
         lifecycle_service.change_detector.detect_changes = capture_only_apps  # pyright: ignore[reportAttributeAccessIssue]
 
-        await lifecycle_service.handle_change_event()
+        await lifecycle_service.handle_change_event(frozenset())
 
         assert len(captured_only_apps) == 1
         assert captured_only_apps[0] == mock_registry.only_apps

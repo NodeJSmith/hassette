@@ -60,7 +60,7 @@ class AppChangeReconcilerMixin:
     _resolve_manifest: Callable[[str], "AppManifest | None"]
     _record_pre_release_reconciliation: Callable[..., None]
     _take_pre_release_reconciliation: Callable[
-        [], tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path] | None]
+        [], tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path]]
     ]
     should_autostart: Callable[[str], bool]
     should_auto_reconcile: Callable[[str], bool]
@@ -307,9 +307,7 @@ class AppChangeReconcilerMixin:
 
     async def handle_change_event(
         self,
-        changed_file_paths: typing.Annotated[
-            frozenset[Path] | None, A.get_path("payload.data.changed_file_paths")
-        ] = None,
+        changed_file_paths: typing.Annotated[frozenset[Path], A.get_path("payload.data.changed_file_paths")],
     ) -> None:
         """Handle changes detected by the file watcher.
 
@@ -333,10 +331,7 @@ class AppChangeReconcilerMixin:
                 pending_original, _, pending_paths = self._take_pre_release_reconciliation()
                 if pending_original is not None:
                     original_apps_config = pending_original
-                    if pending_paths is None or changed_file_paths is None:
-                        changed_file_paths = None
-                    else:
-                        changed_file_paths |= pending_paths
+                    changed_file_paths |= pending_paths
 
             changes = self.change_detector.detect_changes(
                 original_apps_config, current_apps_config, changed_file_paths, only_apps=self.registry.only_apps
