@@ -86,7 +86,7 @@ CREATE_PARAMS_TO_RECORD_TYPE: dict[type, type] = {
 
 # Update*Params type -> Record type. Used by RecordingHelperClient.update() to dispatch on type(params).
 UPDATE_PARAMS_TO_RECORD_TYPE: dict[type, type] = {
-    params_type: record_type for params_type, (_domain, record_type, _id_key) in UPDATE_DISPATCH.items()
+    params_type: record_type for params_type, (_domain, record_type) in UPDATE_DISPATCH.items()
 }
 
 # Valid assertion field names for helper CRUD method names like "create_input_boolean".
@@ -97,7 +97,7 @@ HELPER_METHOD_FIELDS: dict[str, frozenset[str]] = {
     },
     **{
         f"update_{domain}": frozenset(params_type.model_fields) | {"helper_id"}
-        for params_type, (domain, _r, _k) in UPDATE_DISPATCH.items()
+        for params_type, (domain, _r) in UPDATE_DISPATCH.items()
     },
     **{f"delete_{domain}": frozenset({"helper_id"}) for domain in DOMAIN_DISPATCH},
 }
