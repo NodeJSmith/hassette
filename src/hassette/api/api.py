@@ -155,6 +155,7 @@ from hassette_wire import LogLevel
 
 from hassette.api.entity_data import ApiEntityDataMixin
 from hassette.api.service_calls import ApiServiceCallsMixin
+from hassette.api.write_outcomes import resolve_unsent
 from hassette.exceptions import (
     WS_NOT_CONNECTED_MESSAGE,
     CommandNotSentError,
@@ -245,18 +246,6 @@ if typing.TYPE_CHECKING:
     from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events import HassStateDict
     from hassette.models.states import BaseState
-
-
-def resolve_unsent(record: "ApiWriteHandle | None") -> None:
-    """Record a WebSocket write the transport never sent: refused before sending, or the send itself failed.
-
-    Any exception that isn't a rejection or an unknown outcome comes from before or during the send (a
-    closed connection, or a payload that can't be serialized), and the transport has already dropped the
-    write's pending-reply entry. If the connection dropped mid-send, ``fail_all`` resolved the record first
-    and this ``not_sent`` is ignored: a record keeps its first outcome.
-    """
-    if record is not None:
-        record.resolve("not_sent")
 
 
 class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
