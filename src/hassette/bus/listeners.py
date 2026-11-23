@@ -117,7 +117,7 @@ class ListenerOptions:
     backpressure: BackpressurePolicy = BackpressurePolicy.BLOCK
     """Saturation policy for this listener when the dispatch concurrency semaphore is at capacity.
 
-    ``block`` (default) waits for a slot, preserving today's behavior unchanged.
+    ``block`` (default) waits for a dispatch slot before invoking the handler.
     ``drop_newest`` skips the event immediately when the bus is saturated — the handler is not
     invoked and one drop is recorded. Acts at the dispatch acquire gate, orthogonal to
     ``mode``/``debounce``/``throttle`` which act inside the invoker.

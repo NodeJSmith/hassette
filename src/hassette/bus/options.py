@@ -42,10 +42,10 @@ class Options(TypedDict, total=False):
     backpressure: BackpressurePolicy | str | None
     """Saturation policy for this listener when the dispatch concurrency semaphore is at capacity.
 
-    ``"block"`` (default) waits for a slot, preserving today's blocking behavior unchanged.
+    ``"block"`` (default) waits for a dispatch slot before invoking the handler.
     ``"drop_newest"`` skips the event immediately when the bus is saturated — the handler is not
     invoked and one drop is recorded on the listener. When omitted, the effective default is
-    ``"block"``, so existing listeners see no behavior change.
+    ``"block"``.
     """
 
     if_exists: IfExistsPolicy
