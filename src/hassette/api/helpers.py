@@ -1,9 +1,9 @@
 """Helper CRUD client for Home Assistant input_* / counter / timer entities.
 
-`HelperClient` exposes 4 generic CRUD methods (`list`, `create`, `update`, `delete`) and 3 counter
-shortcuts (`increment`, `decrement`, `reset`). Each CRUD method has 8 hand-maintained `@overload`
-declarations — one per helper domain — so callers get fully typed inputs and outputs despite the
-single generic implementation underneath.
+`HelperClient` exposes generic CRUD methods (`list`, `create`, `update`, `delete`) over every
+`HelperDomain`, plus counter shortcuts (`increment`, `decrement`, `reset`). Each CRUD method has one
+hand-maintained `@overload` per helper domain, so callers get fully typed inputs and outputs despite
+the single generic implementation underneath.
 
 Examples:
     ```python
@@ -80,8 +80,7 @@ HelperDomain = Literal[
 
 _DispatchT = TypeVar("_DispatchT")
 
-# Maps Create*Params type -> (domain_string, Record type). No id_key here — create() targets
-# a brand-new helper, so there's no existing entity id to look up (unlike update()/delete()).
+# Maps Create*Params type -> (domain_string, Record type).
 CREATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel]]] = {
     CreateInputBooleanParams: ("input_boolean", InputBooleanRecord),
     CreateInputNumberParams: ("input_number", InputNumberRecord),
@@ -93,27 +92,24 @@ CREATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel]]] = {
     CreateTimerParams: ("timer", TimerRecord),
 }
 
-# Maps Update*Params type -> (domain_string, Record type, id_key_name)
-UPDATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel], str]] = {
-    UpdateInputBooleanParams: ("input_boolean", InputBooleanRecord, "input_boolean_id"),
-    UpdateInputNumberParams: ("input_number", InputNumberRecord, "input_number_id"),
-    UpdateInputTextParams: ("input_text", InputTextRecord, "input_text_id"),
-    UpdateInputSelectParams: ("input_select", InputSelectRecord, "input_select_id"),
-    UpdateInputDatetimeParams: ("input_datetime", InputDatetimeRecord, "input_datetime_id"),
-    UpdateInputButtonParams: ("input_button", InputButtonRecord, "input_button_id"),
-    UpdateCounterParams: ("counter", CounterRecord, "counter_id"),
-    UpdateTimerParams: ("timer", TimerRecord, "timer_id"),
+# Maps Update*Params type -> (domain_string, Record type)
+UPDATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel]]] = {
+    UpdateInputBooleanParams: ("input_boolean", InputBooleanRecord),
+    UpdateInputNumberParams: ("input_number", InputNumberRecord),
+    UpdateInputTextParams: ("input_text", InputTextRecord),
+    UpdateInputSelectParams: ("input_select", InputSelectRecord),
+    UpdateInputDatetimeParams: ("input_datetime", InputDatetimeRecord),
+    UpdateInputButtonParams: ("input_button", InputButtonRecord),
+    UpdateCounterParams: ("counter", CounterRecord),
+    UpdateTimerParams: ("timer", TimerRecord),
 }
 
-# Maps domain string -> Record type (for list()). Derived from UPDATE_DISPATCH, like ID_KEYS below.
-DOMAIN_DISPATCH: dict[str, type[BaseModel]] = {
-    domain: record_type for domain, record_type, _id_key in UPDATE_DISPATCH.values()
-}
+# Maps domain string -> Record type (for list()). Derived from UPDATE_DISPATCH.
+DOMAIN_DISPATCH: dict[str, type[BaseModel]] = dict(UPDATE_DISPATCH.values())
 
-# Maps domain string -> WS id key name (for delete()). Derived from UPDATE_DISPATCH, which
-# already carries the "{domain}_id" pattern for update()'s per-domain dispatch — avoids a third
-# hand-maintained copy of the same domain-to-id-key mapping.
-ID_KEYS: dict[str, str] = {domain: id_key for domain, _record_type, id_key in UPDATE_DISPATCH.values()}
+# Maps domain string -> WS id key name (for update() and delete()). HA's helper storage collections
+# name the id key after the domain, so it is always "{domain}_id".
+ID_KEYS: dict[str, str] = {domain: f"{domain}_id" for domain in DOMAIN_DISPATCH}
 
 
 def dispatch_on_params_type(table: dict[type, _DispatchT], params: object) -> _DispatchT:
@@ -146,11 +142,10 @@ def dispatch_on_domain(table: dict[str, _DispatchT], domain: str) -> _DispatchT:
 class HelperClient(Resource):
     """Client for CRUD operations on Home Assistant helper entities.
 
-    Exposes 4 generic methods (`list`, `create`, `update`, `delete`) covering all 8 helper domains
-    (`input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`,
-    `input_button`, `counter`, `timer`), plus 3 counter shortcuts (`increment`, `decrement`,
-    `reset`). Each CRUD method dispatches to the correct HA WebSocket command and record type via
-    a lookup table, with hand-maintained `@overload` declarations providing full static typing.
+    Exposes generic CRUD methods (`list`, `create`, `update`, `delete`) over every `HelperDomain`,
+    plus counter shortcuts (`increment`, `decrement`, `reset`). Each CRUD method dispatches to the
+    correct HA WebSocket command and record type via a lookup table, with hand-maintained `@overload`
+    declarations providing full static typing.
     """
 
     _api: "Api"
@@ -280,7 +275,8 @@ class HelperClient(Resource):
             TypeError: If ``params`` is not exactly one of the ``Update*Params`` models (subclasses
                 are not supported).
         """
-        domain, record_type, id_key = dispatch_on_params_type(UPDATE_DISPATCH, params)
+        domain, record_type = dispatch_on_params_type(UPDATE_DISPATCH, params)
+        id_key = dispatch_on_domain(ID_KEYS, domain)
         fields = params.model_dump(exclude_unset=True)
         write = self._api.begin_write("helper_update", domain, target={"helper_id": [helper_id]}, data=fields or None)
         val = await _ws_helper_call(
@@ -349,8 +345,16 @@ class HelperClient(Resource):
         """
         await self._counter_action("reset", entity_id)
 
-    # Counters get shortcuts because "increment on every event" is a common call. They use wait_for_ack=True
-    # because HA rejects return_response for counter actions, and the ack wait sends each call exactly once.
-    async def _counter_action(self, action: str, entity_id: str) -> None:
+    async def _counter_action(self, action: Literal["increment", "decrement", "reset"], entity_id: str) -> None:
+        """Call a counter service action on a counter entity.
+
+        Counters get shortcuts because "increment on every event" is a common call. They use
+        ``wait_for_ack=True`` because HA rejects ``return_response`` for counter actions, and the ack
+        wait sends each call exactly once.
+
+        Args:
+            action: The counter service to call.
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
+        """
         await self._api.call_service("counter", action, target={"entity_id": entity_id}, wait_for_ack=True)
         self.logger.debug("Counter %s %r", action, entity_id)
