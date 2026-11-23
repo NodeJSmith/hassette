@@ -33,18 +33,6 @@ class ActiveSynchronization:
     journal: list[JournalOperation]
 
 
-class ConnectedSyncCause(StrEnum):
-    """Why a connected-generation synchronization was requested.
-
-    ``CONNECTED_SIGNAL`` uses a distinct value from ``ConnectionState.CONNECTED`` — the two
-    enums represent unrelated concepts (a sync trigger vs. a WebSocket connection state) and
-    sharing the string "connected" made it easy to grep for the wrong one.
-    """
-
-    CONNECTED_SIGNAL = "connected_signal"
-    RETRY = auto()
-
-
 class StateSynchronizationStatus(StrEnum):
     """What kind of state synchronization work, if any, is currently active."""
 
@@ -129,7 +117,7 @@ async def run_retry_after_delay(proxy: "StateProxy", *, generation: int, delay: 
         async with proxy._sync_control_lock:
             if proxy._retry_task is current_task:
                 proxy._retry_task = None
-        await proxy._request_connected_synchronization(generation, cause=ConnectedSyncCause.RETRY)
+        await proxy._request_connected_synchronization(generation)
         async with proxy._sync_control_lock:
             if proxy._retry_generation == generation and proxy._retry_task is None:
                 proxy._retry_generation = None

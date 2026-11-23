@@ -12,7 +12,6 @@ from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy_sync import (
     ActiveSynchronization,
-    ConnectedSyncCause,
     JournalOperation,
     StateCacheFreshness,
     StateSynchronizationStatus,
@@ -206,7 +205,7 @@ class StateProxy(Resource):
         # redundant with the observer callbacks. Any later connection reaches the observer.
         generation = self.hassette.websocket_service.get_connected_generation()
         if generation is not None:
-            await self._request_connected_synchronization(generation, cause=ConnectedSyncCause.CONNECTED_SIGNAL)
+            await self._request_connected_synchronization(generation)
 
     async def on_shutdown(self) -> None:
         """Cancel all in-flight synchronization and retry work and reset the cache to empty.
@@ -408,10 +407,10 @@ class StateProxy(Resource):
         generation = self.hassette.websocket_service.get_connected_generation()
         if generation is None:
             return
-        await self._request_connected_synchronization(generation, cause=ConnectedSyncCause.CONNECTED_SIGNAL)
+        await self._request_connected_synchronization(generation)
 
     async def _on_websocket_connected(self, generation: int) -> None:
-        await self._request_connected_synchronization(generation, cause=ConnectedSyncCause.CONNECTED_SIGNAL)
+        await self._request_connected_synchronization(generation)
 
     async def _on_websocket_disconnected(self) -> None:
         await self.on_disconnect()
@@ -444,13 +443,13 @@ class StateProxy(Resource):
             if self._needs_connected_synchronization(generation):
                 task = self._start_sync_task(
                     generation,
-                    self._determine_connected_sync_status(generation, cause=ConnectedSyncCause.RETRY),
+                    self._determine_connected_sync_status(),
                 )
             else:
                 task = self._start_sync_task(generation, StateSynchronizationStatus.POLL)
         await wait_for_sync_task(task)
 
-    async def _request_connected_synchronization(self, generation: int, *, cause: ConnectedSyncCause) -> None:
+    async def _request_connected_synchronization(self, generation: int) -> None:
         """Ensure a synchronization for ``generation`` runs, deferring to or superseding one in flight.
 
         If a synchronization is already active for a different generation (or is a mere POLL),
@@ -480,7 +479,7 @@ class StateProxy(Resource):
                         if self._pending_reconnect_generation == generation:
                             self._pending_reconnect_generation = None
                         return
-                    status = self._determine_connected_sync_status(generation, cause=cause)
+                    status = self._determine_connected_sync_status()
                     self._pending_reconnect_generation = None
                     task = self._start_sync_task(generation, status)
                     started_new_task = True
@@ -509,24 +508,15 @@ class StateProxy(Resource):
             return True
         return self._cache_freshness != StateCacheFreshness.FRESH
 
-    def _determine_connected_sync_status(
-        self,
-        generation: int,
-        *,
-        cause: ConnectedSyncCause,
-    ) -> StateSynchronizationStatus:
-        """Classify which kind of synchronization a connected-generation request should run.
+    def _determine_connected_sync_status(self) -> StateSynchronizationStatus:
+        """Classify which kind of full synchronization a connected-generation request should run.
 
-        INITIAL if the initial-state capability hasn't opened yet (first-ever sync), RECONNECT
-        if the cache is stale for this generation, otherwise POLL for a retry-driven check-in or
-        RECONNECT for a fresh connected signal (``ConnectedSyncCause``).
+        Only called once ``_needs_connected_synchronization`` has returned True, so the cache is
+        known to be out of date: INITIAL if the initial-state capability hasn't opened yet
+        (first-ever sync), otherwise RECONNECT.
         """
         if not self.has_initial_state_capability():
             return StateSynchronizationStatus.INITIAL
-        if self._maintained_generation != generation or self._cache_freshness != StateCacheFreshness.FRESH:
-            return StateSynchronizationStatus.RECONNECT
-        if cause == ConnectedSyncCause.RETRY:
-            return StateSynchronizationStatus.POLL
         return StateSynchronizationStatus.RECONNECT
 
     def _start_sync_task(self, generation: int, status: StateSynchronizationStatus) -> asyncio.Task[None]:
