@@ -189,8 +189,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
                 See `Execution Modes <https://hassette.dev/core-concepts/bus/execution-modes/>`_.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
-                semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
-                today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
+                semaphore is saturated: ``"block"`` (default) waits for a dispatch slot
+                before invoking the handler; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
 
@@ -269,8 +269,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
                 ``"parallel"`` runs concurrently. Suppressed/dropped counts are live-only diagnostics, reset on restart.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
-                semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
-                today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
+                semaphore is saturated: ``"block"`` (default) waits for a dispatch slot
+                before invoking the handler; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
 
@@ -336,8 +336,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
                 ``"parallel"`` runs concurrently. Suppressed/dropped counts are live-only diagnostics, reset on restart.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
-                semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
-                today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
+                semaphore is saturated: ``"block"`` (default) waits for a dispatch slot
+                before invoking the handler; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
                 at the dispatch acquire point (global bus saturation), orthogonal to
                 ``mode``/``debounce``/``throttle``.
 
