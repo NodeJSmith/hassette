@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.66.0](https://github.com/NodeJSmith/hassette/compare/v0.65.0...v0.66.0) (2026-11-23)
+
+App instances can now declare their own Home Assistant buttons, switches and sensors with `self.integration`: hassette keeps each entity's state across restarts, runs your handler when it is pressed or toggled, and serves the entities to the hass-hassette integration over the web API and `/ws`. Home Assistant creates them once you install a hass-hassette release that supports declared entities. The existing hass-hassette v0.8.0 keeps working with this release.
+
+### Breaking Changes
+
+- **hassette-client requires a server reporting API schema 7, and app status carries ordering fields** (#4392, #4428). This affects code that talks to hassette's web API or `/ws` directly, through `hassette-client` or by hand. A `hassette-client` 0.66 can't parse an older server's app list, so upgrade the server first, and call `check_server_version()` at setup to get a clear error instead of a parse failure. Field by field:
+    - `GET /api/apps` (`AppListResponse`) has required `boot_id` and `entity_revision` fields.
+    - `AppSummary.status_revision` is required. The `app_status_changed` message requires `status_revision`, `boot_id` and `app_status`. Apply a delta only when its `status_revision` is strictly greater than the row's, and refetch on `apps_changed`.
+    - The integration counter is named `entity_revision` on both `AppListResponse` and `EntityStateChangedData`.
+    - `AppStatus` gains `starting` and `stopping`. An app removed from config reads `stopping` while its instances shut down.
+- **A handler's return annotation must resolve when you register it** (#4301). Hassette now evaluates every string annotation on a handler, including the return type. A handler whose return annotation names something imported only under `TYPE_CHECKING` now raises `TypeError` at registration. Import the name at runtime or drop the return annotation. A scheduler predicate with an annotation that doesn't resolve also raises at registration now, instead of quietly losing its `Job` injection.
+- **`hassette execution` takes `--execution-id`** (#4391). The undocumented `--uuid` spelling of its argument is gone. Passing the id as a positional argument is unchanged.
+
+### For App Authors: You Can Now Delete
+
+- **An `input_boolean` or `input_button` helper (created by hand or with `self.api.helpers`) plus an `on_state_change` listener, used only to give an app a control in Home Assistant.** Declare the control with `self.integration.add_switch` or `add_button` instead. It lives on the app instance's own device and runs your handler directly. (#4284)
+- **`from hassette.config.models import CliConfig`.** It's exported from `hassette.config` like the other config groups. (#4403)
+
+### App-Declared Entities
+
+- `self.integration.add_button`, `add_switch` and `add_sensor` in `on_initialize` declare entities for the app instance. They return `IntegrationButton`, `IntegrationSwitch` and `IntegrationSensor` handles. `AppSync` apps use `self.integration.sync`. (#4284)
+- Switch and sensor handles have `set(value, attributes=None)`, which replaces the value and attributes together. A sensor's device class, unit and state class decide which values `set()` accepts, following Home Assistant's rules. (#4284)
+- Button and switch handlers are ordinary bus listeners on the app's bus, with execution modes, error handling and telemetry. A switch handler reads the commanded state with `D.SwitchCommand` and changes the switch only by calling `set()`. (#4284)
+- Declarations are saved after `on_initialize` returns, replacing the last run's set, so an entity you stop declaring is removed. Declarations and the last state survive a hassette restart. Rows for instances no longer in your config are pruned at startup. (#4284)
+- A handle used after its instance stops, or after its declarations fail to save, raises `IntegrationHandleClosedError`. That keeps a task left over from a reload away from the new instance's state. (#4284, #4379)
+- Declaring checks its inputs up front. `add_sensor`'s `options` must be a list or tuple, `default_entity_id` must be a string, and `name` must be a non-empty string. Each mistake raises `ValueError`. (#4305)
+- The new docs page "Buttons, Switches and Sensors", under Core Concepts → Apps, covers it all. (#4284)
+
+### Test Utilities
+
+- `AppTestHarness` saves declarations after starting the app. It adds `simulate_button_press(key)`, `simulate_switch_toggle(key, on)` and `integration_entities` for testing declared entities. (#4284)
+- A harness whose startup fails partway, for example on a readiness timeout, now restores global state on the way out. Previously, the task factory, timezone, watchdog and running instance leaked into later tests on the same xdist worker. (#4264)
+
+### Web API & Python Client
+
+- `GET /api/apps` lists each instance's declared entities with their current values. New routes press a button and turn a switch on or off: `POST /api/apps/{app_key}/instances/{instance_name}/buttons/{key}/press` and `.../switches/{key}/turn_on|turn_off`. They answer 202 once the command is dispatched. `hassette-client` adds `press_button()` and `set_switch()`, plus the `InstanceNotRunningError` and `EntityNotDeclaredError` conflict errors. (#4392)
+- `/ws` sends an `entity_state_changed` message each time an app sets an entity, and `HassetteClient.listen(on_message, types=..., on_connected=...)` subscribes to it. Fetch the listing in `on_connected`, then apply a delta only when its `boot_id` matches and its `entity_revision` is newer. (#4422)
+- A `/ws` handshake with a bad token gets the same 401 `NOT_AUTHENTICATED` response as REST, so `listen()` raises `AuthenticationError`. It used to get a bare 403. The `uvicorn[standard]` floor rises to 0.52.1, which sends that response correctly. (#4422)
+- REST snapshots and `/ws` status updates are ordered by one `status_revision`, so a late update no longer leaves a stale app status in the web UI until you reconnect. (#4428)
+
+### Bug Fixes
+
+- A `/ws` client that falls behind is disconnected with code 1013 and reconnects, instead of silently missing status messages and showing stale state. A disconnected client's connection now ends promptly. A JSON message that isn't an object is ignored instead of dropping the connection. Real connection errors are logged at WARNING instead of DEBUG. (#4420, #4333)
+- A blank string nested inside a service-call parameter (`{"k": " "}`, `["light.a", " "]`) is dropped like a top-level one, instead of reaching Home Assistant as `None`. (#4293)
+- A cache value written while another read was cleaning up the expired entry is no longer deleted by that cleanup. (#4375)
+- A listener replaced with `if_exists="replace"` keeps its name registered when the old listener is removed late, for example when a once-listener re-arms itself from its own handler. (#4368)
+- Handlers wrapped with `functools.wraps`, `functools.partial` or a callable object resolve their string annotations against the right module, so DI works on them. (#4301)
+- Partial handlers show as `partial(on_change)` in logs, listener names and DI errors, instead of `on_change)`. (#4307)
+- App load errors point at your code even when your apps live under a directory whose path contains "hassette", such as `~/hassette-apps/`. (#4302)
+- A manifest `class_name` that names a function or constant instead of a class reports the normal "not a subclass of App" error, and the failure is cached. (#4311)
+- Any IPv6 `base_url` is rejected with a clear error, including uncompressed addresses. A URL with `::` in its path or query is no longer rejected. (#4306)
+- A failed type conversion of a raw value containing braces (`"{foo}"`) raises `UnableToConvertValueError` instead of a `KeyError` from inside the error path. `TYPE_REGISTRY.convert(value, Any)` returns the value unchanged instead of raising. (#4411, #4412)
+- `str(EntityNotInViewError)` shows the plain message and its suggestion, without `KeyError`'s extra quotes. (#4343)
+- The web UI's listener summaries for state-change listeners show the entity instead of the full topic. (#4313)
+- `hassette status --app` keeps showing the `--app` filter during a config reload. (#4430)
+- A CLI HTTP error whose `detail` is null or empty shows the response text instead of `None`. (#4384)
+- `hassette execution <id>` percent-encodes the id, so an id containing `/`, `?` or `#` reaches the right route. (#4391)
+
+### Documentation
+
+- `hassette.const` exports `SECONDS_PER_WEEK`, and the docs explain how its sentinels differ. (#4406)
+- The States page shows a complete DI example, explains unclassified sensors, and says that `self.states.get` is forgiving while state views are strict. (#4354, #4337)
+- The AppDaemon migration guide shows the required `name=` on scheduler rows, and describes the forgotten-`await` warning correctly. (#4361, #4316, #4405)
+- Corrected the operating guide on timeout cancellation and heartbeat log level, and removed the claim that Hassette restarts failed services. (#4386, #4352)
+- Clarified the on-grid scheduler example, the `Bus.emit` sender beside the `D.EventData` receiver example, the bus docstrings on omitted `name=`, and the `hassette.testing` docstrings. The dependencies page now uses `docker compose up -d` to apply compose edits. (#4272, #4349, #4370, #4360, #4394)
+
 ## [0.65.0](https://github.com/NodeJSmith/hassette/compare/v0.64.0...v0.65.0) (2026-11-17)
 
 Messages sent from Home Assistant with the hass-hassette integration's `hassette.send` action now arrive as typed events: subscribe with `bus.on_hassette_message`, get the message's data as your own model with `D.MessageData[T]`, and test with `harness.simulate_hassette_message`. Custom events fired from HA scripts and automations convert into pydantic models and dataclasses through `D.EventData` too.
