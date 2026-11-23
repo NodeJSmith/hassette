@@ -25,7 +25,7 @@ in `api.py`, `service_calls.py`, `entity_data.py`, `helpers.py`, or an entity
 action call it? For a WebSocket write, is the handle passed as `record=` so the
 pending-reply entry resolves it; for a REST write, does every exit (the
 `except BaseException` path included) resolve it through `resolve_rest_failure()`
-or `resolve()`? A write that skips the call is missing from the execution's
+or `resolve_unsent()` (`src/hassette/api/write_outcomes.py`) or `resolve()`? A write that skips the call is missing from the execution's
 API writes with nothing to show it was dropped.
 
 ## Mode Interaction

@@ -8,6 +8,7 @@ from typing import Any
 
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.api.write_outcomes import resolve_rest_failure, resolve_unsent
 from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError
@@ -359,8 +360,7 @@ class ApiEntityDataMixin:
             curr_attributes = {}
         except BaseException:
             # The POST never ran, so Home Assistant never saw the write.
-            if record is not None:
-                record.resolve("not_sent")
+            resolve_unsent(record)
             raise
 
         # This client-side merge is load-bearing: HA's POST /api/states/{id} replaces the attribute
@@ -375,8 +375,7 @@ class ApiEntityDataMixin:
             response = await self.post_rest_request(url, data=data)
             body = await response.json()
         except BaseException as exc:
-            if record is not None:
-                record.resolve_rest_failure(exc)
+            resolve_rest_failure(record, exc)
             raise
         if record is not None:
             record.resolve("success", context_id=context_id_of(body))
@@ -472,8 +471,7 @@ class ApiEntityDataMixin:
         try:
             response = await self.rest_request("DELETE", url)
         except BaseException as exc:
-            if record is not None:
-                record.resolve_rest_failure(exc)
+            resolve_rest_failure(record, exc)
             raise
         # Any answer that isn't an HTTP error status means Home Assistant handled the request.
         if record is not None:
