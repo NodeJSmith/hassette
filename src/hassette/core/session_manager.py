@@ -7,6 +7,7 @@ from typing import ClassVar
 
 from hassette_wire import LogLevel
 
+from hassette.core.database_sql import safe_rollback
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.core.telemetry.lifecycle_rows import LifecycleChange, serialize_details
 from hassette.core.telemetry.repository import TelemetryRepository
@@ -275,8 +276,8 @@ class SessionManager(Resource):
             await db.commit()
             self.logger.debug("Cleaned up %d stale once=True listener(s) from previous sessions", len(stale_ids))
         except Exception:
-            await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")
+            await safe_rollback(self._database_service.db, self, "cleaning up stale once=True listeners")
 
     async def _do_finalize_session(self, drop_counters: tuple[int, int, int]) -> None:
         """Execute the finalize UPDATE; called by the write-queue worker."""

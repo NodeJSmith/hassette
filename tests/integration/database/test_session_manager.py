@@ -1,5 +1,6 @@
 """Integration tests for SessionManager."""
 
+import logging
 import sqlite3
 import time
 from collections.abc import AsyncIterator
@@ -229,6 +230,37 @@ async def test_cleanup_once_listeners_removes_stale_once_listener(
         f"once=True listener (id={listener_id}) from stopped session {stopped_session_id} "
         f"should be deleted; current_session_id={current_session_id}"
     )
+
+
+async def test_cleanup_once_listeners_logs_original_error_when_rollback_fails(
+    session_manager: SessionManager, db_service: DatabaseService, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failing rollback neither hides the cleanup error nor escapes the cleanup."""
+    await session_manager.create_session()
+    db = db_service.db
+    real_execute = db.execute
+
+    async def execute(sql: str, *args: object):
+        if sql.lstrip().startswith("SELECT id FROM listeners"):
+            cursor = MagicMock()
+            cursor.fetchall = AsyncMock(return_value=[(1,)])
+            return cursor
+        if sql.startswith("DELETE"):
+            raise sqlite3.OperationalError("delete failed")
+        return await real_execute(sql, *args)
+
+    db.execute = AsyncMock(side_effect=execute)
+    db.rollback = AsyncMock(side_effect=sqlite3.OperationalError("rollback failed"))
+
+    with caplog.at_level(logging.ERROR):
+        await session_manager.cleanup_stale_once_listeners()
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert "Failed to clean up stale once=True listeners" in messages
+    original = next(r for r in caplog.records if r.getMessage() == "Failed to clean up stale once=True listeners")
+    assert original.exc_info is not None
+    assert str(original.exc_info[1]) == "delete failed"
+    assert any(m.startswith("Rollback also failed") for m in messages)
 
 
 async def test_mark_orphaned_sessions_backfills_crashed_session(
