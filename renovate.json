@@ -84,9 +84,15 @@
       "automerge": false
     },
     {
-      "description": "Skip Adoptium respins (OpenJDK x.y.z.N+b). Adoptium's API folds the fourth version part into the semver build (25.0.5.1+2 becomes 25.0.5+100000002), and Renovate writes that string into mise.toml, but mise names the build temurin-25.0.5.1+2.0.LTS and can't install the folded name. Writing the four-part name by hand doesn't work either: it isn't valid semver, so Renovate stops tracking java. Regular releases have small build numbers; a three-plus-digit build is a folded respin.",
+      "description": "Skip Adoptium respins (OpenJDK x.y.z.N+b). Adoptium's API folds the fourth version part into the semver build (25.0.5.1+2 becomes 25.0.5+100000002), and Renovate writes that string into mise.toml, but mise names the build temurin-25.0.5.1+2.0.LTS and can't install the folded name. Writing the four-part name by hand doesn't work either: it isn't valid semver, so Renovate stops tracking java. Regular releases have small build numbers; a three-plus-digit build is a folded respin, with or without the .LTS suffix (non-LTS versions have none).",
       "matchDepNames": ["java"],
-      "allowedVersions": "!/^\\d+\\.\\d+\\.\\d+\\+\\d{3,}\\./"
+      "allowedVersions": "!/^\\d+\\.\\d+\\.\\d+\\+\\d{3,}(\\.|$)/"
+    },
+    {
+      "description": "Java only runs PMD CPD (tools/check_duplicate_code.py), so it stays on an LTS major. Renovate keeps the current major patched; moving to the next LTS is a hand edit to mise.toml",
+      "matchDepNames": ["java"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     },
     {
       "description": "prek tooling: every hook rev in prek.toml moves together",
