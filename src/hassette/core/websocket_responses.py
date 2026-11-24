@@ -113,9 +113,17 @@ class PendingResponses:
 
     def discard(self, msg_id: int) -> None:
         """Stop tracking ``msg_id`` without resolving it: the request was never sent."""
+        self.pop_entry(msg_id)
+
+    def pop_entry(self, msg_id: int) -> PendingReply | None:
+        """Remove and return ``msg_id``'s entry, keeping ``background_count`` in step.
+
+        Every single-entry removal goes through here so the background count stays exact.
+        """
         entry = self.entries.pop(msg_id, None)
         if entry is not None and not entry.awaited:
             self.background_count -= 1
+        return entry
 
     def release(self, msg_id: int) -> None:
         """Record that ``msg_id``'s caller stopped waiting: it timed out or was cancelled.
@@ -127,7 +135,7 @@ class PendingResponses:
         if entry is None or not entry.awaited:
             return
         if not entry.keep_when_abandoned:
-            del self.entries[msg_id]
+            self.pop_entry(msg_id)
             return
         entry.awaited = False
         self.add_background()
@@ -138,11 +146,10 @@ class PendingResponses:
         while self.background_count > BACKGROUND_ENTRY_CAP:
             # Awaited entries are the only ones skipped, and they number at most the callers waiting right now.
             msg_id = next(i for i, e in self.entries.items() if not e.awaited)
-            entry = self.entries.pop(msg_id)
-            self.background_count -= 1
+            entry = self.pop_entry(msg_id)
             self.counters.increment(PipelineCounter.API_WRITE_TRACKING_EVICTED)
             self.warn_eviction()
-            if entry.on_resolve is not None:
+            if entry is not None and entry.on_resolve is not None:
                 self.run_callback(entry, "unresolved")
 
     def warn_eviction(self) -> None:
@@ -167,21 +174,23 @@ class PendingResponses:
             self.logger.warning("Received result message without ID: %s", message)
             return
 
-        entry = self.entries.pop(msg_id, None)
+        entry = self.pop_entry(msg_id)
         if entry is None:
             return
-        if not entry.awaited:
-            self.background_count -= 1
 
         success = bool(message.get("success"))
         error_envelope = {} if success else (message.get("error") or {})
         code = error_envelope.get("code")
 
-        if entry.awaited and entry.future is not None and not entry.future.done():
+        # The waiting caller's future, or None when nobody is waiting (abandoned, background, or already settled).
+        waiting_future = (
+            entry.future if entry.awaited and entry.future is not None and not entry.future.done() else None
+        )
+        if waiting_future is not None:
             if success:
-                entry.future.set_result(message.get("result"))
+                waiting_future.set_result(message.get("result"))
             else:
-                entry.future.set_exception(self.rejection(message, error_envelope, code))
+                waiting_future.set_exception(self.rejection(message, error_envelope, code))
         elif not entry.fire_and_forget:
             self.log_late_reply(msg_id, entry.command_type, success, code)
 
