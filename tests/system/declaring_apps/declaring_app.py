@@ -36,7 +36,8 @@ class DeclaringApp(App[DeclaringAppConfig]):
         # The value is typed as any sensor value: None before the first press, then the number this sets
         # (restored as a number after a restart).
         count = self.presses.value
-        await self.presses.set((int(count) if isinstance(count, int | float) else 0) + 1)
+        previous = int(count) if isinstance(count, int | float) else 0
+        await self.presses.set(previous + 1)
 
     async def on_occupied(self, on: D.SwitchCommand) -> None:
         assert self.occupied is not None, "the switch's handler runs only while it is declared"

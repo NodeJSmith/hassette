@@ -4,8 +4,8 @@ The HA container installs the release pinned by ``HASS_HASSETTE_VERSION`` (scrip
 these tests configure it against hassette running in the pytest process, drive an app from HA, send a
 message from HA to hassette, and run an app instance's declared button, switch and sensor through a
 hassette restart, an HA restart and a dropped declaration. A Renovate bump of that pin runs them, which
-is how a release that changed the integration's entity scheme (``APP_ENTITY_KEYS``), config flow fields, or the
-``hassette.send`` event contract (event type ``hassette_message``, data ``{name, data}``) shows up.
+is how a release that changed the integration's entity scheme (``APP_ENTITY_KEYS``), config flow
+fields, or the ``hassette.send`` event contract (event type ``hassette_message``, data ``{name, data}``) shows up.
 """
 
 import asyncio
@@ -71,6 +71,8 @@ DECLARED_KEYS = ("presses", "ping", "occupied")
 # A value the app sets reaches HA over hass-hassette's /ws push in about a second. Well under one poll (30 s,
 # hass-hassette's SCAN_INTERVAL), so the test fails when push breaks rather than passing on polling alone.
 PUSH_TIMEOUT_SECONDS = 10.0
+# The count the test sets from the app's side, outside any HA action, to check it arrives by push.
+PUSHED_COUNT = 5
 # The declared-entity tests start hassette more than once and may run the session's first config flow, whose
 # requirement install alone can take FLOW_START_TIMEOUT_SECONDS; the 120 s default per-test timeout is too short.
 DECLARED_TEST_TIMEOUT_SECONDS = 300
@@ -292,14 +294,28 @@ def with_declare_switch(config: HassetteConfig, declare_switch: bool) -> Hassett
 
 
 @dataclass(frozen=True)
+class DeclaredEntityIds:
+    """The entity_ids HA gave the declaring app's entities, one field per key in DECLARED_KEYS."""
+
+    presses: str
+    ping: str
+    occupied: str
+
+
+def declared_entity_ids(entities: dict[str, dict[str, Any]], unique_ids: dict[str, str]) -> DeclaredEntityIds:
+    """Look each declared entity's entity_id up in the entry's registry entries (keyed by unique_id)."""
+    return DeclaredEntityIds(**{key: entities[unique_ids[key]]["entity_id"] for key in DECLARED_KEYS})
+
+
+@dataclass(frozen=True)
 class DeclaredInstance:
     """The declaring app's instance as HA registered it, which the startups after the first one check against."""
 
     app_key: str
     instance_name: str
-    # Each keyed by the declared key in DECLARED_KEYS.
+    # Keyed by the declared key in DECLARED_KEYS.
     unique_ids: dict[str, str]
-    entity_ids: dict[str, str]
+    entity_ids: DeclaredEntityIds
 
 
 def declaring_instance(hassette: Hassette) -> tuple[str, str]:
@@ -351,9 +367,13 @@ async def test_declared_entities_survive_a_hassette_restart_and_follow_declarati
                     app_key=app_key,
                     instance_name=instance_name,
                     unique_ids=unique_ids,
-                    entity_ids={key: entities[unique_id]["entity_id"] for key, unique_id in unique_ids.items()},
+                    entity_ids=declared_entity_ids(entities, unique_ids),
                 )
-                presses, ping, occupied = (declared.entity_ids[key] for key in ("presses", "ping", "occupied"))
+                presses, ping, occupied = (
+                    declared.entity_ids.presses,
+                    declared.entity_ids.ping,
+                    declared.entity_ids.occupied,
+                )
 
                 # Every declared entity sits on the instance's device, a child device (parent_device_id) of the app's.
                 devices = {d["id"]: d for d in await ha_ws(ha_container, {"type": "config/device_registry/list"})}
@@ -370,36 +390,40 @@ async def test_declared_entities_survive_a_hassette_restart_and_follow_declarati
                 await wait_for(state_is(ha, occupied, "on"), desc="the switch on", **poll)
 
                 # A value the app sets on its own, with no HA action to trigger a refresh, arrives by push.
-                await declaring_app(hassette, declared).presses.set(5)
-                await wait_for(state_is(ha, presses, "5"), desc="the pushed value", **push)
+                await declaring_app(hassette, declared).presses.set(PUSHED_COUNT)
+                await wait_for(state_is(ha, presses, str(PUSHED_COUNT)), desc="the pushed value", **push)
                 return declared
 
         async def restart_with_state(declared: DeclaredInstance) -> None:
-            presses, ping, occupied = (declared.entity_ids[key] for key in ("presses", "ping", "occupied"))
+            presses, ping, occupied = (
+                declared.entity_ids.presses,
+                declared.entity_ids.ping,
+                declared.entity_ids.occupied,
+            )
             async with startup_context(config) as hassette:
                 await wait_for_web_server(base_url)
                 app = declaring_app(hassette, declared)
-                assert app.presses.value == 5
+                assert app.presses.value == PUSHED_COUNT
                 assert app.occupied.is_on
                 # The entities may have gone unavailable while hassette was down, and HA skips an action on an
                 # unavailable entity, so wait for HA to show the restored state before pressing.
-                await wait_for(state_is(ha, presses, "5"), desc="the restored value in HA", **poll)
+                await wait_for(state_is(ha, presses, str(PUSHED_COUNT)), desc="the restored value in HA", **poll)
                 await wait_for(state_is(ha, occupied, "on"), desc="the restored switch in HA", **poll)
                 await call_service(ha, "button", "press", ping)
-                await wait_for(state_is(ha, presses, "6"), desc="the press after the restart", **poll)
+                await wait_for(state_is(ha, presses, str(PUSHED_COUNT + 1)), desc="the press after the restart", **poll)
 
         async def drop_the_switch(declared: DeclaredInstance) -> None:
             [entry_id] = created_entries
             async with startup_context(with_declare_switch(config, declare_switch=False)):
                 await wait_for_web_server(base_url)
 
-                async def switch_removed() -> bool:
+                async def switch_removed_sensor_kept() -> bool:
                     registered = await app_entities(ha_container, entry_id)
                     return declared.unique_ids["occupied"] not in registered and (
                         declared.unique_ids["presses"] in registered
                     )
 
-                await wait_for(switch_removed, desc="the switch removed and the sensor kept", **poll)
+                await wait_for(switch_removed_sensor_kept, desc="the switch removed and the sensor kept", **poll)
                 # Removed while hassette still runs, so the session's HA isn't left polling a stopped server.
                 await remove_entry(ha, created_entries.pop())
 
@@ -434,9 +458,8 @@ async def test_declared_entities_survive_a_home_assistant_restart(ha_container: 
         unique_ids = declared_unique_ids(*declaring_instance(hassette))
         async with config_entry(ha, f"http://{HOST_FROM_HA}:{config.web_api.port}", token) as entry_id:
             entities = await wait_for_app_entities(ha_container, entry_id, set(unique_ids.values()))
-            presses, ping, occupied = (
-                entities[unique_ids[key]]["entity_id"] for key in ("presses", "ping", "occupied")
-            )
+            ids = declared_entity_ids(entities, unique_ids)
+            presses, ping, occupied = ids.presses, ids.ping, ids.occupied
             await call_service(ha, "button", "press", ping)
             await call_service(ha, "switch", "turn_on", occupied)
             await wait_for(state_is(ha, presses, "1"), desc="the press counted", **poll)
