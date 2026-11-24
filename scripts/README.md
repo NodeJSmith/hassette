@@ -8,7 +8,9 @@ Operational scripts for building, running, and demoing hassette.
 - **`demo_stack.py`** — shared `DemoStack` context manager: copies the HA fixture
   config to a tmpdir, runs `docker compose up -d --wait` / `down --remove-orphans`
   for the HA + hassette + Vite stack, and handles signal/atexit teardown. Imported
-  by `hassette_demo.py` and `capture_screenshots.py`; not run directly.
+  by `hassette_demo.py` and `capture_screenshots.py`; not run directly. Set
+  `HASS_HASSETTE_PATH` to a local hass-hassette checkout to mount its
+  `custom_components/hassette` (read-only) in the demo HA instead of the pinned release.
 - **`capture_screenshots.py`** — regenerate `docs/_static/web_ui_*.png` and
   `docs/_static/ha-*.png` from `docs/screenshots.yml` (`--only <name>` to scope). Starts
   the demo stack via `DemoStack`, runs shot-scraper, tears down. `--against <port>`
@@ -36,4 +38,5 @@ Operational scripts for building, running, and demoing hassette.
 - **`docker_start.sh`** — Docker container entrypoint.
 - **`docker/`** — Docker Compose configs for demo/test environments
   (`ha-demo.yml` defines the HA + hassette + Vite demo stack;
+  `ha-demo.hass-hassette.yml` overlays a local hass-hassette checkout on it;
   `Dockerfile.hassette-dev` and `Dockerfile.vite-dev` are the dev-mode images).

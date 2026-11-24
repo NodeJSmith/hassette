@@ -1,0 +1,15 @@
+# Dev-mode overlay for ha-demo.yml: mounts a local hass-hassette checkout's integration instead of
+# the pinned release. DemoStack layers this in when HASS_HASSETTE_PATH is set, after resolving it to
+# an absolute checkout path (compose resolves a relative bind source from this file's directory and
+# never expands `~`) and checking it has custom_components/hassette.
+services:
+  homeassistant:
+    volumes:
+      # Same container path as ha-demo.yml's named-volume mount, so compose replaces that mount.
+      - "${HASS_HASSETTE_PATH:?set HASS_HASSETTE_PATH to a hass-hassette checkout}/custom_components/hassette:/config/custom_components/hassette:ro"
+    depends_on: !reset {}
+
+  hass-hassette:
+    # Nothing mounts the release volume here, so skip the download: a service whose profile is
+    # never activated doesn't start.
+    profiles: ["release-integration"]

@@ -34,18 +34,27 @@ DEFAULT_HA_PORT = 18123
 DEFAULT_HASSETTE_PORT = 18126
 DEFAULT_VITE_PORT = 15173
 
+# Names a local hass-hassette checkout whose integration the demo HA mounts instead of the pinned release.
+HASS_HASSETTE_PATH_ENV = "HASS_HASSETTE_PATH"
+
 
 class DemoStack:
     """Context manager for the compose-native demo stack.
 
     Copies the HA fixture config to a temp directory, runs
     ``docker compose up -d --wait``, and tears down (compose down +
-    tmpdir cleanup) on ``__exit__``, SIGINT/SIGTERM, or atexit.
+    tmpdir cleanup) on ``__exit__``, SIGINT/SIGTERM, or atexit. With
+    ``HASS_HASSETTE_PATH`` set, it layers in ``ha-demo.hass-hassette.yml`` so HA
+    mounts that checkout's integration instead of the pinned release.
     """
 
     def __init__(self) -> None:
         self._repo_root = Path(__file__).resolve().parent.parent
-        self._compose_file = self._repo_root / "scripts" / "docker" / "ha-demo.yml"
+        docker_dir = self._repo_root / "scripts" / "docker"
+        self._compose_files = [docker_dir / "ha-demo.yml"]
+        self._hass_hassette_path = resolve_hass_hassette_path(os.environ.get(HASS_HASSETTE_PATH_ENV))
+        if self._hass_hassette_path is not None:
+            self._compose_files.append(docker_dir / "ha-demo.hass-hassette.yml")
         self._ha_port = int(os.environ.get("DEMO_HA_PORT", DEFAULT_HA_PORT))
         self._hassette_port = int(os.environ.get("DEMO_HASSETTE_PORT", DEFAULT_HASSETTE_PORT))
         self._vite_port = int(os.environ.get("DEMO_VITE_PORT", DEFAULT_VITE_PORT))
@@ -66,6 +75,10 @@ class DemoStack:
     @property
     def vite_port(self) -> int:
         return self._vite_port
+
+    def compose_file_args(self) -> list[str]:
+        """``-f <file>`` pairs for every compose file in the stack, in layering order."""
+        return [arg for path in self._compose_files for arg in ("-f", str(path))]
 
     def __enter__(self) -> "DemoStack":
         docker_check = subprocess.run(
@@ -150,6 +163,10 @@ class DemoStack:
                 self._teardown()
                 raise RuntimeError(f"{key} not found in {fixture_env_path}")
             env[key] = value
+        if self._hass_hassette_path is None:
+            env.pop(HASS_HASSETTE_PATH_ENV, None)
+        else:
+            env[HASS_HASSETTE_PATH_ENV] = str(self._hass_hassette_path)
         self._compose_env = env
 
         try:
@@ -157,8 +174,7 @@ class DemoStack:
                 [
                     "docker",
                     "compose",
-                    "-f",
-                    str(self._compose_file),
+                    *self.compose_file_args(),
                     "-p",
                     COMPOSE_PROJECT_NAME,
                     "up",
@@ -206,8 +222,7 @@ class DemoStack:
                 [
                     "docker",
                     "compose",
-                    "-f",
-                    str(self._compose_file),
+                    *self.compose_file_args(),
                     "-p",
                     COMPOSE_PROJECT_NAME,
                     "down",
@@ -249,3 +264,23 @@ class DemoStack:
     def _signal_handler(self, _signum: int, _frame: FrameType | None) -> None:
         self._teardown()
         sys.exit(0)
+
+
+def resolve_hass_hassette_path(raw: str | None) -> Path | None:
+    """Resolve ``HASS_HASSETTE_PATH`` to an absolute hass-hassette checkout, or None when unset.
+
+    Compose resolves a relative bind source from the compose file's directory and never expands
+    ``~``, so the path is made absolute here before compose sees it.
+
+    Raises:
+        RuntimeError: The path has no ``custom_components/hassette`` directory.
+    """
+    if not raw:
+        return None
+    checkout = Path(raw).expanduser().resolve()
+    if not (checkout / "custom_components" / "hassette").is_dir():
+        raise RuntimeError(
+            f"{HASS_HASSETTE_PATH_ENV}={raw!r} resolves to {checkout}, which has no custom_components/hassette;"
+            " point it at a hass-hassette checkout"
+        )
+    return checkout
