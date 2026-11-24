@@ -7,7 +7,7 @@ management.
 """
 
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, TypeVar, cast, overload
 
 from hassette.cache._helpers import MISSING, resolve_ttl, validate_key
@@ -37,17 +37,7 @@ class DummySyncCache:
         running event loop.
         """
         guard_not_in_event_loop("DummySyncCache.get")
-        validate_key(key)
-        entry = self._store.get(key)
-        if entry is None:
-            return default
-        value, expires_at = entry
-        if expires_at is not None and expires_at < time.time():
-            self._store.pop(key, None)
-            return default
-        # The store holds values untyped (CacheEntry = tuple[object, ...]) since it never
-        # validates what callers stored -- trust the caller's T at this boundary.
-        return cast("T", value)
+        return store_get(self._store, key, default)
 
     def set(self, key: str, value: object, ttl: int | None = None) -> None:
         """Store *value* under *key* in the shared dict.
@@ -56,13 +46,7 @@ class DummySyncCache:
         entry and does not store the new value.
         """
         guard_not_in_event_loop("DummySyncCache.set")
-        validate_key(key)
-        resolved_ttl = resolve_ttl(ttl, self.default_ttl)
-        if resolved_ttl == 0:
-            self.delete(key)
-            return
-        expires_at = time.time() + resolved_ttl if resolved_ttl is not None else None
-        self._store[key] = (value, expires_at)
+        store_set(self._store, key, value, ttl, self.default_ttl)
 
     def delete(self, key: str) -> None:
         """Remove the entry at *key* from the shared dict, if any."""
@@ -87,9 +71,7 @@ class DummySyncCache:
     def invalidate(self, *keys: str) -> None:
         """Remove every listed key from the shared dict; missing keys are ignored."""
         guard_not_in_event_loop("DummySyncCache.invalidate")
-        for key in keys:
-            validate_key(key)
-            self._store.pop(key, None)
+        store_invalidate(self._store, keys)
 
 
 class DummyCache:
@@ -116,17 +98,7 @@ class DummyCache:
         stored ``None``, is returned as-is regardless of *default*.
         """
         # dup-ignore-end
-        validate_key(key)
-        entry = self._store.get(key)
-        if entry is None:
-            return default
-        value, expires_at = entry
-        if expires_at is not None and expires_at < time.time():
-            self._store.pop(key, None)
-            return default
-        # The store holds values untyped (CacheEntry = tuple[object, ...]) since it never
-        # validates what callers stored -- trust the caller's T at this boundary.
-        return cast("T", value)
+        return store_get(self._store, key, default)
 
     async def set(self, key: str, value: object, ttl: int | None = None) -> None:
         """Store *value* under *key*.
@@ -134,13 +106,7 @@ class DummyCache:
         ``ttl=None`` falls back to ``self.default_ttl``. ``ttl=0`` deletes any existing
         entry and does not store the new value.
         """
-        validate_key(key)
-        resolved_ttl = resolve_ttl(ttl, self.default_ttl)
-        if resolved_ttl == 0:
-            await self.delete(key)
-            return
-        expires_at = time.time() + resolved_ttl if resolved_ttl is not None else None
-        self._store[key] = (value, expires_at)
+        store_set(self._store, key, value, ttl, self.default_ttl)
 
     async def delete(self, key: str) -> None:
         """Delete the entry at *key*, if any."""
@@ -162,9 +128,46 @@ class DummyCache:
 
     async def invalidate(self, *keys: str) -> None:
         """Delete all listed keys in one operation."""
-        for key in keys:
-            validate_key(key)
-            self._store.pop(key, None)
+        store_invalidate(self._store, keys)
 
     async def close(self) -> None:
         """No-op -- DummyCache has no connections to close."""
+
+
+def store_get(store: dict[str, CacheEntry], key: str, default: T) -> T:
+    """Return the value stored under *key*, or *default* if missing or expired.
+
+    An expired entry is evicted from *store* on read.
+    """
+    validate_key(key)
+    entry = store.get(key)
+    if entry is None:
+        return default
+    value, expires_at = entry
+    if expires_at is not None and expires_at < time.time():
+        store.pop(key, None)
+        return default
+    # The value slot is ``object`` since the store never validates what callers stored --
+    # trust the caller's T at this boundary.
+    return cast("T", value)
+
+
+def store_set(store: dict[str, CacheEntry], key: str, value: object, ttl: int | None, default_ttl: int | None) -> None:
+    """Store *value* under *key* in *store*, resolving *ttl* against *default_ttl*.
+
+    A resolved TTL of ``0`` removes any existing entry and does not store the new value.
+    """
+    validate_key(key)
+    resolved_ttl = resolve_ttl(ttl, default_ttl)
+    if resolved_ttl == 0:
+        store.pop(key, None)
+        return
+    expires_at = time.time() + resolved_ttl if resolved_ttl is not None else None
+    store[key] = (value, expires_at)
+
+
+def store_invalidate(store: dict[str, CacheEntry], keys: Iterable[str]) -> None:
+    """Remove every key in *keys* from *store*; missing keys are ignored."""
+    for key in keys:
+        validate_key(key)
+        store.pop(key, None)
