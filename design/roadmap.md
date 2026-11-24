@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-11-16
+Last reviewed: 2026-11-24
 
 ## How the pieces fit
 
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HACS app entities** | *HACS App Entities* (ledger: `design/specs/155-hacs-app-entities/`; parent #3993) | Apps declare HA buttons, switches and sensors per instance through hass-hassette instead of trigger-only helpers. Order: #2439 → #4218 → #4219 → #4220 → hass-hassette#72 → hass-hassette#73 → #4221 (hass-hassette issues sit in that repo's milestone of the same name). Unblocks webhooks and `@template` |
+| **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
 
 ## Next
 
@@ -57,7 +57,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
 | **Owned state durability** | *Owned State Durability* (brief: `design/research/2026-11-19-persistence-model/`) | Recovery paths reset app-declared switches (#4284 stores them in `hassette.db`) and delete `self.cache` files that real apps use as durable state. Includes the `self.cache` → `self.store` breaking change, so it lands before 1.0. Hardening the store layer comes first; everything else follows it |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Module boundaries** | *Module Boundaries* (parent #633) | Enforce the layer map with no exceptions, split `core/` into subpackages, clear the 800-line backlog so HSL102 can block. Mostly mechanical, so it fits between bigger PRs. After the testing redesign, which reshapes `recording_api.py` (#2731) |
@@ -68,9 +67,9 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Blocked on / note |
 |---|---|---|
-| **HACS webhooks & templates** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
+| **HACS webhooks & templates** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store. Unblocked: app-declared entities (#3993) shipped 2026-11-24 |
 | **DB as source of truth** | *DB as Source of Truth* | Design: `design/specs/132-db-source-of-truth/design.md`. #2695 lands first; the tail (WS invalidations, snapshot mode) is frontend-heavy. Makes the seed scripts servable to the UI |
-| **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS app-entities API) |
+| **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (e.g. `self.cache` → `self.store` in Owned state durability) |
 | **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
 | **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts. Pick up #4084 (`hassette timeline`, the lifecycle-history read path) with it: the timeline's read model is designed alongside the view that displays it |
 | **Feature ideas** | unlabeled `type:enhancement` | The icebox. Promote an idea by making it an initiative, not by starting it |
@@ -80,7 +79,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-#2439 WS wire-compat ──> #3993 app-declared entities ──> HACS webhooks & templates
 testing redesign + all breaking changes ──> v1.0 tag
 #2695 required DB ──> #2992 WebContext ──> #2994 status from DB
 #2695, #2990 write path, #2938 service_status scope ──> #1446 projector ──> #2806 issues registry ──> #2994 status from DB ──> #2995 WS invalidations ──> #2996 snapshot mode
