@@ -466,7 +466,9 @@ async def test_declared_entities_survive_a_home_assistant_restart(ha_container: 
             await wait_for(state_is(ha, occupied, "on"), desc="the switch on", **poll)
 
             # Off the event loop, so hassette keeps running while HA restarts.
-            await asyncio.to_thread(subprocess.run, ["docker", "restart", HA_CONTAINER_NAME], check=True)
+            await asyncio.to_thread(
+                subprocess.run, ["docker", "restart", HA_CONTAINER_NAME], check=True, timeout=ACTION_TIMEOUT_SECONDS
+            )
             await asyncio.to_thread(wait_for_ha_ready)
 
             await wait_for(state_is(ha, presses, "1"), desc="the sensor after the HA restart", **poll)
