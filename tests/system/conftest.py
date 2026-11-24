@@ -10,7 +10,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import IO, Any, TypeVar
@@ -61,6 +61,7 @@ STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = LifecycleConfig.model_fields["total_shutdown_timeout_seconds"].default
 
 EventT = TypeVar("EventT", bound=Event[Any])
+T = TypeVar("T")
 
 
 class SystemTestConfig(HassetteConfig):
@@ -284,6 +285,16 @@ async def startup_context(
             await asyncio.sleep(0)
         finally:
             loop.set_task_factory(previous_task_factory)
+
+
+async def in_own_context(phase: Callable[[], Coroutine[Any, Any, T]]) -> T:
+    """Run ``phase`` in its own task and return its result, for a test that starts hassette more than once.
+
+    ``wire_services`` sets the ``HASSETTE_INSTANCE`` and ``HASSETTE_CONFIG`` context vars, which refuse a second
+    instance in the same context. A task runs in a copy of its creator's context, so each startup's vars stay in
+    that copy.
+    """
+    return await asyncio.create_task(phase())
 
 
 @asynccontextmanager
