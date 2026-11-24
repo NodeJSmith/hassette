@@ -172,11 +172,7 @@ class RuntimeQueryService(Resource):
 
         # Wire up log capture handler for WS broadcast
         handler = self.hassette.logging_service.capture_handler
-        try:
-            loop = asyncio.get_running_loop()
-            handler.set_broadcast(self.put_to_clients, loop)
-        except RuntimeError:
-            self.logger.warning("No running event loop, log broadcast will not be available")
+        handler.set_broadcast(self.put_to_clients, asyncio.get_running_loop())
 
         mark_ready(self, reason="RuntimeQueryService initialized")
 
@@ -403,7 +399,7 @@ class RuntimeQueryService(Resource):
     def get_system_status(self) -> SystemStatusResponse:
         """Build the system status snapshot from in-memory state.
 
-        Unreachable components (not yet wired, or torn down) report zero counts instead of raising.
+        An unreachable ``AppHandler`` (not yet wired, or torn down) reports ``app_count=0`` instead of raising.
 
         Returns:
             The status response, with ``status`` set to ``ok`` when Home Assistant is connected and
@@ -414,10 +410,7 @@ class RuntimeQueryService(Resource):
         is_connected = websocket_service.is_connected
         uptime = time.time() - self._start_time
 
-        try:
-            entity_count = len(self.hassette.state_proxy.states)
-        except (AttributeError, RuntimeError):
-            entity_count = 0
+        entity_count = len(self.hassette.state_proxy.states)
 
         try:
             snapshot = self.hassette.app_handler.get_status_snapshot()
@@ -425,10 +418,7 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             app_count = 0
 
-        try:
-            pending_wait_for_count = self.hassette.bus_service.pending_wait_for_count
-        except (AttributeError, RuntimeError):
-            pending_wait_for_count = 0
+        pending_wait_for_count = self.hassette.bus_service.pending_wait_for_count
 
         services = [
             ServiceInfo(

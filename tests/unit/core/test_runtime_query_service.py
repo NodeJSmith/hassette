@@ -614,14 +614,6 @@ class TestSystemStatus:
 
         assert runtime.get_system_status().pending_wait_for_count == 5
 
-    def test_system_status_pending_wait_for_count_zero_when_bus_service_unwired(
-        self, runtime: RuntimeQueryService
-    ) -> None:
-        """An unwired BusService reports 0 instead of failing the whole health response."""
-        type(runtime.hassette).bus_service = PropertyMock(side_effect=RuntimeError("BusService not wired"))  # pyright: ignore[reportAttributeAccessIssue]
-
-        assert runtime.get_system_status().pending_wait_for_count == 0
-
     def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is False when websocket_service.is_connected returns False.
 
