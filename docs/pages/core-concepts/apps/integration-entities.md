@@ -89,6 +89,9 @@ Every `add_*` call raises `ValueError` when `name` isn't a non-empty string, or 
 
 `"config"` files the entity under the device's Configuration section, for controls that maintain or reset it. `"diagnostic"` files it under Diagnostic, for readings that only help debug it. Home Assistant leaves both kinds off auto-generated dashboards. An entity without a category is a primary control or sensor. Any other value raises `ValueError` from the `add_*` call.
 
+!!! note "Needs a Hassette integration that supports categories"
+    The Hassette integration in Home Assistant applies the category only from the release that adds support for it ([hass-hassette#94](https://github.com/NodeJSmith/hass-hassette/issues/94)). An older integration ignores it and shows the entity as a primary control.
+
 ## Integration Entities or Helpers
 
 [`Api.helpers`](../api/managing-helpers.md) creates `input_button`, `input_boolean` and `input_number` helpers from code. Declared entities differ from helpers in four ways:

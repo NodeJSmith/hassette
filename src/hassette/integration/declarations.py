@@ -159,8 +159,8 @@ def validate_default_entity_id(default_entity_id: object, platform: IntegrationP
 
 def validate_entity_category(entity_category: object, platform: IntegrationPlatform) -> str | None:
     """Return ``entity_category`` if it is ``None``, ``"config"`` or ``"diagnostic"``; else raise ``ValueError``."""
-    if entity_category is None or entity_category in ENTITY_CATEGORIES:
-        return entity_category  # pyright: ignore[reportReturnType]  # membership in the str set proves it's a str
+    if entity_category is None or (isinstance(entity_category, str) and entity_category in ENTITY_CATEGORIES):
+        return entity_category
     valid = ", ".join(repr(category) for category in sorted(ENTITY_CATEGORIES))
     raise ValueError(f"{platform} entity_category must be one of {valid} or None, got {entity_category!r}")
 

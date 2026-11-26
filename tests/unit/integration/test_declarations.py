@@ -83,7 +83,7 @@ def test_valid_entity_category_passes(category: str | None) -> None:
     assert validate_entity_category(category, IntegrationPlatform.SWITCH) == category
 
 
-@pytest.mark.parametrize("category", ["system", "Config", "", 1])
+@pytest.mark.parametrize("category", ["system", "Config", "", 1, [], {}])
 def test_invalid_entity_category_raises(category: object) -> None:
     with pytest.raises(ValueError, match="entity_category must be one of 'config', 'diagnostic' or None"):
         validate_entity_category(category, IntegrationPlatform.SWITCH)
