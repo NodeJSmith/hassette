@@ -86,6 +86,7 @@ def declared_entity_from(entity: CommittedEntity) -> DeclaredEntity:
         platform=declaration.platform.value,
         name=declaration.name,
         default_entity_id=declaration.default_entity_id,
+        entity_category=declaration.entity_category,
         unit=declaration.unit,
         device_class=declaration.device_class,
         state_class=declaration.state_class,

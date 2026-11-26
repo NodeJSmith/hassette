@@ -27,7 +27,9 @@ INSTANCE = "my_app"
 
 INSTANCE_PATH = f"{APPS_PATH}/{APP_KEY}/instances/{INSTANCE}"
 
-BUTTON = CommittedEntity(Declaration("doorbell", IntegrationPlatform.BUTTON, "Doorbell"), EntityState())
+BUTTON = CommittedEntity(
+    Declaration("doorbell", IntegrationPlatform.BUTTON, "Doorbell", entity_category="config"), EntityState()
+)
 SWITCH = CommittedEntity(
     Declaration("guest_mode", IntegrationPlatform.SWITCH, "Guest mode", default_entity_id="switch.guest", initial=True),
     EntityState(value=False),
@@ -81,6 +83,7 @@ class TestListing:
             "platform": "sensor",
             "name": "Battery",
             "default_entity_id": None,
+            "entity_category": None,
             "unit": "%",
             "device_class": "battery",
             "state_class": "measurement",
@@ -89,6 +92,7 @@ class TestListing:
             "attributes": {"charging": False, "cells": [1, 2]},
         }
         assert by_key["doorbell"]["platform"] == "button"
+        assert by_key["doorbell"]["entity_category"] == "config"
         assert by_key["doorbell"]["value"] is None
         assert by_key["guest_mode"]["value"] is False
         assert by_key["guest_mode"]["default_entity_id"] == "switch.guest"

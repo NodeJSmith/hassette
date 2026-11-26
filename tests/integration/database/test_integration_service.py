@@ -83,6 +83,23 @@ async def test_commit_persists_and_a_new_boot_restores_it(db: DatabaseService) -
     assert restored == {"feed": EntityState(), "show": EntityState(True, {}), "temp": EntityState(21.5, {"a": 1})}
 
 
+async def test_entity_category_persists_and_updates_on_recommit(db: DatabaseService) -> None:
+    service = await start_service(db)
+    retrigger = Declaration(key="retrigger", platform=IntegrationPlatform.BUTTON, name="R", entity_category="config")
+    await service.commit_instance(owner(), [retrigger], {})
+
+    rebooted = await start_service(db)
+    [restored] = rebooted.entities("my_app", "kitchen")
+    assert restored.declaration == retrigger
+
+    diagnostic = Declaration(
+        key="retrigger", platform=IntegrationPlatform.BUTTON, name="R", entity_category="diagnostic"
+    )
+    await rebooted.commit_instance(owner(), [diagnostic], {})
+    [updated] = (await start_service(db)).entities("my_app", "kitchen")
+    assert updated.declaration.entity_category == "diagnostic"
+
+
 async def test_recommit_keeps_state_ignores_new_initial_and_removes_dropped(db: DatabaseService) -> None:
     service = await start_service(db)
     await service.commit_instance(owner(), [FEED, SHOW, TEMP], {"temp": EntityState(21.5, {})})

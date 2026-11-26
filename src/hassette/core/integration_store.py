@@ -1,4 +1,4 @@
-"""SQL for the ``integration_entities`` table (migration ``027.sql``).
+"""SQL for the ``integration_entities`` table (migrations ``027.sql`` and ``028.sql``).
 
 Each function takes the write connection and runs on the database writer, so the caller submits it through
 ``DatabaseService.submit()``. The write connection autocommits, so the replace-set commit and the startup prune,
@@ -22,8 +22,8 @@ if typing.TYPE_CHECKING:
 UPSERT_SQL = """
 INSERT INTO integration_entities (
     app_key, instance_name, key, platform, name, default_entity_id, initial,
-    unit, device_class, state_class, options, value, attributes
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    unit, device_class, state_class, options, value, attributes, entity_category
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (app_key, instance_name, key, platform) DO UPDATE SET
     name = excluded.name,
     default_entity_id = excluded.default_entity_id,
@@ -33,12 +33,13 @@ ON CONFLICT (app_key, instance_name, key, platform) DO UPDATE SET
     state_class = excluded.state_class,
     options = excluded.options,
     value = excluded.value,
-    attributes = excluded.attributes
+    attributes = excluded.attributes,
+    entity_category = excluded.entity_category
 """
 
 SELECT_ALL_SQL = """
 SELECT app_key, instance_name, key, platform, name, default_entity_id, initial,
-       unit, device_class, state_class, options, value, attributes
+       unit, device_class, state_class, options, value, attributes, entity_category
 FROM integration_entities
 ORDER BY app_key, instance_name, key, platform
 """
@@ -81,6 +82,7 @@ def row_params(app_key: str, instance_name: str, declaration: Declaration, state
         None if declaration.options is None else json.dumps(list(declaration.options)),
         None if is_button else encode_value(state.value),
         None if is_button else json.dumps(dict(state.attributes)),
+        declaration.entity_category,
     )
 
 
@@ -152,12 +154,14 @@ def parse_row(row: Iterable[typing.Any]) -> StoredRow:
         options,
         value,
         attributes,
+        entity_category,
     ) = row
     declaration = Declaration(
         key=key,
         platform=IntegrationPlatform(platform),
         name=name,
         default_entity_id=default_entity_id,
+        entity_category=entity_category,
         initial=None if initial is None else bool(initial),
         unit=unit,
         device_class=device_class,

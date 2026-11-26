@@ -22,13 +22,12 @@ from .declarations import (
     Declaration,
     EntityState,
     IntegrationPlatform,
+    base_declaration,
     check_attributes,
     check_value,
     default_state,
     resolve_state,
-    validate_default_entity_id,
     validate_key,
-    validate_name,
     validate_sensor_fields,
 )
 from .errors import IntegrationDeclarationClosedError, IntegrationHandleClosedError
@@ -133,6 +132,7 @@ class Integration(Resource):
         name: str,
         on_press: "HandlerType",
         mode: ExecutionMode | str | None = None,
+        entity_category: str | None = None,
         default_entity_id: str | None = None,
     ) -> Coroutine[Any, Any, IntegrationButton]:
         """Declare a button. Pressing it in Home Assistant runs ``on_press``.
@@ -147,6 +147,9 @@ class Integration(Resource):
             on_press: The handler to run on a press.
             mode: What a press does while the previous one is still running; the bus's ``ExecutionMode``,
                 ``single`` by default.
+            entity_category: ``"config"`` files the button under the device's Configuration section in Home
+                Assistant, ``"diagnostic"`` under Diagnostic; either keeps it off auto-generated dashboards.
+                ``None`` (the default) makes it a primary control.
             default_entity_id: A full entity id (``"button.feed_cat"``) Home Assistant uses when it first creates
                 the entity; ignored after that.
 
@@ -154,15 +157,17 @@ class Integration(Resource):
             The button's handle.
 
         Raises:
-            ValueError: An invalid or duplicate key, an invalid name, or an invalid ``default_entity_id``.
+            ValueError: An invalid or duplicate key, an invalid name, an invalid ``default_entity_id``, or an
+                ``entity_category`` other than ``"config"`` or ``"diagnostic"``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.BUTTON
-        declaration = Declaration(
-            key=self._check_declarable(key, platform),
-            platform=platform,
-            name=validate_name(name, platform),
-            default_entity_id=validate_default_entity_id(default_entity_id, platform),
+        declaration = base_declaration(
+            self._check_declarable(key, platform),
+            platform,
+            name=name,
+            default_entity_id=default_entity_id,
+            entity_category=entity_category,
         )
         source_location, registration_source = capture_registration_source()
         return guard_await(
@@ -181,6 +186,7 @@ class Integration(Resource):
         name: str,
         on_toggle: "HandlerType",
         initial: bool = False,
+        entity_category: str | None = None,
         mode: ExecutionMode | str | None = None,
         default_entity_id: str | None = None,
     ) -> Coroutine[Any, Any, IntegrationSwitch]:
@@ -197,6 +203,9 @@ class Integration(Resource):
             on_toggle: The handler to run on a toggle.
             initial: The state of a switch that has never been stored. Changing it later has no effect on a switch
                 that already has a stored state.
+            entity_category: ``"config"`` files the switch under the device's Configuration section in Home
+                Assistant, ``"diagnostic"`` under Diagnostic; either keeps it off auto-generated dashboards.
+                ``None`` (the default) makes it a primary control.
             mode: What a toggle does while the previous one is still running; the bus's ``ExecutionMode``,
                 ``single`` by default.
             default_entity_id: A full entity id (``"switch.show"``) Home Assistant uses when it first creates the
@@ -206,20 +215,21 @@ class Integration(Resource):
             The switch's handle.
 
         Raises:
-            ValueError: An invalid or duplicate key, an invalid name, a non-bool ``initial``, or an invalid
-                ``default_entity_id``.
+            ValueError: An invalid or duplicate key, an invalid name, a non-bool ``initial``, an invalid
+                ``default_entity_id``, or an ``entity_category`` other than ``"config"`` or ``"diagnostic"``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.SWITCH
         if not isinstance(initial, bool):
             raise ValueError(f"switch {key!r} initial must be a bool, got {initial!r}")
-        declaration = Declaration(
-            key=self._check_declarable(key, platform),
-            platform=platform,
-            name=validate_name(name, platform),
-            default_entity_id=validate_default_entity_id(default_entity_id, platform),
-            initial=initial,
+        base = base_declaration(
+            self._check_declarable(key, platform),
+            platform,
+            name=name,
+            default_entity_id=default_entity_id,
+            entity_category=entity_category,
         )
+        declaration = replace(base, initial=initial)
         source_location, registration_source = capture_registration_source()
         return guard_await(
             self._declare_with_handler(
@@ -239,6 +249,7 @@ class Integration(Resource):
         device_class: str | None = None,
         state_class: str | None = None,
         options: list[str] | None = None,
+        entity_category: str | None = None,
         default_entity_id: str | None = None,
     ) -> Coroutine[Any, Any, IntegrationSensor]:
         """Declare a sensor, whose value the app sets.
@@ -256,6 +267,9 @@ class Integration(Resource):
             state_class: ``"measurement"``, ``"measurement_angle"``, ``"total"`` or ``"total_increasing"``; a
                 sensor with a state class is numeric.
             options: The allowed values of an enum sensor (``device_class="enum"``), which requires them.
+            entity_category: ``"config"`` files the sensor under the device's Configuration section in Home
+                Assistant, ``"diagnostic"`` under Diagnostic; either keeps it off auto-generated dashboards.
+                ``None`` (the default) makes it a primary sensor.
             default_entity_id: A full entity id (``"sensor.next_feed"``) Home Assistant uses when it first creates
                 the entity; ignored after that.
 
@@ -264,17 +278,17 @@ class Integration(Resource):
 
         Raises:
             ValueError: An invalid or duplicate key, an invalid name, an unknown device or state class, an enum
-                sensor without options or with a unit or state class, options on another sensor, or an invalid
-                ``default_entity_id``.
+                sensor without options or with a unit or state class, options on another sensor, an invalid
+                ``default_entity_id``, or an ``entity_category`` other than ``"config"`` or ``"diagnostic"``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.SENSOR
         key = self._check_declarable(key, platform)
-        declaration = Declaration(
-            key=key,
-            platform=platform,
-            name=validate_name(name, platform),
-            default_entity_id=validate_default_entity_id(default_entity_id, platform),
+        base = base_declaration(
+            key, platform, name=name, default_entity_id=default_entity_id, entity_category=entity_category
+        )
+        declaration = replace(
+            base,
             unit=unit,
             device_class=device_class,
             state_class=state_class,

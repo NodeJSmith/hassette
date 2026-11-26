@@ -79,6 +79,16 @@ Home Assistant picks the entity ID from the device and entity names when it firs
 
 Every `add_*` call raises `ValueError` when `name` isn't a non-empty string, or when `default_entity_id` isn't a string of the form `<platform>.<object_id>` on the entity's own platform.
 
+## Entity Categories
+
+`entity_category` tells Home Assistant where an entity belongs on its device page. Every `add_*` method takes it:
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/integration_entities.py:category"
+```
+
+`"config"` files the entity under the device's Configuration section, for controls that maintain or reset it. `"diagnostic"` files it under Diagnostic, for readings that only help debug it. Home Assistant leaves both kinds off auto-generated dashboards. An entity without a category is a primary control or sensor. Any other value raises `ValueError` from the `add_*` call.
+
 ## Integration Entities or Helpers
 
 [`Api.helpers`](../api/managing-helpers.md) creates `input_button`, `input_boolean` and `input_number` helpers from code. Declared entities differ from helpers in four ways:

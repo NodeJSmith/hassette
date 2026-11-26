@@ -76,3 +76,15 @@ class PortionApp(App[PortionConfig]):
         )
         await self.mode.set("normal", attributes={"since": "today"})
         # --8<-- [end:enum]
+
+        # --8<-- [start:category]
+        self.reset_feeder = await self.integration.add_button(
+            "reset_feeder",
+            name="Reset feeder",
+            on_press=self.on_reset_feeder,
+            entity_category="config",
+        )
+        # --8<-- [end:category]
+
+    async def on_reset_feeder(self):
+        await self.mode.set("normal")
