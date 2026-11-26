@@ -232,35 +232,18 @@ class SyncExecutor:
         self.log_saturation_rate_limited()
 
     def log_saturation_rate_limited(self) -> None:
-        """Emit a rate-limited pool-saturation WARNING when outstanding submissions cross the threshold.
-
-        Uses a single global timestamp for rate-limiting — pool saturation is a global
-        condition, not per-entity, so the global-timestamp model from
-        execution_pipeline.enqueue_record is the right fit here (not the per-entity dict in
-        log_timeout_rate_limited).
-
-        Outstanding-submission count is tracked via a dedicated counter incremented on
-        submission and decremented in the future's done-callback. Both operations run on
-        the event loop thread, so the counter needs no lock. The queue depth is read for
-        log context only — it does not gate the warning.
-
-        Threshold and rate-limit are set by rebuild_pool() (sourced from
-        lifecycle.sync_executor_saturation_warn_threshold /
-        lifecycle.sync_executor_saturation_warn_rate_limit_seconds), not read here directly —
-        SyncExecutor is a plain capability class with no ``hassette`` reference.
-        """
+        """Emit a rate-limited pool-saturation WARNING when outstanding submissions cross the threshold."""
         if self.executor is None:
             return
         max_workers: int = self.executor._max_workers  # pyright: ignore[reportAttributeAccessIssue]
 
         occupancy = self._outstanding_submissions / max_workers
         if occupancy < self.saturation_warn_threshold:
-            return  # below threshold — nothing to warn about
+            return
 
         if not self.saturation_warn_pacer.allow(self.saturation_warn_rate_limit_seconds):
-            return  # rate-limited — suppress until window expires
+            return
 
-        # Read queue depth for context only — not a gating condition.
         # _work_queue is a SimpleQueue; qsize() is accurate under the GIL.
         queue_depth: int = self.executor._work_queue.qsize()  # pyright: ignore[reportAttributeAccessIssue]
 

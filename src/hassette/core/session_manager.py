@@ -256,11 +256,7 @@ class SessionManager(Resource):
             # The BEGIN makes both deletes one atomic transaction and lets rollback() work.
             await db.execute("BEGIN")
 
-            # Step 1: delete executions referencing these listeners first.
-            # executions.listener_id has ON DELETE SET NULL, but the table CHECK requires
-            # exactly one of (listener_id, job_id) to be non-NULL.  Deleting the listener
-            # would cascade-NULL listener_id and violate that constraint.  Removing the
-            # executions rows first sidesteps the cascade entirely.
+            # Step 1: delete executions first; see the docstring.
             await db.execute(
                 f"DELETE FROM executions WHERE listener_id IN ({placeholders})",
                 stale_ids,

@@ -6,9 +6,7 @@ calls among these functions — and from ``CommandExecutor.serve()``/``_execute(
 are plain module-level calls (e.g. ``persist_batch(executor, ...)``); there is no corresponding
 ``CommandExecutor.persist_batch`` method. Tests that need to observe a substitute implementation
 patch the module attribute directly (e.g. ``monkeypatch.setattr(execution_pipeline,
-"persist_batch", fake_persist)``) — Python resolves an unqualified call inside this module
-through this module's own globals on every call, so the patched attribute is what every caller
-here observes.
+"persist_batch", fake_persist)``).
 """
 
 import asyncio
@@ -152,7 +150,6 @@ async def drain_and_persist(
     if first_item is not None:
         _classify(first_item)
 
-    # Drain remaining items up to a total batch size of _BATCH_DRAIN_CAP (non-blocking)
     for _ in range(_BATCH_DRAIN_CAP - 1 if first_item is not None else _BATCH_DRAIN_CAP):
         try:
             item = executor._write_queue.get_nowait()
@@ -160,7 +157,6 @@ async def drain_and_persist(
             break
         _classify(item)
 
-    # Persist fresh records as a single batch (retry_count=0)
     if fresh_records:
         await persist_batch(executor, fresh_records)
 
@@ -220,10 +216,8 @@ async def flush_queue(executor: "CommandExecutor") -> None:
     Unlike drain_and_persist, there is no size limit.
 
     Wraps persist_batch in try/except — DB may already be closed at shutdown. Passes
-    ``shutdown=True`` through to ``persist_batch()`` so a retryable failure (OperationalError,
-    or a submit() queue timeout) drops straight into ``_dropped_shutdown`` instead of being
-    re-enqueued: this drain runs exactly once and nothing reads ``_write_queue`` again
-    afterward, so a re-enqueued batch would otherwise be silently lost and never counted.
+    ``shutdown=True`` through to ``persist_batch()`` so a retryable failure drops into
+    ``_dropped_shutdown`` instead of being re-enqueued; see ``retry_or_drop()``.
     """
     records: list[ExecutionRecord] = []
 
@@ -281,12 +275,9 @@ async def persist_batch(
         executor: The owning CommandExecutor instance.
         records: Unified execution records to insert into executions.
         retry_count: The number of times this batch has already been retried.
-        shutdown: Whether this call is part of ``flush_queue()``'s one-shot shutdown drain —
-            see ``retry_or_drop()`` for why that changes a retryable failure's outcome.
+        shutdown: Whether this call is part of ``flush_queue()``'s shutdown drain; see
+            ``retry_or_drop()``.
     """
-    # Drain-time session_id injection
-    # Records enqueued before session creation have session_id=None.
-    # Inject the real session_id now at persist time.
     current_session_id = executor.hassette.try_session_id()
 
     if current_session_id is not None:
