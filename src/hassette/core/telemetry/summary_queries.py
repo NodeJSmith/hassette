@@ -66,8 +66,7 @@ class SummaryQueriesMixin:
     ) -> AppHealthAggregates:
         """Return a single-row aggregate of handler and job health metrics for one app instance.
 
-        Uses a single query against ``executions``. SQLite does not support ``FILTER``; uses
-        ``SUM(CASE WHEN kind='handler' ...)`` instead. Executions of handlers and jobs removed
+        Uses a single query against ``executions``. Executions of handlers and jobs removed
         since they ran still count: health over a window reflects what ran in it.
 
         Args:

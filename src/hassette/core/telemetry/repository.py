@@ -19,10 +19,10 @@ from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.core.telemetry.insert_params import (
     EXECUTION_INSERT_SQL,
     execution_insert_params,
-    insert_row_with_fk_fallback,
     job_insert_params,
     listener_insert_params,
     manifest_insert_params,
+    try_insert_execution_row,
 )
 from hassette.core.telemetry.reconcile_sql import (
     build_clear_stale_job_timing_query,
@@ -592,7 +592,7 @@ class TelemetryRepository:
             for record in records:
                 params = execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
-                if await insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
+                if not await try_insert_execution_row(db, params, fk_field, LOGGER):
                     dropped.append(record)
 
         return dropped

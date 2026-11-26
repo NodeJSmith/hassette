@@ -204,7 +204,7 @@ def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
     # dup-ignore-end
 
 
-async def insert_row_with_fk_fallback(
+async def try_insert_execution_row(
     db: "aiosqlite.Connection",
     record_params: dict,
     fk_field: str,
@@ -219,11 +219,11 @@ async def insert_row_with_fk_fallback(
         logger: Logger instance for warning/error messages.
 
     Returns:
-        True if the row was dropped (failed even after nulling FK), False on success.
+        True if the row was inserted (possibly with the FK nulled), False if it was dropped.
     """
     try:
         await db.execute(EXECUTION_INSERT_SQL, record_params)
-        return False
+        return True
     except sqlite3.IntegrityError as exc:
         if not is_fk_violation(exc):
             logger.error(
@@ -232,7 +232,7 @@ async def insert_row_with_fk_fallback(
                 record_params.get(fk_field),
                 exc,
             )
-            return True
+            return False
         logger.warning(
             "FK violation on executions row (%s=%s) — nulling FK and retrying",
             fk_field,
@@ -241,10 +241,10 @@ async def insert_row_with_fk_fallback(
         nulled_params = {**record_params, fk_field: None}
         try:
             await db.execute(EXECUTION_INSERT_SQL, nulled_params)
-            return False
+            return True
         except sqlite3.IntegrityError as retry_exc:
             logger.error(
                 "Failed to persist executions row even with null FK — dropping: %s",
                 retry_exc,
             )
-            return True
+            return False
