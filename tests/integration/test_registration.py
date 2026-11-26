@@ -110,6 +110,32 @@ async def test_listener_mode_updates_on_reregistration(
     assert row[0] == "queued"
 
 
+async def test_listener_handler_method_and_once_update_on_reregistration(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """Renaming the handler or flipping once under the same name/topic updates the same row."""
+    db_service, _ = initialized_db
+
+    first_id = await executor.register_listener(
+        make_listener_registration(
+            app_key="my_app", handler_method="MyApp.on_old", name="rereg_handler_listener", once=True
+        )
+    )
+    second_id = await executor.register_listener(
+        make_listener_registration(
+            app_key="my_app", handler_method="MyApp.on_new", name="rereg_handler_listener", once=False
+        )
+    )
+
+    assert second_id == first_id
+    cursor = await db_service.db.execute("SELECT handler_method, once FROM listeners WHERE id = ?", (first_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "MyApp.on_new"
+    assert row[1] == 0
+
+
 async def test_job_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
