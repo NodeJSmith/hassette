@@ -15,6 +15,7 @@ from hassette.integration.declarations import (
     encode_value,
     fits,
     validate_default_entity_id,
+    validate_entity_category,
     validate_key,
     validate_name,
     validate_sensor_fields,
@@ -75,6 +76,17 @@ def test_non_string_default_entity_id_raises_value_error() -> None:
 def test_default_entity_id_on_matching_platform_passes() -> None:
     assert validate_default_entity_id("button.feed_cat", IntegrationPlatform.BUTTON) == "button.feed_cat"
     assert validate_default_entity_id(None, IntegrationPlatform.BUTTON) is None
+
+
+@pytest.mark.parametrize("category", ["config", "diagnostic", None])
+def test_valid_entity_category_passes(category: str | None) -> None:
+    assert validate_entity_category(category, IntegrationPlatform.SWITCH) == category
+
+
+@pytest.mark.parametrize("category", ["system", "Config", "", 1, [], {}])
+def test_invalid_entity_category_raises(category: object) -> None:
+    with pytest.raises(ValueError, match="entity_category must be one of 'config', 'diagnostic' or None"):
+        validate_entity_category(category, IntegrationPlatform.SWITCH)
 
 
 @pytest.mark.parametrize(

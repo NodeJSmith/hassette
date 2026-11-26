@@ -4711,6 +4711,18 @@
             "title": "Default Entity Id",
             "description": "The entity id the app suggests, applied only when the entity is first created in Home Assistant."
           },
+          "entity_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Category",
+            "description": "``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a\nprimary entity."
+          },
           "unit": {
             "anyOf": [
               {

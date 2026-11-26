@@ -43,6 +43,9 @@ class DeclaredEntity(BaseModel):
     """The entity's display name."""
     default_entity_id: str | None = None
     """The entity id the app suggests, applied only when the entity is first created in Home Assistant."""
+    entity_category: str | None = None
+    """``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a
+    primary entity."""
     unit: str | None = None
     """A sensor's unit of measurement."""
     device_class: str | None = None

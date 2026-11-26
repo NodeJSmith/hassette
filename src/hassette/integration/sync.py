@@ -44,12 +44,18 @@ class IntegrationSyncFacade(Resource):
         name: str,
         on_press: "HandlerType",
         mode: ExecutionMode | str | None = None,
+        entity_category: str | None = None,
         default_entity_id: str | None = None,
     ) -> "IntegrationButton":
         """Declare a button; see ``Integration.add_button``."""
         return self.task_bucket.run_sync(
             self._integration.add_button(
-                key, name=name, on_press=on_press, mode=mode, default_entity_id=default_entity_id
+                key,
+                name=name,
+                on_press=on_press,
+                mode=mode,
+                default_entity_id=default_entity_id,
+                entity_category=entity_category,
             )
         )
 
@@ -60,13 +66,20 @@ class IntegrationSyncFacade(Resource):
         name: str,
         on_toggle: "HandlerType",
         initial: bool = False,
+        entity_category: str | None = None,
         mode: ExecutionMode | str | None = None,
         default_entity_id: str | None = None,
     ) -> "IntegrationSwitch":
         """Declare a switch; see ``Integration.add_switch``."""
         return self.task_bucket.run_sync(
             self._integration.add_switch(
-                key, name=name, on_toggle=on_toggle, initial=initial, mode=mode, default_entity_id=default_entity_id
+                key,
+                name=name,
+                on_toggle=on_toggle,
+                initial=initial,
+                mode=mode,
+                default_entity_id=default_entity_id,
+                entity_category=entity_category,
             )
         )
 
@@ -79,6 +92,7 @@ class IntegrationSyncFacade(Resource):
         device_class: str | None = None,
         state_class: str | None = None,
         options: list[str] | None = None,
+        entity_category: str | None = None,
         default_entity_id: str | None = None,
     ) -> "IntegrationSensor":
         """Declare a sensor; see ``Integration.add_sensor``."""
@@ -91,6 +105,7 @@ class IntegrationSyncFacade(Resource):
                 state_class=state_class,
                 options=options,
                 default_entity_id=default_entity_id,
+                entity_category=entity_category,
             )
         )
 

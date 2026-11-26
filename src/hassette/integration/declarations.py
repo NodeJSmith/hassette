@@ -21,6 +21,9 @@ from hassette.utils.hass_utils import VALID_ENTITY_ID
 
 KNOWN_DEVICE_CLASSES: frozenset[str] = frozenset(get_args(DEVICE_CLASS))
 KNOWN_STATE_CLASSES: frozenset[str] = frozenset(get_args(STATE_CLASS))
+ENTITY_CATEGORIES: frozenset[str] = frozenset({"config", "diagnostic"})
+"""Home Assistant's entity categories: ``config`` for a control that changes the device's setup or maintains it,
+``diagnostic`` for a reading or control that only helps diagnose it."""
 
 AWARE_TYPES = (Instant, ZonedDateTime, OffsetDateTime)
 """The ``whenever`` types a timestamp sensor accepts; each is normalized to an ``Instant``."""
@@ -56,13 +59,14 @@ class Declaration:
     """One declared entity: everything that describes it, without its state.
 
     ``initial`` is set for a switch only; ``unit``, ``device_class``, ``state_class`` and ``options`` for a
-    sensor only.
+    sensor only. ``entity_category`` applies to every platform.
     """
 
     key: str
     platform: IntegrationPlatform
     name: str
     default_entity_id: str | None = None
+    entity_category: str | None = None
     initial: bool | None = None
     unit: str | None = None
     device_class: str | None = None
@@ -151,6 +155,31 @@ def validate_default_entity_id(default_entity_id: object, platform: IntegrationP
             "only lowercase letters, digits and '_', and doesn't start or end with '_'"
         )
     return default_entity_id
+
+
+def validate_entity_category(entity_category: object, platform: IntegrationPlatform) -> str | None:
+    """Return ``entity_category`` if it is ``None``, ``"config"`` or ``"diagnostic"``; else raise ``ValueError``."""
+    if entity_category is None or (isinstance(entity_category, str) and entity_category in ENTITY_CATEGORIES):
+        return entity_category
+    valid = ", ".join(repr(category) for category in sorted(ENTITY_CATEGORIES))
+    raise ValueError(f"{platform} entity_category must be one of {valid} or None, got {entity_category!r}")
+
+
+def base_declaration(
+    key: str, platform: IntegrationPlatform, *, name: object, default_entity_id: object, entity_category: object
+) -> Declaration:
+    """A declaration with the fields every platform shares, each validated; ``replace()`` adds a platform's own.
+
+    Raises:
+        ValueError: An invalid name, ``default_entity_id`` or ``entity_category``.
+    """
+    return Declaration(
+        key=key,
+        platform=platform,
+        name=validate_name(name, platform),
+        default_entity_id=validate_default_entity_id(default_entity_id, platform),
+        entity_category=validate_entity_category(entity_category, platform),
+    )
 
 
 def validate_sensor_fields(

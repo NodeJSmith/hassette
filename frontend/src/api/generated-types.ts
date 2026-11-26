@@ -1696,6 +1696,12 @@ export interface components {
              */
             default_entity_id?: string | null;
             /**
+             * Entity Category
+             * @description ``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a
+             *     primary entity.
+             */
+            entity_category?: string | null;
+            /**
              * Unit
              * @description A sensor's unit of measurement.
              */
