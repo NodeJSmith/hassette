@@ -68,18 +68,9 @@ class SyncExecutorService(Service):
         )
 
     async def serve(self) -> None:
-        """Mark ready, then probe pool occupancy every ~30s until shutdown.
+        """Mark ready, then probe pool occupancy every ``_SATURATION_PROBE_INTERVAL_SECS`` until shutdown.
 
-        The periodic probe is the "8/8 workers stuck" signal: a submission-time check
-        alone goes silent exactly when the pool is fully starved (no new submissions
-        arrive when all workers are blocked).  The probe fires regardless of submission
-        rate so the operator still sees the WARNING at the configured cadence.
-
-        Probe cadence (_SATURATION_PROBE_INTERVAL_SECS) is fixed and equal to the *default*
-        rate-limit suppress window — see the module-level constant comments in
-        sync_executor.py. Configuring lifecycle.sync_executor_saturation_warn_rate_limit_seconds
-        above this fixed probe interval does not silence the probe; it aligns probe-triggered
-        warnings to the configured rate-limit cadence instead of the probe cadence.
+        See that constant in ``sync_executor.py`` for the cadence rationale.
         """
         mark_ready(self, reason="SyncExecutorService started")
         while not self.shutdown_event.is_set():
