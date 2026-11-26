@@ -128,8 +128,10 @@ class TelemetryRepository:
             )
             ON CONFLICT(app_key, instance_name, name, topic)
             DO UPDATE SET
+                handler_method = excluded.handler_method,
                 debounce = excluded.debounce,
                 throttle = excluded.throttle,
+                once = excluded.once,
                 priority = excluded.priority,
                 predicate_description = excluded.predicate_description,
                 human_description = excluded.human_description,
