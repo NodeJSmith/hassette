@@ -5,7 +5,7 @@ test_websocket_readiness_events.py, and tests/integration/websocket/:
 cleanup() teardown branches, the recv-task done callback,
 subscribe_events() payload construction, connect_ws()'s non-refused error path,
 send_json()'s send-failure redaction,
-raw_recv()'s binary/unexpected-type branches, respond_if_necessary()'s guard
+raw_recv()'s binary/unexpected-type branches, PendingResponses.respond_if_necessary()'s guard
 branches, and a handful of one-line property delegations.
 """
 
@@ -518,7 +518,7 @@ class TestDispatchSuppressesErrors:
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""
         respond_mock = Mock()
-        websocket_service.respond_if_necessary = respond_mock
+        websocket_service._pending.respond_if_necessary = respond_mock
 
         await websocket_service.dispatch({"type": "totally_unknown_type"})
 
@@ -526,21 +526,12 @@ class TestDispatchSuppressesErrors:
 
 
 class TestRespondIfNecessaryGuards:
-    def test_ignores_non_result_message(self, websocket_service: WebsocketService) -> None:
-        """respond_if_necessary is a no-op for message types other than 'result'."""
-        fut = websocket_service.hassette.loop.create_future()
-        websocket_service._pending.register(1, fut, "get_states")
-
-        websocket_service.respond_if_necessary({"type": "event", "id": 1})
-
-        assert not fut.done()
-
     def test_ignores_message_without_id(self, websocket_service: WebsocketService) -> None:
         """respond_if_necessary warns and returns without touching futures when id is missing."""
         fut = websocket_service.hassette.loop.create_future()
         websocket_service._pending.register(1, fut, "get_states")
 
-        websocket_service.respond_if_necessary({"type": "result", "success": True})
+        websocket_service._pending.respond_if_necessary({"type": "result", "success": True})
 
         assert not fut.done()
         assert 1 in websocket_service._pending.entries
@@ -550,7 +541,7 @@ class TestRespondIfNecessaryGuards:
         fut = websocket_service.hassette.loop.create_future()
         websocket_service._pending.register(1, fut, "get_states")
 
-        websocket_service.respond_if_necessary({"type": "result", "id": 999, "success": True})
+        websocket_service._pending.respond_if_necessary({"type": "result", "id": 999, "success": True})
 
         assert not fut.done()
 
@@ -560,7 +551,7 @@ class TestRespondIfNecessaryGuards:
         fut.set_result("first result")
         websocket_service._pending.register(3, fut, "get_states")
 
-        websocket_service.respond_if_necessary(
+        websocket_service._pending.respond_if_necessary(
             {"type": "result", "id": 3, "success": False, "error": {"message": "late error"}}
         )
 
@@ -571,7 +562,7 @@ class TestRespondIfNecessaryGuards:
         fut = websocket_service.hassette.loop.create_future()
         websocket_service._pending.register(5, fut, "get_states")
 
-        websocket_service.respond_if_necessary(
+        websocket_service._pending.respond_if_necessary(
             {"type": "result", "id": 5, "success": False, "error": {"message": "no code field here"}}
         )
 

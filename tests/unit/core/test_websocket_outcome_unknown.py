@@ -232,7 +232,9 @@ class TestLateReplyToTimedOutWrite:
         msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
         websocket_service._pending.logger = Mock()
 
-        websocket_service.respond_if_necessary({"type": "result", "id": msg_id, "success": True, "result": None})
+        websocket_service._pending.respond_if_necessary(
+            {"type": "result", "id": msg_id, "success": True, "result": None}
+        )
 
         websocket_service._pending.logger.warning.assert_not_called()
         websocket_service._pending.logger.info.assert_called_once()
@@ -249,7 +251,7 @@ class TestLateReplyToTimedOutWrite:
         msg_id = await _timed_out_write(websocket_service, type="counter/delete", counter_id="motion")
         websocket_service._pending.logger = Mock()
 
-        websocket_service.respond_if_necessary(
+        websocket_service._pending.respond_if_necessary(
             {"type": "result", "id": msg_id, "success": False, "error": {"code": "not_found", "message": "x"}}
         )
 
@@ -274,7 +276,7 @@ class TestLateReplyToTimedOutWrite:
 
         async def reply_as_deadline_fires(**data) -> None:
             reply = {"type": "result", "id": data["id"], "success": True, "result": {"ok": True}}
-            loop.call_soon(websocket_service.respond_if_necessary, reply)
+            loop.call_soon(websocket_service._pending.respond_if_necessary, reply)
 
         websocket_service.send_json = AsyncMock(side_effect=reply_as_deadline_fires)
 
@@ -304,7 +306,9 @@ class TestLateReplyToTimedOutWrite:
         with pytest.raises(asyncio.CancelledError):
             await task
         assert websocket_service._pending.entries[msg_id].awaited is False
-        websocket_service.respond_if_necessary({"type": "result", "id": msg_id, "success": True, "result": None})
+        websocket_service._pending.respond_if_necessary(
+            {"type": "result", "id": msg_id, "success": True, "result": None}
+        )
 
         assert websocket_service._pending.entries == {}
         assert websocket_service._pending.background_count == 0
@@ -341,8 +345,8 @@ class TestLateReplyToTimedOutWrite:
     async def test_unrecorded_late_reply_is_silent(self, websocket_service: WebsocketService) -> None:
         websocket_service._pending.logger = Mock()
 
-        websocket_service.respond_if_necessary({"type": "result", "id": 4242, "success": True})
-        websocket_service.respond_if_necessary(
+        websocket_service._pending.respond_if_necessary({"type": "result", "id": 4242, "success": True})
+        websocket_service._pending.respond_if_necessary(
             {"type": "result", "id": 4243, "success": False, "error": {"code": "not_found", "message": "x"}}
         )
 

@@ -72,7 +72,7 @@ class TestAwaitedWrite:
     async def test_reply_resolves_record_and_caller(self, ws: WebsocketService) -> None:
         on_resolve, task = await send_doorbell(ws)
 
-        ws.respond_if_necessary(success_reply(last_sent_msg_id(ws)))
+        ws._pending.respond_if_necessary(success_reply(last_sent_msg_id(ws)))
 
         assert await task == {"context": {"id": "ctx-1"}}
         assert on_resolve.calls == [("success", {"context_id": "ctx-1"})]
@@ -81,7 +81,7 @@ class TestAwaitedWrite:
     async def test_rejection_resolves_record_and_raises(self, ws: WebsocketService) -> None:
         on_resolve, task = await send_doorbell(ws)
 
-        ws.respond_if_necessary(error_reply(last_sent_msg_id(ws)))
+        ws._pending.respond_if_necessary(error_reply(last_sent_msg_id(ws)))
 
         with pytest.raises(CommandRejectedError):
             await task
@@ -100,7 +100,7 @@ class TestAwaitedWrite:
         assert on_resolve.calls == []
         assert ws._pending.background_count == 1
 
-        ws.respond_if_necessary(success_reply(last_sent_msg_id(ws)))
+        ws._pending.respond_if_necessary(success_reply(last_sent_msg_id(ws)))
 
         assert on_resolve.outcomes == ["success"]
         pending_log(ws).info.assert_called_once()  # the late-reply INFO line, not the rejected-call WARNING
@@ -149,7 +149,7 @@ class TestFireAndForget:
         on_resolve = Calls()
 
         async def reply_while_sending(**data: Any) -> None:
-            ws.respond_if_necessary(success_reply(data["id"], "ctx-fast"))
+            ws._pending.respond_if_necessary(success_reply(data["id"], "ctx-fast"))
 
         ws.send_json = AsyncMock(side_effect=reply_while_sending)
 
@@ -164,7 +164,7 @@ class TestFireAndForget:
         ws.send_json = AsyncMock()
 
         await ws.send_fire_and_forget(on_resolve, type="call_service", domain="light", service="turn_on")
-        ws.respond_if_necessary(error_reply(last_sent_msg_id(ws)))
+        ws._pending.respond_if_necessary(error_reply(last_sent_msg_id(ws)))
 
         assert on_resolve.outcomes == ["rejected"]
         pending_log(ws).warning.assert_not_called()

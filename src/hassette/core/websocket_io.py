@@ -6,8 +6,10 @@ pending-responses table its host provides, and never transitions ``ConnectionSta
 """
 
 import asyncio
+import itertools
 import logging
 import typing
+from collections.abc import Callable
 from contextlib import suppress
 from logging import Logger
 from typing import Any, cast
@@ -178,13 +180,7 @@ class WebsocketMessageIOMixin:
 
         last_abandoned_id: int | None = None
 
-        @retry(
-            retry=retry_if_exception(is_retryable_ws_failure),
-            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-            wait=wait_exponential_jitter(),
-            before_sleep=before_sleep_log(self.logger, logging.WARNING),
-            reraise=True,
-        )
+        @ws_retry(self.logger, MAX_RETRY_ATTEMPTS)
         async def subscribe_with_retry() -> int:
             nonlocal last_abandoned_id
             if last_abandoned_id is not None:
@@ -196,14 +192,15 @@ class WebsocketMessageIOMixin:
                     )
 
             msg_id = self.get_next_message_id()
+            attempt = {**payload, "id": msg_id}
             try:
-                await self.send_and_await_response({**payload, "id": msg_id}, msg_id)
+                await self.send_and_await_response(attempt, msg_id)
                 return msg_id
             except TimeoutError:
                 last_abandoned_id = msg_id
                 raise ResponseTimeoutError(
                     f"subscribe_events response timed out after {RESPONSE_TIMEOUT_SECONDS}s",
-                    original_data={**payload, "id": msg_id},
+                    original_data=attempt,
                 ) from None
 
         return await subscribe_with_retry()
@@ -249,36 +246,27 @@ class WebsocketMessageIOMixin:
         if on_resolve is not None and retry_on_timeout:
             raise ValueError("on_resolve needs retry_on_timeout=False: a recorded write is sent exactly once")
         caller_id = data.pop("id", None)
+        # The first attempt uses the caller's id, if given; every later attempt gets a fresh one.
+        ids = itertools.chain([caller_id] if caller_id is not None else [], iter(self.get_next_message_id, None))
 
-        @retry(
-            retry=retry_if_exception(is_retryable_ws_failure),
-            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else SINGLE_ATTEMPT),
-            wait=wait_exponential_jitter(),
-            before_sleep=before_sleep_log(self.logger, logging.WARNING),
-            reraise=True,
-        )
+        @ws_retry(self.logger, MAX_RETRY_ATTEMPTS if retry_on_timeout else SINGLE_ATTEMPT)
         async def send_with_retry() -> dict[str, Any]:
-            nonlocal caller_id
-            if caller_id is not None:
-                attempt_id = caller_id
-                caller_id = None
-            else:
-                attempt_id = self.get_next_message_id()
-            data["id"] = attempt_id
+            attempt_id = next(ids)
+            attempt = {**data, "id": attempt_id}
 
             try:
                 return await self.send_and_await_response(
-                    data, attempt_id, keep_when_abandoned=not retry_on_timeout, on_resolve=on_resolve
+                    attempt, attempt_id, keep_when_abandoned=not retry_on_timeout, on_resolve=on_resolve
                 )
             except TimeoutError:
                 raise ResponseTimeoutError(
-                    f"{command_label(data)}: no response within {RESPONSE_TIMEOUT_SECONDS}s; "
+                    f"{command_label(attempt)}: no response within {RESPONSE_TIMEOUT_SECONDS}s; "
                     "the command may or may not have applied",
-                    original_data=dict(data),
+                    original_data=attempt,
                 ) from None
             except WebsocketClosedError as exc:
                 raise ResponseLostError(
-                    f"{command_label(data)}: connection lost while waiting for a response; "
+                    f"{command_label(attempt)}: connection lost while waiting for a response; "
                     "the command may or may not have applied",
                     close_code=exc.close_code,
                 ) from exc
@@ -288,10 +276,6 @@ class WebsocketMessageIOMixin:
         except OutcomeUnknownError as exc:
             self.logger.warning("%s", exc)
             raise
-
-    def respond_if_necessary(self, message: dict) -> None:
-        """Settle the pending entry ``message`` answers (see ``PendingResponses.respond_if_necessary``)."""
-        self._pending.respond_if_necessary(message)
 
     async def send_json(self, **data: Any) -> None:
         """Send a JSON message over the socket without waiting for a response.
@@ -334,10 +318,11 @@ class WebsocketMessageIOMixin:
             raise
 
     async def raw_recv(self) -> None:
-        """Receive a raw WebSocket frame.
+        """Receive one WebSocket frame and dispatch it: TEXT frames are parsed and passed to ``dispatch``.
 
         Raises:
-            WebsocketClosedError: If the connection is closed.
+            RuntimeError: If the socket has not been initialized.
+            WebsocketClosedError: If the connection is closed, or a close or error frame arrives.
         """
         if not self._ws:
             raise RuntimeError(WS_NOT_CONNECTED_MESSAGE)
@@ -362,8 +347,8 @@ class WebsocketMessageIOMixin:
             raise WebsocketClosedError(f"{message} ({msg_type!r})", close_code=close_code)
 
         if msg_type == WSMsgType.ERROR:
-            exc = msg.data if isinstance(msg.data, BaseException) else None
-            raise WebsocketClosedError(f"WebSocket error frame received: {msg.data!r}", close_code=close_code) from exc
+            exc = raw if isinstance(raw, BaseException) else None
+            raise WebsocketClosedError(f"WebSocket error frame received: {raw!r}", close_code=close_code) from exc
 
         self.logger.warning("Received unexpected message type: %r", msg_type)
 
@@ -378,7 +363,7 @@ class WebsocketMessageIOMixin:
                 case "event":
                     await self.dispatch_hass_event(cast("HassEventEnvelopeDict", data))
                 case "result":
-                    self.respond_if_necessary(data)
+                    self._pending.respond_if_necessary(data)
                 case other:
                     self.logger.debug("Ignoring unknown message type: %s", other)
         except Exception as exc:
@@ -392,8 +377,9 @@ class WebsocketMessageIOMixin:
         ``wait_for_core_running``'s wait and is held for ``mark_connected`` to dispatch.
         ``core_config_updated`` also starts a re-read of ``get_config`` in a framework task.
         """
+        event_type = (data.get("event") or {}).get("event_type")
         if self._connection_state != ConnectionState.CONNECTED:
-            if (data.get("event") or {}).get("event_type") == HA_STARTED_EVENT_TYPE:
+            if event_type == HA_STARTED_EVENT_TYPE:
                 self._held_started_event = data
                 self._core_started_event.set()
             return
@@ -403,7 +389,7 @@ class WebsocketMessageIOMixin:
             stamp_websocket_generation(event, self.get_connected_generation())
         await self.hassette.send_event(event)
 
-        if (data.get("event") or {}).get("event_type") == CORE_CONFIG_UPDATED_EVENT_TYPE:
+        if event_type == CORE_CONFIG_UPDATED_EVENT_TYPE:
             self.task_bucket.spawn(self.refresh_ha_core_config(), name="ws:refresh_core_config")
 
 
@@ -414,3 +400,18 @@ def is_retryable_ws_failure(exc: BaseException) -> bool:
     is the recovery), a rejected one would be refused again, and a lost one may already have applied.
     """
     return isinstance(exc, ResponseTimeoutError)
+
+
+def ws_retry(logger: Logger, attempts: int) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Return the WebSocket retry decorator: up to ``attempts`` tries, retrying only ``is_retryable_ws_failure``.
+
+    Backoff is exponential with jitter, each retry is logged at WARNING on ``logger``, and the last
+    attempt's exception is re-raised.
+    """
+    return retry(
+        retry=retry_if_exception(is_retryable_ws_failure),
+        stop=stop_after_attempt(attempts),
+        wait=wait_exponential_jitter(),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )

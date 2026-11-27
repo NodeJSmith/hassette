@@ -224,7 +224,9 @@ async def test_respond_if_necessary_sets_result(websocket_service: WebsocketServ
     pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._pending.register(5, pending_future, "get_states")
 
-    websocket_service.respond_if_necessary({"type": "result", "id": 5, "success": True, "result": {"value": 7}})
+    websocket_service._pending.respond_if_necessary(
+        {"type": "result", "id": 5, "success": True, "result": {"value": 7}}
+    )
 
     assert pending_future.done()
     assert pending_future.result() == {"value": 7}
@@ -247,7 +249,7 @@ async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketS
         "success": False,
         "error": {"code": "invalid_format", "message": "failure"},
     }
-    websocket_service.respond_if_necessary(original_message)
+    websocket_service._pending.respond_if_necessary(original_message)
 
     assert pending_future.done()
     exception = pending_future.exception()
@@ -348,7 +350,7 @@ async def test_dispatch_routes_result_messages(
 ) -> None:
     """Ensure result messages are passed to the responder helper."""
     respond_mock = Mock()
-    monkeypatch.setattr(websocket_service, "respond_if_necessary", respond_mock)
+    monkeypatch.setattr(websocket_service._pending, "respond_if_necessary", respond_mock)
 
     await websocket_service.dispatch({"type": "result", "id": 1})
 
