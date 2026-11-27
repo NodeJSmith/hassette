@@ -12,13 +12,7 @@ from pydantic.fields import FieldInfo
 from hassette.app.app_config import AppConfig
 from hassette.core.app_lifecycle_common import ALREADY_RUNNING_REASON, CLASS_LOAD_FAILED_PREFIX, failure_reason
 from hassette.schemas.app_config_shape import INSTANCE_NAME_KEY, configured_instance_names, normalize_app_config
-from hassette.utils.app_utils import (
-    class_already_loaded,
-    class_failed_to_load,
-    get_class_load_error,
-    get_loaded_class,
-    load_app_class_from_manifest,
-)
+from hassette.utils.app_utils import cached_load_error, load_app_class_from_manifest
 from hassette.utils.exception_utils import get_short_traceback
 
 SUGGESTION_CUTOFF = 0.5
@@ -69,9 +63,8 @@ class AppFactory:
         Args:
             app_key: The app key from configuration
             manifest: The app manifest with config
-            force_reload: Whether to force reload the class. Ignored (treated as False) if any
-                instance of this app_key is already running (configured or not) -- see
-                reload_app() to force a reload onto instances that are already running.
+            force_reload: Whether to re-import the app's module if its file changed. Ignored while any
+                instance of this app_key is live (see ``load_class``); reload_app() stops them first.
             outcomes: The request's outcomes; must target every configured name.
         """
         # A flagged name's old instance may still be running work, so no replacement is created over it
@@ -91,27 +84,6 @@ class AppFactory:
             to_create.append(name)
         if not to_create:
             return {}
-
-        # A forced reload is unsafe to combine with any already-running instance of this
-        # app_key: load_class() would reload the shared module/class before the per-instance guard
-        # above preserves the live instance, leaving it bound to the pre-reload class while any
-        # newly created sibling gets the post-reload one -- two class versions serving one
-        # app_key at once. Unlike the guard above, this check is NOT scoped to the current config:
-        # the stale-failed prune (in _start_app_unlocked() before this) only prunes stale
-        # *failed* entries, never running ones, so a running orphan under a name the config no
-        # longer has can still be live here. Missing it would let force_reload slip through and
-        # reproduce the exact class-version split this guard exists to prevent, just via an orphan
-        # instead of a configured instance. Only reload when nothing for this app_key is currently running at all;
-        # reload_app() is the supported way to get a fresh class onto instances that are already
-        # up (it stops them first, so create_instances() runs against an empty slate — see its
-        # "no-op on the reload_app() path" note below).
-        if force_reload and self.registry.get_live_apps(app_key):
-            self.logger.debug(
-                "Ignoring force_reload for '%s' -- instance(s) already running; use reload_app() "
-                "to recreate them with a freshly-reloaded class",
-                app_key,
-            )
-            force_reload = False
 
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
@@ -205,35 +177,57 @@ class AppFactory:
         manifest: "AppManifest",
         force_reload: bool,
     ) -> "type[App[AppConfig]] | None":
-        """Load the app class, handling caching and errors."""
-        already_loaded = class_already_loaded(manifest.full_path, manifest.class_name)
-        already_failed = class_failed_to_load(manifest.full_path, manifest.class_name)
+        """Return the class for a new instance of ``app_key``, or None if it can't be loaded.
 
-        if force_reload or (not already_loaded and not already_failed):
-            try:
-                return load_app_class_from_manifest(manifest, config=self.hassette.config, force_reload=force_reload)
-            except Exception:
-                self.logger.error(
-                    "Failed to load app class for '%s':\n%s",
+        While any instance of ``app_key`` is live (configured or an orphan) and was built from the manifest's
+        file and class, a new instance gets that instance's class, forced or not, so one app key never runs
+        classes from two imports of its module. A forced reload of a sibling app key from the same file can
+        re-import the module, and a lone instance created afterwards would otherwise pick up the new class. A
+        live instance built from another file or class name (a stop that failed during a manifest change)
+        doesn't count, and the class comes from the loader. reload_app() stops every instance before
+        recreating them, so it reaches the loader.
+        """
+        # Every live instance of a key was built from one class, so the first one speaks for all of them;
+        # failed entries hold no App and aren't listed.
+        live = next(iter(self.registry.get_live_apps(app_key).values()), None)
+        if live is not None and built_from(live, manifest):
+            if force_reload:
+                self.logger.info(
+                    "Reload of '%s' reuses the class its running instance(s) use, so the app file is not "
+                    "re-imported; reload the whole app to pick up edits",
                     app_key,
-                    get_short_traceback(),
                 )
-                return None
+            return type(live)
 
-        if already_failed:
+        # The loader would re-raise this cached failure; checking here keeps it from being logged at ERROR again.
+        if not force_reload and cached_load_error(manifest.full_path, manifest.class_name) is not None:
             self.logger.debug(
                 "Cannot create app instances for '%s' because class failed to load previously",
                 app_key,
             )
             return None
 
-        return get_loaded_class(manifest.full_path, manifest.class_name)
+        try:
+            return load_app_class_from_manifest(manifest, config=self.hassette.config, force_reload=force_reload)
+        except Exception:
+            self.logger.error(
+                "Failed to load app class for '%s':\n%s",
+                app_key,
+                get_short_traceback(),
+            )
+            return None
 
     def get_load_error(self, manifest: "AppManifest") -> Exception:
         """Get the error that caused class loading to fail."""
-        if class_failed_to_load(manifest.full_path, manifest.class_name):
-            return get_class_load_error(manifest.full_path, manifest.class_name)
+        if (error := cached_load_error(manifest.full_path, manifest.class_name)) is not None:
+            return error
         return RuntimeError(f"Unknown error loading class for {manifest.class_name}")
+
+
+def built_from(app: "App[AppConfig]", manifest: "AppManifest") -> bool:
+    """Whether ``app`` was created from the same file and class name ``manifest`` names."""
+    built = app.app_manifest
+    return built is not None and built.full_path == manifest.full_path and built.class_name == manifest.class_name
 
 
 def warn_unrecognized_config_keys(

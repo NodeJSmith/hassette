@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 import jsonref
 
 from hassette.app.app_config import AppConfig
-from hassette.utils.app_utils import class_already_loaded, get_loaded_class
+from hassette.utils.app_utils import cached_class
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -337,8 +337,8 @@ def resolve_app_config_cls(
         return getattr(type(instance), "app_config_cls", None)
     if manifest is None:
         manifest = hassette.config.apps.manifests.get(app_key)
-    if manifest is not None and class_already_loaded(manifest.full_path, manifest.class_name):
-        return getattr(get_loaded_class(manifest.full_path, manifest.class_name), "app_config_cls", None)
+    if manifest is not None and (app_class := cached_class(manifest.full_path, manifest.class_name)) is not None:
+        return getattr(app_class, "app_config_cls", None)
     return None
 
 

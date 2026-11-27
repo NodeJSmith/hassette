@@ -64,7 +64,7 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 |--------|---------------|-------------|
 | **Start** | `STOPPED`, `FAILED`, or `DISABLED` | Initializes the app and begins processing events. |
 | **Stop** | `RUNNING` or `DEGRADED` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until started again. |
-| **Reload** | `RUNNING` or `DEGRADED` | Stops the app, re-imports its own module file, and starts it again, without restarting the Hassette process. See [What Reload Re-imports](#what-reload-re-imports). |
+| **Reload** | `RUNNING` or `DEGRADED` | Stops the app and starts it again without restarting the Hassette process. Re-imports the app's own module file first if it changed or its last import failed. See [What Reload Re-imports](#what-reload-re-imports). |
 
 **Stop** and **Reload** are both available for `DEGRADED` apps, not just `RUNNING` ones — a degraded app still has at least one instance running, so shutting it down or picking up new code is a meaningful recovery action. **Start** is not: nothing about `DEGRADED` implies a fully stopped app.
 
@@ -81,6 +81,12 @@ These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/rel
 What a reload picks up depends on what triggered it:
 
 - **The Reload button, `hassette app reload`, the Home Assistant reload button, or saving the app's own file** (with automatic reloads on): Hassette re-imports the app's own module file. Every module that file imports, such as a sibling module in a package-style app or a shared helper, keeps its previously imported code.
+
+    Hassette re-imports the file only when its contents changed since the last successful import, or when that import failed. Reloading an unchanged file restarts the app on the code already loaded, so the file's top-level code doesn't run again. Two apps defined in one file share one import, so reloading both after an edit runs the file once.
+
+    Reloading a single instance (the instance's Reload button, or `hassette app reload --instance`) while sibling instances run restarts it on the siblings' code. Every instance of an app runs the same code. Reload the whole app to pick up an edit.
+
+    A re-import replaces the module with a new copy. Another app module that imported it whole (`import apps.helpers as helpers`) keeps calling the old copy until that app reloads too. Names imported with `from apps.helpers import notify` keep the old code either way.
 - **Saving a change to the app's `app_config` in `hassette.toml`**: Hassette restarts the affected instances, usually only the ones whose config changed, with the code it already has loaded. Nothing is re-imported.
 - **Saving any other Python file**, such as a sibling module or a shared helper: no reload happens.
 

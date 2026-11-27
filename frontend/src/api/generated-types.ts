@@ -165,7 +165,7 @@ export interface paths {
         put?: never;
         /**
          * Reload App
-         * @description Re-import the app from disk, restart its instances, and report what the reload did to each one.
+         * @description Restart the app's instances, re-importing its module if the file changed, and report the result for each.
          */
         post: operations["reload_app_api_apps__app_key__reload_post"];
         delete?: never;
@@ -225,7 +225,7 @@ export interface paths {
         put?: never;
         /**
          * Reload Instance
-         * @description Re-import the app from disk, restart one instance by name, and report what the reload did to it.
+         * @description Restart one instance, re-importing a changed app file if no sibling instance is live, and report it.
          */
         post: operations["reload_instance_api_apps__app_key__instances__instance_name__reload_post"];
         delete?: never;

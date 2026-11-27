@@ -148,7 +148,7 @@ hassette app stop my-app --yes
 
 ### `hassette app reload <key>`
 
-Reloads an app from disk, or a specific instance with `--instance`. Prompts for confirmation unless `--yes` is passed. Only the app's own module file is re-imported; modules it imports keep their old code. See [What Reload Re-imports](../web-ui/manage-apps.md#what-reload-re-imports).
+Reloads an app from disk, or a specific instance with `--instance`. Prompts for confirmation unless `--yes` is passed. Hassette re-imports only the app's own module file, and only when the file changed or its last import failed. Modules it imports keep their old code, and another app that bound this module to a name (`import apps.helpers as helpers`) keeps the old copy until it reloads. With `--instance`, the instance restarts on the code its running siblings use. Reload the whole app to pick up an edit. See [What Reload Re-imports](../web-ui/manage-apps.md#what-reload-re-imports).
 
 ```bash
 hassette app reload my-app --yes

@@ -66,15 +66,14 @@ class AppStartStopMixin:
         """Create instances for an app and await their initialization.
 
         No-ops for any instance that already has a live registry entry (``succeeded``, "already running") —
-        calling start on an already-running app does not recreate its instances. ``force_reload`` is likewise
-        ignored whenever any instance of this app_key is already running, since reloading the
-        shared class out from under a live instance would leave it and any newly-created
-        sibling on two different class versions. Use ``reload_app()`` to stop-then-recreate
-        with a fresh class.
+        calling start on an already-running app does not recreate its instances. While any instance of this
+        app_key is live, new instances get its class and ``force_reload`` is ignored (``AppFactory.load_class``),
+        so one app key never runs two class versions. Use ``reload_app()`` to stop-then-recreate with a fresh
+        class.
 
         Args:
             app_key: The app key to start
-            force_reload: Whether to force-reload the app class from disk
+            force_reload: Whether to re-import the app's module if its file changed or its last import failed
             admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
                 ``AppBootstrapNotReleasedError``.
 
@@ -326,7 +325,7 @@ class AppStartStopMixin:
 
         Args:
             app_key: The app key to reload
-            force_reload: Whether to force-reload the app class from disk
+            force_reload: Whether to re-import the app's module if its file changed or its last import failed
             admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
                 ``AppBootstrapNotReleasedError``.
 
@@ -497,7 +496,7 @@ class AppStartStopMixin:
         Args:
             app_key: The app key
             instance_name: The name of the instance to reload
-            force_reload: Whether to force-reload the app class from disk
+            force_reload: Whether to re-import the app's module if its file changed or its last import failed
             admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
                 ``AppBootstrapNotReleasedError``.
 

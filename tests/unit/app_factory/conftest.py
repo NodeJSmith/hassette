@@ -23,6 +23,21 @@ def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
     return Mock(app_config_cls=config_cls, side_effect=build, **kwargs)
 
 
+class RunningApp:
+    """A real class standing in for a live instance's App class, so the factory can build from ``type(instance)``."""
+
+    app_config_cls = AppConfig
+
+    def __init__(self, *, app_config: AppConfig, app_manifest: object = None, **_: object) -> None:
+        self.instance_name = app_config.instance_name
+        self.app_manifest = app_manifest
+
+
+def running_app(instance_name: str, manifest: object) -> RunningApp:
+    """A live instance built from ``manifest``; new instances of its app key get ``RunningApp``."""
+    return RunningApp(app_config=AppConfig(instance_name=instance_name), app_manifest=manifest)
+
+
 def created_names(results: Mapping[str, object]) -> list[str]:
     """The names the factory built an ``App`` for, in creation order."""
     return [name for name, result in results.items() if not isinstance(result, Exception)]

@@ -31,10 +31,9 @@ values.
 
 - **Stale telemetry**: `.demo-data/` persists between runs. If the dashboard shows
   hours-old errors or inflated counts, stop the stack, `rm -rf .demo-data`, restart.
-- **Editing app source requires a stack restart.** Reloading a failed app via
-  `POST /api/apps/{key}/reload` re-runs the cached module — the traceback will show the
-  *new* source lines while executing the *old* code (#1005). Do not chase that ghost;
-  restart the whole demo script.
+- **Editing a helper module requires a stack restart.** `POST /api/apps/{key}/reload`
+  re-imports the app's own file when it changed, but never the modules it imports, so an
+  edited helper keeps running its old code. Restart the whole demo script.
 - **Failure data takes ~2 minutes.** `demo_stimulator`'s failing job needs a few cycles
   before error spotlights, sparklines, and log volume look representative. Don't
   screenshot or dispatch personas immediately at "Demo ready."
