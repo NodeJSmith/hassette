@@ -4,7 +4,7 @@ import contextlib
 import time
 from collections.abc import AsyncIterator
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiosqlite
 import orjson
@@ -405,6 +405,19 @@ class TelemetryRepository:
             )
             await db.execute(sql, params)
 
+    async def best_effort_write(self, sql: str, params: dict[str, Any], drop_message: str, *log_args: object) -> None:
+        """Execute and commit one write; a storage failure is logged at WARNING with a traceback and the write dropped.
+
+        The single drop policy for telemetry rows that are not worth failing the caller over. ``drop_message`` and
+        ``log_args`` are passed to the logger as a %-format string and its arguments.
+        """
+        db = self._db_service.db
+        try:
+            await db.execute(sql, params)
+            await db.commit()
+        except STORAGE_ERRORS:
+            LOGGER.warning(drop_message, *log_args, exc_info=True)
+
     async def insert_blocking_event(self, event: BlockingEvent) -> None:
         """Insert a single blocking event row into the ``blocking_events`` table.
 
@@ -417,44 +430,37 @@ class TelemetryRepository:
         Args:
             event: The ``BlockingEvent`` record to persist.
         """
-        db = self._db_service.db
-        try:
-            await db.execute(
-                """
-                INSERT INTO blocking_events (
-                    session_id, app_key, instance_name,
-                    execution_id, tier, primitive, source_location,
-                    stall_duration_ms, detected_ts, source_tier, reason, frames
-                ) VALUES (
-                    :session_id, :app_key, :instance_name,
-                    :execution_id, :tier, :primitive, :source_location,
-                    :stall_duration_ms, :detected_ts, :source_tier, :reason, :frames
-                )
-                """,
-                {
-                    "session_id": event.session_id,
-                    "app_key": event.app_key,
-                    "instance_name": event.instance_name,
-                    "execution_id": event.execution_id,
-                    "tier": event.tier,
-                    "primitive": event.primitive,
-                    "source_location": event.source_location,
-                    "stall_duration_ms": event.stall_duration_ms,
-                    "detected_ts": event.detected_ts,
-                    "source_tier": event.source_tier,
-                    "reason": event.reason,
-                    "frames": encode_frames(event.frames),
-                },
+        await self.best_effort_write(
+            """
+            INSERT INTO blocking_events (
+                session_id, app_key, instance_name,
+                execution_id, tier, primitive, source_location,
+                stall_duration_ms, detected_ts, source_tier, reason, frames
+            ) VALUES (
+                :session_id, :app_key, :instance_name,
+                :execution_id, :tier, :primitive, :source_location,
+                :stall_duration_ms, :detected_ts, :source_tier, :reason, :frames
             )
-            await db.commit()
-        except STORAGE_ERRORS:
-            LOGGER.warning(
-                "Dropped blocking_events row (DB write failed) — tier=%s app=%s primitive=%s",
-                event.tier,
-                event.app_key,
-                event.primitive,
-                exc_info=True,
-            )
+            """,
+            {
+                "session_id": event.session_id,
+                "app_key": event.app_key,
+                "instance_name": event.instance_name,
+                "execution_id": event.execution_id,
+                "tier": event.tier,
+                "primitive": event.primitive,
+                "source_location": event.source_location,
+                "stall_duration_ms": event.stall_duration_ms,
+                "detected_ts": event.detected_ts,
+                "source_tier": event.source_tier,
+                "reason": event.reason,
+                "frames": encode_frames(event.frames),
+            },
+            "Dropped blocking_events row (DB write failed) — tier=%s app=%s primitive=%s",
+            event.tier,
+            event.app_key,
+            event.primitive,
+        )
 
     async def insert_api_write(self, row: "ApiWriteRow") -> None:
         """Insert a ``pending`` ``api_writes`` row for a write being sent.
@@ -462,40 +468,33 @@ class TelemetryRepository:
         A DB write failure is logged with the write's identity and the row dropped; its later outcome
         update then matches nothing.
         """
-        db = self._db_service.db
-        try:
-            await db.execute(
-                """
-                INSERT INTO api_writes (
-                    write_id, session_id, app_key, instance_name, execution_id,
-                    kind, operation, target, data, outcome, sent_ts
-                ) VALUES (
-                    :write_id, :session_id, :app_key, :instance_name, :execution_id,
-                    :kind, :operation, :target, :data, 'pending', :sent_ts
-                )
-                """,
-                {
-                    "write_id": row.write_id,
-                    "session_id": row.session_id,
-                    "app_key": row.app_key,
-                    "instance_name": row.instance_name,
-                    "execution_id": row.execution_id,
-                    "kind": row.kind,
-                    "operation": row.operation,
-                    "target": None if row.target is None else orjson.dumps(row.target).decode(),
-                    "data": row.data,
-                    "sent_ts": row.sent_ts,
-                },
+        await self.best_effort_write(
+            """
+            INSERT INTO api_writes (
+                write_id, session_id, app_key, instance_name, execution_id,
+                kind, operation, target, data, outcome, sent_ts
+            ) VALUES (
+                :write_id, :session_id, :app_key, :instance_name, :execution_id,
+                :kind, :operation, :target, :data, 'pending', :sent_ts
             )
-            await db.commit()
-        except STORAGE_ERRORS:
-            LOGGER.warning(
-                "Dropped api_writes row (DB write failed) — app=%s kind=%s write=%s",
-                row.app_key,
-                row.kind,
-                row.write_id,
-                exc_info=True,
-            )
+            """,
+            {
+                "write_id": row.write_id,
+                "session_id": row.session_id,
+                "app_key": row.app_key,
+                "instance_name": row.instance_name,
+                "execution_id": row.execution_id,
+                "kind": row.kind,
+                "operation": row.operation,
+                "target": None if row.target is None else orjson.dumps(row.target).decode(),
+                "data": row.data,
+                "sent_ts": row.sent_ts,
+            },
+            "Dropped api_writes row (DB write failed) — app=%s kind=%s write=%s",
+            row.app_key,
+            row.kind,
+            row.write_id,
+        )
 
     async def update_api_write_outcome(
         self,
@@ -511,32 +510,25 @@ class TelemetryRepository:
 
         A DB write failure is logged and the row left as it was.
         """
-        db = self._db_service.db
-        try:
-            await db.execute(
-                """
-                UPDATE api_writes
-                SET outcome = :outcome, context_id = :context_id, error_code = :error_code,
-                    error_message = :error_message, resolved_ts = :resolved_ts
-                WHERE write_id = :write_id AND outcome = 'pending'
-                """,
-                {
-                    "write_id": write_id,
-                    "outcome": outcome,
-                    "context_id": context_id,
-                    "error_code": error_code,
-                    "error_message": error_message,
-                    "resolved_ts": resolved_ts,
-                },
-            )
-            await db.commit()
-        except STORAGE_ERRORS:
-            LOGGER.warning(
-                "Dropped api_writes outcome update (DB write failed) — write=%s outcome=%s",
-                write_id,
-                outcome,
-                exc_info=True,
-            )
+        await self.best_effort_write(
+            """
+            UPDATE api_writes
+            SET outcome = :outcome, context_id = :context_id, error_code = :error_code,
+                error_message = :error_message, resolved_ts = :resolved_ts
+            WHERE write_id = :write_id AND outcome = 'pending'
+            """,
+            {
+                "write_id": write_id,
+                "outcome": outcome,
+                "context_id": context_id,
+                "error_code": error_code,
+                "error_message": error_message,
+                "resolved_ts": resolved_ts,
+            },
+            "Dropped api_writes outcome update (DB write failed) — write=%s outcome=%s",
+            write_id,
+            outcome,
+        )
 
     async def upsert_listener_misses(self, rows: "list[ListenerMissRow]") -> None:
         """Add a batch of near-miss rollups to ``listener_misses``, merging into rows already stored for their key.
@@ -605,36 +597,30 @@ class TelemetryRepository:
         Called by the write-queue worker for rows ``SessionManager.write_lifecycle_row`` queued. ``details_json`` is
         ``change.details`` already serialized, so a model that can't serialize is dropped before it is queued.
         """
-        db = self._db_service.db
-        try:
-            await db.execute(
-                """
-                INSERT INTO lifecycle_events (
-                    session_id, kind, app_key, instance_name, from_status, to_status, details, ts
-                ) VALUES (
-                    :session_id, :kind, :app_key, :instance_name, :from_status, :to_status, :details, :ts
-                )
-                """,
-                {
-                    "session_id": session_id,
-                    "kind": change.kind,
-                    "app_key": change.app_key,
-                    "instance_name": change.instance_name,
-                    "from_status": change.from_status,
-                    "to_status": change.to_status,
-                    "details": details_json,
-                    "ts": ts,
-                },
+        await self.best_effort_write(
+            """
+            INSERT INTO lifecycle_events (
+                session_id, kind, app_key, instance_name, from_status, to_status, details, ts
+            ) VALUES (
+                :session_id, :kind, :app_key, :instance_name, :from_status, :to_status, :details, :ts
             )
-            await db.commit()
-        except STORAGE_ERRORS:
-            LOGGER.exception(
-                "Dropped lifecycle_events row (DB write failed) — kind=%s app=%s %s -> %s",
-                change.kind,
-                change.app_key,
-                change.from_status,
-                change.to_status,
-            )
+            """,
+            {
+                "session_id": session_id,
+                "kind": change.kind,
+                "app_key": change.app_key,
+                "instance_name": change.instance_name,
+                "from_status": change.from_status,
+                "to_status": change.to_status,
+                "details": details_json,
+                "ts": ts,
+            },
+            "Dropped lifecycle_events row (DB write failed) — kind=%s app=%s %s -> %s",
+            change.kind,
+            change.app_key,
+            change.from_status,
+            change.to_status,
+        )
 
 
 def listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
