@@ -137,9 +137,14 @@ display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a 
 holding only the fields to change. Omitted fields keep their stored values. `Update*Params`
 models import from `hassette.models.helpers`, like the create models.
 Home Assistant replaces the whole stored record on update, so Hassette reads the record first
-and sends it back with your changes applied. An edit made to the same helper in the Home
-Assistant UI between that read and the write is overwritten. A `helper_id` that does not exist
-raises `CommandRejectedError(code="not_found")`.
+and sends it back with the changes applied. A `helper_id` that does not exist raises
+`CommandRejectedError(code="not_found")`.
+
+!!! warning "Concurrent edits to the same helper are lost"
+    An edit made to the same helper between that read and the write (in the Home Assistant UI,
+    or by another app or client) is overwritten with the values Hassette read. Updates are safe
+    when each helper has one writer and its configuration isn't edited in the UI while an app
+    updates it. A lock inside an app doesn't help, because UI edits never pass through it.
 
 ### Delete
 
