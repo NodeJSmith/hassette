@@ -21,6 +21,7 @@ from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
     CreateInputBooleanParams,
+    CreateInputDatetimeParams,
     CreateInputNumberParams,
     CreateInputSelectParams,
     InputBooleanRecord,
@@ -30,7 +31,9 @@ from hassette.models.helpers import (
     InputSelectRecord,
     InputTextRecord,
     TimerRecord,
+    UpdateCounterParams,
     UpdateInputBooleanParams,
+    UpdateInputDatetimeParams,
     UpdateInputNumberParams,
 )
 from hassette.testing import AppTestHarness
@@ -146,6 +149,43 @@ async def test_update_keeps_unset_fields_and_clears_explicit_none():
     updated = await api.helpers.update(record.id, UpdateInputBooleanParams(icon=None))
 
     assert (updated.name, updated.icon, updated.initial) == ("Away", None, True)
+
+
+async def test_create_fills_home_assistant_defaults():
+    api = make_recording_api()
+
+    record = await api.helpers.create(CreateCounterParams(name="Visits"))
+
+    assert (record.initial, record.step, record.restore) == (0, 1, True)
+
+
+async def test_create_with_none_for_a_defaulted_field_raises_invalid_format():
+    """HA rejects ``null`` for a field its schema defaults, so the harness does too."""
+    api = make_recording_api()
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.create(CreateCounterParams(name="Visits", step=None))
+
+    assert exc_info.value.code == "invalid_format"
+
+
+async def test_update_none_restores_home_assistant_default():
+    api = make_recording_api()
+    record = await api.helpers.create(CreateCounterParams(name="Visits", step=5))
+
+    updated = await api.helpers.update(record.id, UpdateCounterParams(step=None))
+
+    assert updated.step == 1
+
+
+async def test_update_leaving_datetime_without_date_or_time_raises_invalid_format():
+    api = make_recording_api()
+    record = await api.helpers.create(CreateInputDatetimeParams(name="Alarm", has_time=True))
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.update(record.id, UpdateInputDatetimeParams(has_time=False))
+
+    assert exc_info.value.code == "invalid_format"
 
 
 async def test_update_clearing_a_required_field_raises_invalid_format():

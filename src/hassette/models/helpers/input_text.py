@@ -19,19 +19,23 @@ from pydantic import BaseModel, ConfigDict
 
 
 class InputTextRecord(BaseModel):
-    """Stored ``input_text`` helper configuration returned by HA."""
+    """Stored ``input_text`` helper configuration returned by HA.
+
+    Fields HA fills in when a helper is stored default to HA's own values, so a record built
+    without them (by the test harness, say) matches what HA would return.
+    """
 
     model_config = ConfigDict(extra="allow")
 
     id: str
     name: str
-    min: int | None = None
-    max: int | None = None
+    min: int = 0
+    max: int = 100
     initial: str | None = None
     icon: str | None = None
     unit_of_measurement: str | None = None
     pattern: str | None = None
-    mode: Literal["text", "password"] | None = None
+    mode: Literal["text", "password"] = "text"
 
 
 class CreateInputTextParams(BaseModel):

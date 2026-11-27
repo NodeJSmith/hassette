@@ -141,6 +141,14 @@ def generate_helper_id(existing_ids: set[str], name: str) -> str:
         n += 1
 
 
+def validate_helper_record(record_type: type[BaseModel], domain: str, data: dict[str, Any]) -> Any:
+    """Build a Record, raising ``CommandRejectedError(code="invalid_format")`` where HA would reject it."""
+    try:
+        return record_type.model_validate(data)
+    except ValidationError as exc:
+        raise CommandRejectedError(f"{domain} helper is invalid: {exc}", code="invalid_format") from exc
+
+
 @runtime_checkable
 class HelperClientProtocol(Protocol):
     """Structural protocol for the ``hassette.api.helpers.HelperClient`` interface.
@@ -360,19 +368,10 @@ class RecordingHelperClient:
         return [r.model_copy(deep=deep_copy) for r in self.helper_definitions[domain].values()]
 
     def _create_helper(self, record_type: type, method_name: str, params: Any) -> Any:
-        """Generic create helper — records an ApiCall and inserts a new record.
+        """Record an ApiCall under ``method_name`` and store a new record built from ``params``.
 
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        copy depth. Auto-suffixes the generated id on collision (mirrors HA's
-        IDManager.generate_id).
-
-        Args:
-            record_type: The Record class to instantiate.
-            method_name: The API method name to record (e.g. ``"create_input_boolean"``).
-            params: The Create*Params model instance.
-
-        Returns:
-            A copy of the newly created record.
+        Auto-suffixes the generated id on collision (mirrors HA's ``IDManager.generate_id``).
+        Returns a copy of the new record; raises like :func:`validate_helper_record`.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self._parent._record_call(
@@ -383,7 +382,9 @@ class RecordingHelperClient:
             )
         )
         generated_id = self._new_helper_id(domain, params.name)
-        record = record_type(id=generated_id, **params.model_dump(exclude_unset=True))
+        record = validate_helper_record(
+            record_type, domain, {"id": generated_id, **params.model_dump(exclude_unset=True)}
+        )
         self.helper_definitions[domain][record.id] = record
         return record.model_copy(deep=deep_copy)
 
@@ -411,13 +412,7 @@ class RecordingHelperClient:
             )
         existing = self.helper_definitions[domain][helper_id]
         merged = merge_update(existing.model_dump(), params.model_dump(exclude_unset=True))
-        try:
-            updated = record_type.model_validate({"id": helper_id, **merged})
-        except ValidationError as exc:
-            # Real HA rejects an update that clears a required field with invalid_format.
-            raise CommandRejectedError(
-                f"{domain} helper {helper_id!r} update is invalid: {exc}", code="invalid_format"
-            ) from exc
+        updated = validate_helper_record(record_type, domain, {"id": helper_id, **merged})
         self.helper_definitions[domain][helper_id] = updated
         return updated.model_copy(deep=deep_copy)
 

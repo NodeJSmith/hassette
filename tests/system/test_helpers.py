@@ -138,6 +138,11 @@ async def test_helper_crud_against_real_ha(
         created = await helpers.create(create_params)
         try:
             assert created.name == create_params.name
+            # The Record models default the fields HA fills in to HA's own values, so the test
+            # harness builds the same record HA stores. This fails when HA changes a default.
+            defaulted = set(type(created).model_fields) - create_params.model_fields_set - {"id"}
+            expected = type(created)(id=created.id, **create_params.model_dump(exclude_unset=True))
+            assert created.model_dump(include=defaulted) == expected.model_dump(include=defaulted)
 
             # list() also returns any other stored helpers in the domain, so match on the new id.
             listed = {record.id: record for record in await helpers.list(domain)}

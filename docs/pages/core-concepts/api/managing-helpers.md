@@ -215,6 +215,10 @@ that already holds any helpers the app created. Seeding an id the app already cr
 Seeded records are stored as deep copies. Later mutations to the record passed into
 `seed_helper` do not affect harness state.
 
+Record models hold what Home Assistant stores. Fields Home Assistant fills in default to its
+values, so `CounterRecord(id="visits", name="Visits")` has `step=1`, and an
+`InputDatetimeRecord` needs `has_date=True` or `has_time=True`, as on create.
+
 ??? note "Typed model reference"
 
     Each domain exposes three Pydantic model classes in `hassette.models.helpers`:

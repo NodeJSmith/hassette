@@ -12,7 +12,10 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class InputDatetimeRecord(BaseModel):
-    """Stored ``input_datetime`` helper configuration returned by HA."""
+    """Stored ``input_datetime`` helper configuration returned by HA.
+
+    HA never stores a record with neither a date nor a time, so the record enforces that too.
+    """
 
     model_config = ConfigDict(extra="allow")
 
@@ -22,6 +25,11 @@ class InputDatetimeRecord(BaseModel):
     has_time: bool = False
     icon: str | None = None
     initial: str | None = None
+
+    @model_validator(mode="after")
+    def _require_date_or_time(self) -> Self:
+        require_date_or_time(self.has_date, self.has_time)
+        return self
 
 
 class CreateInputDatetimeParams(BaseModel):
@@ -42,8 +50,7 @@ class CreateInputDatetimeParams(BaseModel):
 
     @model_validator(mode="after")
     def _require_date_or_time(self) -> Self:
-        if not (self.has_date or self.has_time):
-            raise ValueError("input_datetime helper must have at least one of 'has_date' or 'has_time' set to True")
+        require_date_or_time(self.has_date, self.has_time)
         return self
 
 
@@ -63,3 +70,9 @@ class UpdateInputDatetimeParams(BaseModel):
     has_time: bool | None = None
     icon: str | None = None
     initial: str | None = None
+
+
+def require_date_or_time(has_date: bool, has_time: bool) -> None:
+    """Raise ``ValueError`` unless at least one of ``has_date``/``has_time`` is set, as HA requires."""
+    if not (has_date or has_time):
+        raise ValueError("input_datetime helper must have at least one of 'has_date' or 'has_time' set to True")

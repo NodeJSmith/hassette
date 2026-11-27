@@ -20,6 +20,9 @@ class CounterRecord(BaseModel):
 
     Related: :class:`hassette.models.states.CounterState` for the live
     runtime value.
+
+    Fields HA fills in when a helper is stored default to HA's own values, so a record built
+    without them (by the test harness, say) matches what HA would return.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -27,11 +30,11 @@ class CounterRecord(BaseModel):
     id: str
     name: str
     icon: str | None = None
-    initial: int | None = None
+    initial: int = 0
     minimum: int | None = None
     maximum: int | None = None
-    step: int | None = None
-    restore: bool | None = None
+    step: int = 1
+    restore: bool = True
 
 
 class CreateCounterParams(BaseModel):

@@ -20,7 +20,11 @@ from pydantic import BaseModel, ConfigDict
 
 
 class InputNumberRecord(BaseModel):
-    """Stored ``input_number`` helper configuration returned by HA."""
+    """Stored ``input_number`` helper configuration returned by HA.
+
+    Fields HA fills in when a helper is stored default to HA's own values, so a record built
+    without them (by the test harness, say) matches what HA would return.
+    """
 
     model_config = ConfigDict(extra="allow")
 
@@ -29,10 +33,10 @@ class InputNumberRecord(BaseModel):
     min: float
     max: float
     initial: float | None = None
-    step: float | None = None
+    step: float = 1
     icon: str | None = None
     unit_of_measurement: str | None = None
-    mode: Literal["box", "slider"] | None = None
+    mode: Literal["box", "slider"] = "slider"
 
 
 class CreateInputNumberParams(BaseModel):
