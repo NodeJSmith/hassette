@@ -13,7 +13,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import IO, Any, TypeVar
+from typing import IO, Any, NoReturn, TypeVar
 
 import httpx2 as httpx
 import pytest
@@ -56,8 +56,21 @@ HA_URL = f"http://localhost:{_HA_PORT}"
 _HASS_HASSETTE_VERSION = _DEMO_ENV.get("HASS_HASSETTE_VERSION")
 if not _HASS_HASSETTE_VERSION:
     raise RuntimeError(f"HASS_HASSETTE_VERSION not found in {_DEMO_ENV_PATH}")
+# False when HA_VERSION in the environment picks an image other than the .env pin (the HA dev canary
+# runs against `dev`). Checks that only make sense for the pinned release (stale allowlists) skip then.
+HA_IMAGE_IS_PIN = os.environ.get("HA_VERSION", _DEMO_ENV.get("HA_VERSION")) == _DEMO_ENV.get("HA_VERSION")
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
+# Prefix of the ha_container fixture's startup failures. tools/release/ha_dev_canary.py matches it to
+# report a container that never started as one <startup> failure instead of every test that needed HA.
+HA_STARTUP_FAILURE = "HA container failed to start"
+# Real startup attempts before ha_container re-raises its last failure without touching Docker. pytest-rerunfailures
+# re-runs a failed session fixture for every dependent test, so without a cap a container that never starts costs
+# a full compose up + readiness wait per test attempt. 3 = the first run plus `--reruns 2` in noxfile.py's
+# _run_system_tests, so the first test still gets its usual retries.
+STARTUP_ATTEMPTS = 3
+_STARTUP_ATTEMPTS_KEY = pytest.StashKey[int]()
+_STARTUP_ERROR_KEY = pytest.StashKey[str]()
 SHUTDOWN_TIMEOUT = LifecycleConfig.model_fields["total_shutdown_timeout_seconds"].default
 
 EventT = TypeVar("EventT", bound=Event[Any])
@@ -95,15 +108,25 @@ def scrub_inherited_hassette_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(scope="session")
-def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+def ha_container(tmp_path_factory: pytest.TempPathFactory, request: pytest.FixtureRequest) -> Iterator[str]:
     """Start the HA Docker container for the test session and tear it down after.
 
     Copies the committed fixture files to a temporary directory before starting
     the container, so HA's writes (log files, updated .storage/ entries) never
     pollute the repository working tree.
 
-    Yields the base URL for the running Home Assistant instance.
+    Yields the base URL for the running Home Assistant instance. After ``STARTUP_ATTEMPTS`` failed
+    starts it fails straight away with the last startup error.
     """
+    stash = request.config.stash
+    if stash.get(_STARTUP_ATTEMPTS_KEY, 0) >= STARTUP_ATTEMPTS:
+        pytest.fail(stash[_STARTUP_ERROR_KEY])
+    stash[_STARTUP_ATTEMPTS_KEY] = stash.get(_STARTUP_ATTEMPTS_KEY, 0) + 1
+
+    def fail_startup(detail: str) -> NoReturn:
+        stash[_STARTUP_ERROR_KEY] = f"{HA_STARTUP_FAILURE}: {detail}"
+        pytest.fail(stash[_STARTUP_ERROR_KEY])
+
     # Copy only the committed fixture files — skip HA runtime artifacts.
     # This prevents root-owned files from previous container runs from
     # polluting the copy and causing PermissionError.
@@ -156,7 +179,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         # HA waits on the hass-hassette download, so its log is the likeliest explanation.
         logs = subprocess.run([*compose, "logs", "hass-hassette"], capture_output=True, text=True, env=env)
         subprocess.run([*compose, "down", "-v"], check=False, env=env)
-        pytest.fail(f"docker compose up failed (exit {up.returncode}); hass-hassette log:\n{logs.stdout}{logs.stderr}")
+        fail_startup(f"docker compose up failed (exit {up.returncode}); hass-hassette log:\n{logs.stdout}{logs.stderr}")
     try:
         deadline = time.monotonic() + STARTUP_TIMEOUT
         while time.monotonic() < deadline:
@@ -172,7 +195,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
                 pass
             time.sleep(2)
         else:
-            pytest.fail(f"HA did not become ready within {STARTUP_TIMEOUT}s")
+            fail_startup(f"HA did not become ready within {STARTUP_TIMEOUT}s")
 
         yield HA_URL
     finally:

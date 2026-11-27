@@ -9,7 +9,8 @@ judges that one set three ways:
    the strict path. ``try_convert_state``'s ``BaseState`` fallback is never used, so a mistyped
    attribute fails here instead of silently degrading.
 2. Domain gate: every registered domain has at least one observed state, unless it is on
-   ``DOMAIN_ALLOWLIST``. An allowlisted domain that is now observed fails as stale.
+   ``DOMAIN_ALLOWLIST``. An allowlisted domain that is now observed fails as stale, but only on the
+   pinned image: on another one (the HA dev canary) the entry can't go until the pin catches up.
 3. Attribute gate: every hand-typed attribute is seen with a non-null value at least once, under
    any key its field accepts, unless it is on ``ATTRIBUTE_ALLOWLIST`` (``hand_typed_attributes``
    defines hand-typed). Attribute entries are not stale-checked: demo entities change on their own,
@@ -38,7 +39,7 @@ from hassette.events import HassStateDict, RawStateChangeEvent
 from hassette.models.states.base import AttributesBase, BaseState
 from hassette.testing import wait_for
 
-from .conftest import make_system_config, startup_context
+from .conftest import HA_IMAGE_IS_PIN, make_system_config, startup_context
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = Path(hassette.__file__).resolve().parent
@@ -297,7 +298,7 @@ def domain_gate_failures(observed: list[ObservedState], models: dict[str, type[B
     """Registered domains with no observed state, and allowlist entries that are stale or unknown."""
     seen = {obs.domain for obs in observed}
     unobserved = sorted(set(models) - seen - set(DOMAIN_ALLOWLIST))
-    stale = sorted(set(DOMAIN_ALLOWLIST) & seen)
+    stale = sorted(set(DOMAIN_ALLOWLIST) & seen) if HA_IMAGE_IS_PIN else []
     unknown = sorted(set(DOMAIN_ALLOWLIST) - set(models))
     return [
         *(
