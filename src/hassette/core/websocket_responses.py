@@ -164,10 +164,10 @@ class PendingResponses:
         )
 
     def respond_if_necessary(self, message: dict) -> None:
-        """Settle the entry a 'result' message answers: resolve its future and record, or log a late reply."""
-        if message.get("type") != "result":
-            return
+        """Settle the entry a 'result' message answers: resolve its future and record, or log a late reply.
 
+        The caller routes only ``result`` messages here.
+        """
         msg_id = message.get("id")
 
         if not msg_id:
