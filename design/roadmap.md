@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
+| **Declared entity parity** | *Declared Entity Parity* (hassette + hass-hassette milestones of the same name) | Gaps hit converting hautomate off `api.set_state`: binary sensors, icons, `entity_category`, app-set availability, and taking over a leftover `set_state` id instead of `<id>_2`. Small, and the hautomate migration is waiting on it. Icons (#4463) and `entity_category` (#4465) ship in 0.67.0; binary sensors (#4462) and app-set availability (#4464) remain. The hass-hassette side ships after the hassette release that carries them (hass-hassette#92 doesn't need it). Before Owned state durability, which then moves the new persisted state (binary sensor values, the unavailable flag) along with the rest |
 
 ## Next
 
@@ -57,7 +57,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **Declared entity parity** | *Declared Entity Parity* (hassette + hass-hassette milestones of the same name) | Gaps hit converting hautomate off `api.set_state`: binary sensors, icons, `entity_category`, app-set availability, and taking over a leftover `set_state` id instead of `<id>_2`. Small, and the hautomate migration is waiting on it. One hassette release carries the four wire additions; the hass-hassette side ships after it (hass-hassette#92 doesn't need it). Before Owned state durability, which then moves the new persisted state (binary sensor values, the unavailable flag) along with the rest |
 | **App reload without restart** | *App Reload Without Restart* (brief: `design/research/2026-11-27-helper-module-reload/`) | hautomate restarts its container on every deploy, because a reload never picks up a changed shared helper, and one restart dropped a button press. #1697 (idempotent import, evict-and-reimport) comes first, then an in-process reload-all (#4498). The precise dependency reload (#4141) stays parked out of the milestone. After Declared entity parity, which is small and which the hautomate migration is waiting on |
 | **Owned state durability** | *Owned State Durability* (brief: `design/research/2026-11-19-persistence-model/`) | Recovery paths reset app-declared switches (#4284 stores them in `hassette.db`) and delete `self.cache` files that real apps use as durable state. Includes the `self.cache` → `self.store` breaking change, so it lands before 1.0. Hardening the store layer comes first; everything else follows it |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
