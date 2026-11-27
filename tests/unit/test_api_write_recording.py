@@ -142,10 +142,7 @@ class TestWhatEachWriteRecords:
         assert rec.row.data == '{"pin":"**********","codes":["**********"]}'
 
     async def test_helper_writes(self, rec: Recorded) -> None:
-        helpers = HelperClient.__new__(HelperClient)  # bypass Resource wiring; only _api and logger are read
-        helpers._api = rec.api
-        helpers.logger = rec.api.logger
-        rec.api.helpers = helpers
+        attach_helper_client(rec)
         rec.ws.send_and_wait.return_value = {"id": "away", "name": "Away"}
         await rec.api.helpers.create(CreateInputBooleanParams(name="Away"))
         # update reads the stored item with input_boolean/list first; reads record nothing.
@@ -161,6 +158,28 @@ class TestWhatEachWriteRecords:
             ("helper_create", "input_boolean", None, '{"name":"Away"}'),
             ("helper_update", "input_boolean", {"helper_id": ["away"]}, '{"name":"Gone"}'),
             ("helper_delete", "input_boolean", {"helper_id": ["away"]}, None),
+        ]
+
+    async def test_helper_update_of_an_unknown_id_is_not_sent(self, rec: Recorded) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.return_value = []
+
+        with pytest.raises(CommandRejectedError):
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert [(r.kind, o["outcome"]) for r, o in zip(rec.rows, rec.outcomes, strict=True)] == [
+            ("helper_update", "not_sent")
+        ]
+
+    async def test_helper_update_whose_stored_read_fails_is_not_sent(self, rec: Recorded) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = CommandNotSentError("down")
+
+        with pytest.raises(CommandNotSentError):
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert [(r.kind, o["outcome"]) for r, o in zip(rec.rows, rec.outcomes, strict=True)] == [
+            ("helper_update", "not_sent")
         ]
 
     async def test_data_is_cut_at_the_limit(self, rec: Recorded) -> None:
@@ -292,6 +311,14 @@ class TestWebSocketOwnership:
 
         assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
         rec.ws.send_fire_and_forget.assert_not_awaited()
+
+
+def attach_helper_client(rec: Recorded) -> None:
+    """Give ``rec.api`` a ``HelperClient``, bypassing Resource wiring: only ``_api`` and ``logger`` are read."""
+    helpers = HelperClient.__new__(HelperClient)
+    helpers._api = rec.api
+    helpers.logger = rec.api.logger
+    rec.api.helpers = helpers
 
 
 def begin_light_write(rec: Recorded, *, fire_and_forget: bool) -> Any:
