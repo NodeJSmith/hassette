@@ -7,64 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.67.0](https://github.com/NodeJSmith/hassette/compare/v0.66.0...v0.67.0) (2026-11-27)
 
+`self.api.helpers.update()` now changes only the fields you pass. It used to reject updates that left out required fields and reset the fields it was given no value for. App files are also imported once at startup and re-run on reload only when they changed. App-declared entities can set an icon and an entity category.
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
-* Helper records carry Home Assistant's stored defaults, and a write whose preceding read gets no answer now raises `CommandNotSentError`.
-    #### Helper record fields
-    - `CounterRecord` `initial`/`step`/`restore`, `TimerRecord`
-    `duration`/`restore`, `InputNumberRecord` `step`/`mode`, and
-    `InputTextRecord` `min`/`max`/`mode` default to HA's values and no
-    longer accept `None`. Code that builds one of these records with `None`
-    for such a field, typically to seed the test harness, must leave the
-    field out (it gets HA's default) or pass a real value. Records parsed
-    from Home Assistant are unaffected.
-    - `InputDatetimeRecord` requires `has_date=True` or `has_time=True`, as
-    HA does.
-    #### Errors from a write's preceding read
-    - `Api.set_state` and `HelperClient.update` read before they write. When
-    that read times out or loses its response, they raise
-    `CommandNotSentError` with the read's error as `__cause__`, where they
-    used to raise the read's `ResponseTimeoutError` or `ResponseLostError`.
-    Code that catches `OutcomeUnknownError` around either call to handle an
-    unreachable HA should catch `(CommandNotSentError,
-    OutcomeUnknownError)`. The write never went out, so it is safe to send
-    again.
-* The prebuilt extractors in `hassette.event_handling.accessors` (`A`) are renamed from `*_PATH` to `*_GETTER`: `A.DOMAIN_PATH` → `A.DOMAIN_GETTER`, `A.ENTITY_ID_PATH` → `A.ENTITY_ID_GETTER`, `A.CONTEXT_PATH` → `A.CONTEXT_GETTER`, `A.SERVICE_PATH` → `A.SERVICE_GETTER`, `A.SERVICE_DATA_PATH` → `A.SERVICE_DATA_GETTER`. Apps that reference the old names must use the new ones, or call the matching accessor (`A.get_domain`, `A.get_entity_id`, `A.get_context`, `A.get_service`, `A.get_service_data`).
+- **Helper records use Home Assistant's stored defaults instead of `None`** (#4503). `CounterRecord` `initial`/`step`/`restore`, `TimerRecord` `duration`/`restore`, `InputNumberRecord` `step`/`mode` and `InputTextRecord` `min`/`max`/`mode` now default to HA's values and no longer accept `None`. This mostly affects tests that build a record to seed the harness: leave the field out (it gets HA's default) or pass a real value. `InputDatetimeRecord` needs `has_date=True` or `has_time=True`, as HA does. Records parsed from Home Assistant are unaffected.
+- **A write whose preceding read gets no answer raises `CommandNotSentError`** (#4503). `Api.set_state` and `helpers.update()` read the current state before they write. When that read times out or loses its response, they now raise `CommandNotSentError`, with the read's error as `__cause__`. They used to raise `ResponseTimeoutError` or `ResponseLostError`, which are `OutcomeUnknownError`s and imply the write may have applied. If you catch `OutcomeUnknownError` around either call to handle an unreachable HA, catch `(CommandNotSentError, OutcomeUnknownError)`. The write never went out, so it's safe to send again.
+- **The prebuilt accessor extractors are renamed from `*_PATH` to `*_GETTER`** (#4492). `A.DOMAIN_PATH` → `A.DOMAIN_GETTER`, `A.ENTITY_ID_PATH` → `A.ENTITY_ID_GETTER`, `A.CONTEXT_PATH` → `A.CONTEXT_GETTER`, `A.SERVICE_PATH` → `A.SERVICE_GETTER`, `A.SERVICE_DATA_PATH` → `A.SERVICE_DATA_GETTER`. Use the new names, or call the matching accessor (`A.get_domain`, `A.get_entity_id`, `A.get_context`, `A.get_service`, `A.get_service_data`).
 
-### Features
+### For App Authors: You Can Now Delete
 
-* let app-declared integration entities carry an icon ([#4500](https://github.com/NodeJSmith/hassette/issues/4500)) ([c05c153](https://github.com/NodeJSmith/hassette/commit/c05c15308eb0e62905b84de56c27156197eb8a09))
-* run the demo stack against a local hass-hassette checkout via HASS_HASSETTE_PATH ([#4452](https://github.com/NodeJSmith/hassette/issues/4452)) ([4204c5d](https://github.com/NodeJSmith/hassette/commit/4204c5d66ef37fff923f331ae091dad1f425fac0))
-* support entity_category on app-declared integration entities ([#4470](https://github.com/NodeJSmith/hassette/issues/4470)) ([9947cc1](https://github.com/NodeJSmith/hassette/commit/9947cc116e5f95d5a1656546f76c2d544378ead8))
+- **Copying a helper's existing fields into an `Update*Params` before calling `self.api.helpers.update()`**, such as re-sending `name`, `min`/`max`, `options` or `has_date`/`has_time` so the update isn't rejected, or `initial`/`step` so they aren't reset. Pass only the fields you're changing. (#4503)
+- **Guards against an app file's top-level code running twice at startup**, for example a module-level "already set up" flag in a file that holds two app classes or is imported by another app module. Each app file now runs once. (#4505)
 
+### API
+
+- `helpers.update()` reads the stored helper and sends it back with your fields applied. Fields you don't pass keep their stored value, including ones Hassette doesn't model. An optional field passed as `None` goes back to HA's default. An unknown id raises `CommandRejectedError(code="not_found")` before anything is sent. Each update costs one extra WebSocket round-trip, and an edit made in the HA UI to the same helper between the read and the write is overwritten. Give each helper one writer. (#4503)
+
+### App-Declared Entities
+
+- `add_button`, `add_switch` and `add_sensor` (and their sync versions) take an optional `icon`, such as `"mdi:cat"`. A value that isn't in `prefix:name` form raises `ValueError`. Home Assistant shows the icon once hass-hassette supports it. (#4500)
+- The same methods take an optional `entity_category` of `"config"` or `"diagnostic"`, which puts the entity in the matching section of the HA device page. Any other value raises `ValueError`. (#4470)
+
+### Test Utilities
+
+- The harness's helper create and update use the same merge as production. Where HA would reject the record (a cleared required field, `None` for a defaulted field, a datetime with neither `has_date` nor `has_time`), the harness raises `CommandRejectedError(code="invalid_format")`. (#4503)
 
 ### Bug Fixes
 
-* import each app file once and reload it only when it changed ([#4505](https://github.com/NodeJSmith/hassette/issues/4505)) ([b898382](https://github.com/NodeJSmith/hassette/commit/b8983822205448afc4f83796215d23821b9ff111))
-* keep stored helper fields when updating a helper ([#4503](https://github.com/NodeJSmith/hassette/issues/4503)) ([c5eff9c](https://github.com/NodeJSmith/hassette/commit/c5eff9c550a979bdcdd27f8212d343b619bc5749))
-* refresh handler_method and once when a listener re-registers under the same name ([#4480](https://github.com/NodeJSmith/hassette/issues/4480)) ([7dd9044](https://github.com/NodeJSmith/hassette/commit/7dd9044849099ff145626b6cf763453938e55982))
-* reject async predicates nested inside where= combinators ([#4506](https://github.com/NodeJSmith/hassette/issues/4506)) ([ccebb75](https://github.com/NodeJSmith/hassette/commit/ccebb754adbf3e8255dce81c10380c5b69a8f4fe))
-
-
-### Refactoring
-
-* **cache:** share dict logic between DummyCache and DummySyncCache ([#4455](https://github.com/NodeJSmith/hassette/issues/4455)) ([f2086e3](https://github.com/NodeJSmith/hassette/commit/f2086e30d3dd584bc2a15d7f5f9d4c57def42aff))
-* **core:** keep PendingResponses background count exact through one removal helper ([#4457](https://github.com/NodeJSmith/hassette/issues/4457)) ([e4a9d30](https://github.com/NodeJSmith/hassette/commit/e4a9d3001948041aac272c63554cbfb8e5cc6e02))
-* derive sync executor saturation defaults from LifecycleConfig ([#4481](https://github.com/NodeJSmith/hassette/issues/4481)) ([c4655a6](https://github.com/NodeJSmith/hassette/commit/c4655a6c51cf82ed503770ddb78df715ad01e693))
-* drop redundant guards and conversions in telemetry row handling ([#4495](https://github.com/NodeJSmith/hassette/issues/4495)) ([1d34f1e](https://github.com/NodeJSmith/hassette/commit/1d34f1e72e576e2cbda577f93bc2b9151836ad53))
-* drop redundant RuntimeQueryService guards on depends_on services ([#4458](https://github.com/NodeJSmith/hassette/issues/4458)) ([89b3862](https://github.com/NodeJSmith/hassette/commit/89b3862bed76dab468c4b3c7264055ee5c7e9be2))
-* remove WebsocketService's unused exit stack and config proxy properties ([#4486](https://github.com/NodeJSmith/hassette/issues/4486)) ([02b414a](https://github.com/NodeJSmith/hassette/commit/02b414adf834f336e5a4d292d5b53a89c6373ca4))
-* rename event_handling accessor *_PATH extractors to *_GETTER and tidy docstrings ([#4492](https://github.com/NodeJSmith/hassette/issues/4492)) ([a1acf7b](https://github.com/NodeJSmith/hassette/commit/a1acf7b8e9dbfd83613726235908a3232bc75588))
-* share is_union and is_subclass_of type helpers across DI matchers and event checks ([#4485](https://github.com/NodeJSmith/hassette/issues/4485)) ([ad16623](https://github.com/NodeJSmith/hassette/commit/ad166238aceffe7e20b211ea8cfdba638c279d1a))
-* share the websocket retry decorator and remove duplicated reads ([#4483](https://github.com/NodeJSmith/hassette/issues/4483)) ([b3307bb](https://github.com/NodeJSmith/hassette/commit/b3307bbad39d586a9b0a70081f1c690c186a7d9f))
-* **telemetry:** make the execution-row insert helper return True on success ([#4482](https://github.com/NodeJSmith/hassette/issues/4482)) ([f64a449](https://github.com/NodeJSmith/hassette/commit/f64a44975cc3efff1257de0c3674f2bf8ebc5f74))
-* use shared fetch_all_as_dicts helper in execution and registration telemetry queries ([#4487](https://github.com/NodeJSmith/hassette/issues/4487)) ([c747462](https://github.com/NodeJSmith/hassette/commit/c74746299138d5e18daff3ff3b1de8540d4bf9d5))
-
+- Each app file is imported once at startup. A second app class in the same file, or an app module imported by another app module, no longer runs the file again. Reloading an app (the Reload button, `hassette app reload`, the HA reload button, or a file change) re-imports the file only when its contents changed, and app keys from the same file share one run of it. An app module that holds another as a module object (`import apps.helpers as h`) keeps the old copy until it reloads too. (#4505)
+- A listener that re-registers under the same name and topic with a renamed handler or a changed `once` now shows the new values in the web UI and CLI. A stale `once` could also make a now-persistent listener eligible for once-listener cleanup. (#4480)
+- `A.get_attrs_*` accepts any sequence of attribute names, not only a list. (#4492)
+- An async predicate nested inside a combinator (`&`, `|`, `~`, `AllOf`, `AnyOf`, `Not`, `Guard`, or a `where=` list on `on_state_change`) now raises `TypeError` at registration, like a top-level one. It used to get through, and because calling it returns a truthy coroutine, the filter always passed. (#4506)
 
 ### Documentation
 
-* require Hassette 0.66 and HA 2026.11 for the HA integration, document starting/stopping states ([#4508](https://github.com/NodeJSmith/hassette/issues/4508)) ([666eadc](https://github.com/NodeJSmith/hassette/commit/666eadc16a9dc3cb34174a2de18ef62a3612bb75))
+- The Home Assistant integration's getting-started page lists the current minimums, Hassette 0.66.0 and Home Assistant 2026.11, and adds the app status sensor's `starting` and `stopping` states. (#4508)
 
 ## [0.66.0](https://github.com/NodeJSmith/hassette/compare/v0.65.0...v0.66.0) (2026-11-23)
 
