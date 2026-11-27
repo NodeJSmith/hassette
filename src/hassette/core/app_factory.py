@@ -179,23 +179,26 @@ class AppFactory:
     ) -> "type[App[AppConfig]] | None":
         """Return the class for a new instance of ``app_key``, or None if it can't be loaded.
 
-        While any instance of ``app_key`` is live (configured or an orphan), a new instance gets the class the
-        first live instance runs, forced or not, so one app key never runs classes from two imports of its
-        module. A forced reload of a sibling app key from the same file can re-import the module, and a lone
-        instance created afterwards would otherwise pick up the new class. reload_app() stops every instance
-        before recreating them, so it always reaches the loader.
+        While any instance of ``app_key`` is live (configured or an orphan) and was built from the manifest's
+        file and class, a new instance gets that instance's class, forced or not, so one app key never runs
+        classes from two imports of its module. A forced reload of a sibling app key from the same file can
+        re-import the module, and a lone instance created afterwards would otherwise pick up the new class. A
+        live instance built from another file or class name (a stop that failed during a manifest change)
+        doesn't count, and the class comes from the loader. reload_app() stops every instance before
+        recreating them, so it reaches the loader.
         """
         # Every live instance of a key was built from one class, so the first one speaks for all of them;
         # failed entries hold no App and aren't listed.
-        if live := self.registry.get_live_apps(app_key):
-            live_class = type(next(iter(live.values())))
+        if (live := next(iter(self.registry.get_live_apps(app_key).values()), None)) is not None and built_from(
+            live, manifest
+        ):
             if force_reload:
-                self.logger.debug(
-                    "Ignoring force_reload for '%s': instance(s) already running, reusing their class; "
-                    "use reload_app() to recreate them with a freshly loaded class",
+                self.logger.info(
+                    "Reload of '%s' reuses the class its running instance(s) use, so the app file is not "
+                    "re-imported; reload the whole app to pick up edits",
                     app_key,
                 )
-            return live_class
+            return type(live)
 
         # The loader would re-raise this cached failure; checking here keeps it from being logged at ERROR again.
         if not force_reload and cached_load_error(manifest.full_path, manifest.class_name) is not None:
@@ -220,6 +223,12 @@ class AppFactory:
         if (error := cached_load_error(manifest.full_path, manifest.class_name)) is not None:
             return error
         return RuntimeError(f"Unknown error loading class for {manifest.class_name}")
+
+
+def built_from(app: "App[AppConfig]", manifest: "AppManifest") -> bool:
+    """Whether ``app`` was created from the same file and class name ``manifest`` names."""
+    built = app.app_manifest
+    return built is not None and built.full_path == manifest.full_path and built.class_name == manifest.class_name
 
 
 def warn_unrecognized_config_keys(

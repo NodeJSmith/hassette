@@ -172,6 +172,28 @@ def test_forced_load_of_a_changed_file_runs_it_once_for_sibling_classes(
     assert "re-importing" in caplog.text
 
 
+def test_a_save_racing_a_forced_import_is_picked_up_by_the_next_reload(sandbox: AppSandbox) -> None:
+    """The hash is read before the import, so a save landing in between is never recorded as already loaded."""
+    module_path = sandbox.write("racy.py", TWO_APPS_SOURCE, value=1)
+    sandbox.load(module_path, "FirstApp")
+    sandbox.write("racy.py", TWO_APPS_SOURCE, value=5)
+    real_hash = app_utils.file_content_hash
+
+    def hash_then_save(path: Path) -> str:
+        digest = real_hash(path)
+        sandbox.write("racy.py", TWO_APPS_SOURCE, value=66)  # the save lands between the hash read and the import
+        return digest
+
+    with patch.object(app_utils, "file_content_hash", side_effect=hash_then_save):
+        sandbox.load(module_path, "FirstApp", force_reload=True)
+    assert sandbox.runs() == 2
+
+    reloaded = sandbox.load(module_path, "FirstApp", force_reload=True)
+
+    assert sandbox.runs() == 3
+    assert sys.modules[reloaded.__module__].VALUE == 66
+
+
 def test_forced_load_retries_a_failed_import_after_the_file_is_fixed(sandbox: AppSandbox) -> None:
     module_path = sandbox.write("fixable.py", FAILING_SOURCE)
     with pytest.raises(RuntimeError):

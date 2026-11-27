@@ -85,6 +85,8 @@ What a reload picks up depends on what triggered it:
     Hassette re-imports the file only when its contents changed since the last successful import, or when that import failed. Reloading an unchanged file restarts the app on the code already loaded, so the file's top-level code doesn't run again. Two apps defined in one file share one import, so reloading both after an edit runs the file once.
 
     Reloading a single instance (the instance's Reload button, or `hassette app reload --instance`) while sibling instances run restarts it on the siblings' code. Every instance of an app runs the same code. Reload the whole app to pick up an edit.
+
+    A re-import replaces the module with a new copy. Another app module that imported it whole (`import apps.helpers as helpers`) keeps calling the old copy until that app reloads too. Names imported with `from apps.helpers import notify` keep the old code either way.
 - **Saving a change to the app's `app_config` in `hassette.toml`**: Hassette restarts the affected instances, usually only the ones whose config changed, with the code it already has loaded. Nothing is re-imported.
 - **Saving any other Python file**, such as a sibling module or a shared helper: no reload happens.
 

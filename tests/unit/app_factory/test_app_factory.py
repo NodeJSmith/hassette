@@ -236,7 +236,7 @@ class TestAppFactoryCreateInstances:
             {"instance_name": "instance_1"},
         ]
         # "instance_0" is already running; "instance_1" is not.
-        existing_app = running_app("instance_0")
+        existing_app = running_app("instance_0", mock_manifest)
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_0" else None)
         mock_registry.get_live_apps = Mock(return_value={"instance_0": existing_app})
 
@@ -277,7 +277,7 @@ class TestAppFactoryCreateInstances:
         configured instance across two class versions (Codex P2 finding on #2245, round 2).
         """
         mock_manifest.app_config = [{"instance_name": "instance_0"}]  # config shrank to 1 instance
-        orphan = running_app("instance_1")
+        orphan = running_app("instance_1", mock_manifest)
         mock_registry.get = Mock(return_value=None)  # "instance_0" (the only configured name) is not live
         mock_registry.get_live_apps = Mock(return_value={"instance_1": orphan})  # not configured: an orphan
 
@@ -498,13 +498,35 @@ class TestAppFactoryLoadClass:
 
     def test_load_class_reuses_live_instances_class(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """While an instance of the app key is live, a new instance gets its class, even on a forced load."""
-        mock_registry.get_live_apps = Mock(return_value={"instance_0": running_app("instance_0")})
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": running_app("instance_0", mock_manifest)})
 
         with patch("hassette.core.app_factory.load_app_class_from_manifest") as mock_load_class:
             assert factory.load_class("test_app", mock_manifest, force_reload=False) is RunningApp
             assert factory.load_class("test_app", mock_manifest, force_reload=True) is RunningApp
 
         mock_load_class.assert_not_called()
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_load_class_ignores_a_live_instance_with_no_manifest(
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
+    ):
+        """A live instance that records no manifest can't be matched to this one, so the loader supplies the class."""
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": running_app("instance_0", None)})
+        mock_load_class.return_value = loaded = make_app_class()
+
+        assert factory.load_class("test_app", mock_manifest, force_reload=False) is loaded
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_load_class_ignores_a_live_instance_built_from_another_class(
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
+    ):
+        """A live instance left from before a class rename doesn't supply the class; the loader does."""
+        old_manifest = Mock(full_path=mock_manifest.full_path, class_name="OldName")
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": running_app("instance_0", old_manifest)})
+        mock_load_class.return_value = loaded = make_app_class()
+
+        assert factory.load_class("test_app", mock_manifest, force_reload=True) is loaded
+        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=True)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     @patch("hassette.core.app_factory.cached_load_error", return_value=ValueError("boom"))

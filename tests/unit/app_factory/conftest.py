@@ -28,13 +28,14 @@ class RunningApp:
 
     app_config_cls = AppConfig
 
-    def __init__(self, *, app_config: AppConfig, **_: object) -> None:
+    def __init__(self, *, app_config: AppConfig, app_manifest: object = None, **_: object) -> None:
         self.instance_name = app_config.instance_name
+        self.app_manifest = app_manifest
 
 
-def running_app(instance_name: str) -> RunningApp:
-    """A live instance for ``registry.get_live_apps``; new instances of its app key get ``RunningApp``."""
-    return RunningApp(app_config=AppConfig(instance_name=instance_name))
+def running_app(instance_name: str, manifest: object) -> RunningApp:
+    """A live instance built from ``manifest``; new instances of its app key get ``RunningApp``."""
+    return RunningApp(app_config=AppConfig(instance_name=instance_name), app_manifest=manifest)
 
 
 def created_names(results: Mapping[str, object]) -> list[str]:
