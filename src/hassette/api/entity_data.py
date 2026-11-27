@@ -8,7 +8,7 @@ from typing import Any
 
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.api.write_outcomes import resolve_rest_failure, resolve_unsent
+from hassette.api.write_outcomes import read_before_write, resolve_rest_failure
 from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError
@@ -326,6 +326,10 @@ class ApiEntityDataMixin:
 
         Returns:
             The response from Home Assistant after setting the state.
+
+        Raises:
+            CommandNotSentError: If the write was never sent, including when the read of the current attributes
+                got no answer (that read's error is the ``__cause__``).
         """
         # Cheap path — see fire_event (same rationale for all api methods)
         source_location = capture_source_location()
@@ -351,17 +355,17 @@ class ApiEntityDataMixin:
             "set_state", None, target={"entity_id": [entity_id]}, data={"state": state, "attributes": attributes}
         )
 
-        # One suppressed GET: a missing entity (or one removed mid-call) means no current attributes,
-        # and the POST below creates it.
-        try:
-            response = await self.rest_request("GET", state_path(entity_id), suppress_error_message=True)
-            curr_attributes = (await response.json()).get("attributes") or {}
-        except EntityNotFoundError:
-            curr_attributes = {}
-        except BaseException:
-            # The POST never ran, so Home Assistant never saw the write.
-            resolve_unsent(record)
-            raise
+        async def read_current_attributes() -> dict[str, Any]:
+            # One suppressed GET: a missing entity (or one removed mid-call) means no current attributes,
+            # and the POST below creates it.
+            try:
+                response = await self.rest_request("GET", state_path(entity_id), suppress_error_message=True)
+                return (await response.json()).get("attributes") or {}
+            except EntityNotFoundError:
+                return {}
+
+        # A failed GET means the POST never ran, so Home Assistant never saw the write.
+        curr_attributes = await read_before_write(record, read_current_attributes())
 
         # This client-side merge is load-bearing: HA's POST /api/states/{id} replaces the attribute
         # set rather than merging it, so a partial write would wipe the attributes it doesn't name.

@@ -99,6 +99,8 @@ class HelperClientSyncFacade(Resource):
             CommandRejectedError: With ``code="not_found"`` if no helper with ``helper_id`` is
                 stored (raised before anything is sent), or HA's own code if it rejects the
                 merged record.
+            CommandNotSentError: If the update was never sent, including when the read of the
+                stored helper got no answer (that read's error is the ``__cause__``).
         """
         return self.task_bucket.run_sync(self._helpers.update(helper_id, params))  # pyright: ignore[reportCallIssue, reportArgumentType]
 

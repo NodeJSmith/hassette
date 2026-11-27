@@ -518,6 +518,10 @@ class ApiSyncFacade(Resource):
 
         Returns:
             The response from Home Assistant after setting the state.
+
+        Raises:
+            CommandNotSentError: If the write was never sent, including when the read of the current attributes
+                got no answer (that read's error is the ``__cause__``).
         """
         return self.task_bucket.run_sync(self._api.set_state(entity_id, state, attributes))
 

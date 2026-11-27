@@ -31,7 +31,7 @@ from typing import Any, Literal, TypeVar, overload
 from hassette_wire import LogLevel
 from pydantic import BaseModel
 
-from hassette.api.write_outcomes import resolve_unsent
+from hassette.api.write_outcomes import read_before_write, resolve_unsent
 from hassette.exceptions import CommandRejectedError
 from hassette.models.helpers import (
     CounterRecord,
@@ -298,6 +298,8 @@ class HelperClient(Resource):
             CommandRejectedError: With ``code="not_found"`` if no helper with ``helper_id`` is
                 stored (raised before anything is sent), or HA's own code if it rejects the
                 merged record.
+            CommandNotSentError: If the update was never sent, including when the read of the
+                stored helper got no answer (that read's error is the ``__cause__``).
         """
         domain, record_type = dispatch_on_params_type(UPDATE_DISPATCH, params)
         id_key = dispatch_on_domain(ID_KEYS, domain)
@@ -305,12 +307,7 @@ class HelperClient(Resource):
         # The write records the caller's change, not the full item merge_update sends.
         write = self._api.begin_write("helper_update", domain, target={"helper_id": [helper_id]}, data=fields or None)
         # Raw items rather than parsed Records, so fields Hassette doesn't model survive the merge.
-        try:
-            items = await fetch_stored_items(self._api, domain)
-        except BaseException:
-            # The update itself never went out, so Home Assistant never saw the write.
-            resolve_unsent(write)
-            raise
+        items = await read_before_write(write, fetch_stored_items(self._api, domain))
         stored = next((item for item in items if isinstance(item, dict) and item.get("id") == helper_id), None)
         if stored is None:
             resolve_unsent(write)

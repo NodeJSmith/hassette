@@ -182,6 +182,40 @@ class TestWhatEachWriteRecords:
             ("helper_update", "not_sent")
         ]
 
+    @pytest.mark.parametrize("read_exc", [ResponseLostError("lost"), ResponseTimeoutError("slow")])
+    async def test_helper_update_whose_stored_read_has_no_answer_is_not_sent(
+        self, rec: Recorded, read_exc: BaseException
+    ) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = read_exc
+
+        with pytest.raises(CommandNotSentError) as exc_info:
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert exc_info.value.__cause__ is read_exc
+        assert [(r.kind, o["outcome"]) for r, o in zip(rec.rows, rec.outcomes, strict=True)] == [
+            ("helper_update", "not_sent")
+        ]
+
+    async def test_helper_update_whose_stored_read_is_rejected_passes_through(self, rec: Recorded) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = CommandRejectedError("nope", code="denied")
+
+        with pytest.raises(CommandRejectedError) as exc_info:
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert exc_info.value.code == "denied"
+        assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
+
+    async def test_cancelled_helper_update_read_is_not_sent(self, rec: Recorded) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = asyncio.CancelledError()
+
+        with pytest.raises(asyncio.CancelledError):
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
+
     async def test_data_is_cut_at_the_limit(self, rec: Recorded) -> None:
         await rec.api.fire_event("big", {"text": "x" * (API_WRITE_DATA_MAX_CHARS * 2)})
 
@@ -440,7 +474,26 @@ class TestRestOwnership:
     async def test_failed_preliminary_get_is_not_sent(self, rec: Recorded) -> None:
         rec.api.rest_request = AsyncMock(side_effect=ResponseTimeoutError("slow"))
 
-        with pytest.raises(ResponseTimeoutError):
+        with pytest.raises(CommandNotSentError) as exc_info:
+            await rec.api.set_state("sensor.x", "on")
+
+        assert isinstance(exc_info.value.__cause__, ResponseTimeoutError)
+        assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
+
+    async def test_cancelled_preliminary_get_is_not_sent(self, rec: Recorded) -> None:
+        rec.api.rest_request = AsyncMock(side_effect=asyncio.CancelledError())
+
+        with pytest.raises(asyncio.CancelledError):
+            await rec.api.set_state("sensor.x", "on")
+
+        assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
+
+    async def test_preliminary_get_failure_that_is_not_unknown_passes_through(self, rec: Recorded) -> None:
+        rec.api.rest_request = AsyncMock(
+            side_effect=HttpRequestError(500, "boom", method="GET", url="/states/sensor.x")
+        )
+
+        with pytest.raises(HttpRequestError):
             await rec.api.set_state("sensor.x", "on")
 
         assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]

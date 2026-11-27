@@ -130,7 +130,9 @@ class CommandNotSentError(HassetteError):
 
     Raised when the WebSocket isn't connected or the socket write failed, and when a REST request couldn't connect
     (refused, DNS, TLS) or the REST session is closed; a REST connect that times out raises
-    :class:`ResponseTimeoutError`. Catch ``(CommandNotSentError, OutcomeUnknownError)`` for "unreachable or no answer".
+    :class:`ResponseTimeoutError`. A write whose required read before it (the lookup ``HelperClient.update`` or
+    ``Api.set_state`` makes) gets no answer also raises it: the write itself never went out, and the read's error is
+    the ``__cause__``. Catch ``(CommandNotSentError, OutcomeUnknownError)`` for "unreachable or no answer".
 
     Edge case: a connection lost while the socket waits for its send buffer to drain is reported as not sent, although
     the frame may have gone out. That wait needs Home Assistant to have stopped reading a full socket, so it is rare.
