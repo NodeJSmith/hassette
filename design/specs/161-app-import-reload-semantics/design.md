@@ -1,7 +1,7 @@
 # Design: Separate app import and reload semantics
 
 **Date:** 2026-11-27
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #1697
 **Prior art:** design/research/2026-11-27-helper-module-reload/research.md
@@ -135,7 +135,7 @@ The hash is a SHA-256 of the file's bytes (`hashlib.file_digest`). The loader re
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - A failure raised before the module name resolves (a missing file) is recorded with `name=None`, so it stays current until a forced load retries it, matching the old per-class cached failure; a test pins it.
