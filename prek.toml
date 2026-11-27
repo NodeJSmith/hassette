@@ -14,7 +14,9 @@
 repo = "builtin"
 hooks = [
     { id = "trailing-whitespace" },
-    { id = "end-of-file-fixer" },
+    # Claude Code mounts .claude/skills read-only in sandboxed sessions, and this builtin opens every file
+    # for writing even when it has nothing to fix, so it would fail there on every run.
+    { id = "end-of-file-fixer", exclude = '^\.claude/skills/' },
     { id = "mixed-line-ending" },
     { id = "check-case-conflict" },
     { id = "check-shebang-scripts-are-executable" },
