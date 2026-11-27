@@ -75,7 +75,7 @@ from hassette.utils.func_utils import callable_stable_name
 from . import accessors as A
 
 if typing.TYPE_CHECKING:
-    from hassette import (
+    from hassette.events import (
         RawStateChangeEvent,  # noqa: F401  # used as forward ref in AnnotationDetails["RawStateChangeEvent"]
     )
 
@@ -125,7 +125,7 @@ StateNew: TypeAlias = Annotated[
     StateT,
     AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new)),
 ]
-"""Extract the new state object from a StateChangeEvent.
+"""Extract the new state object from a RawStateChangeEvent.
 
 Example:
 ```python
@@ -138,7 +138,7 @@ MaybeStateNew: TypeAlias = Annotated[
     StateT | None,
     AnnotationDetails["RawStateChangeEvent"](A.get_state_object_new),
 ]
-"""Extract the new state object from a StateChangeEvent, allowing for None.
+"""Extract the new state object from a RawStateChangeEvent, allowing for None.
 
 Example:
 ```python
@@ -152,7 +152,7 @@ StateOld: TypeAlias = Annotated[
     StateT,
     AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old)),
 ]
-"""Extract the old state object from a StateChangeEvent.
+"""Extract the old state object from a RawStateChangeEvent.
 
 Example:
 ```python
@@ -165,7 +165,7 @@ MaybeStateOld: TypeAlias = Annotated[
     StateT | None,
     AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old),
 ]
-"""Extract the old state object from a StateChangeEvent, allowing for None.
+"""Extract the old state object from a RawStateChangeEvent, allowing for None.
 
 Example:
 ```python

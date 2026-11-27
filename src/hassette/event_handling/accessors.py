@@ -85,11 +85,11 @@ def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
 
 
 # Prebuilt extractors for the fixed paths the accessors below read on every event.
-DOMAIN_PATH = get_path("payload.data.domain")
-ENTITY_ID_PATH = get_path("payload.data.entity_id")
-CONTEXT_PATH = get_path("payload.context")
-SERVICE_PATH = get_path("payload.data.service")
-SERVICE_DATA_PATH = get_path("payload.data.service_data")
+DOMAIN_GETTER = get_path("payload.data.domain")
+ENTITY_ID_GETTER = get_path("payload.data.entity_id")
+CONTEXT_GETTER = get_path("payload.context")
+SERVICE_GETTER = get_path("payload.data.service")
+SERVICE_DATA_GETTER = get_path("payload.data.service_data")
 
 
 def attributes_of(state: "HassStateDict | None") -> dict[str, Any]:
@@ -156,7 +156,7 @@ def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, 
     return _inner
 
 
-def get_attrs_new(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
+def get_attrs_new(names: Sequence[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
     """Get specific attributes from the new state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
@@ -166,7 +166,7 @@ def get_attrs_new(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[st
     return _inner
 
 
-def get_attrs_old(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
+def get_attrs_old(names: Sequence[str]) -> Callable[["RawStateChangeEvent"], dict[str, Any]]:
     """Get specific attributes from the old state in a RawStateChangeEvent."""
 
     def _inner(event: "RawStateChangeEvent") -> dict[str, Any]:
@@ -177,7 +177,7 @@ def get_attrs_old(names: list[str]) -> Callable[["RawStateChangeEvent"], dict[st
 
 
 def get_attrs_old_new(
-    names: list[str],
+    names: Sequence[str],
 ) -> Callable[["RawStateChangeEvent"], tuple[dict[str, Any], dict[str, Any]]]:
     """Get specific attributes from the old and new state in a RawStateChangeEvent."""
     old_getter = get_attrs_old(names)
@@ -195,7 +195,7 @@ def get_all_attrs_old(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySe
     if data.old_state is None:
         return MISSING_VALUE
 
-    return data.old_state.get("attributes", {})
+    return attributes_of(data.old_state)
 
 
 def get_all_attrs_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySentinel:
@@ -204,7 +204,7 @@ def get_all_attrs_new(event: "RawStateChangeEvent") -> dict[str, Any] | FalseySe
     if data.new_state is None:
         return MISSING_VALUE
 
-    return data.new_state.get("attributes", {})
+    return attributes_of(data.new_state)
 
 
 def get_all_attrs_old_new(
@@ -215,8 +215,12 @@ def get_all_attrs_old_new(
 
 
 def get_domain(event: "HassEvent") -> str | FalseySentinel:
-    """Get the domain from the event payload."""
-    domain = DOMAIN_PATH(event)
+    """Get the domain from the event payload.
+
+    Tries `payload.data.domain` first, then `payload.domain` for a `RawStateChangeEvent` (derived from its entity_id),
+    then the prefix of `get_entity_id(event)`, which covers a `CallServiceEvent` whose service_data names an entity.
+    """
+    domain = DOMAIN_GETTER(event)
     if domain is not MISSING_VALUE:
         return domain
 
@@ -231,8 +235,11 @@ def get_domain(event: "HassEvent") -> str | FalseySentinel:
 
 
 def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
-    """Get the entity_id from the event payload."""
-    entity_id = ENTITY_ID_PATH(event)
+    """Get the entity_id from the event payload.
+
+    Tries `payload.data.entity_id` first, then `service_data["entity_id"]` for a `CallServiceEvent`.
+    """
+    entity_id = ENTITY_ID_GETTER(event)
     if entity_id is not MISSING_VALUE:
         return entity_id
 
@@ -244,7 +251,7 @@ def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
 
 def get_context(event: "HassEvent") -> "HassContext":
     """Get the `HassContext` object (`id`, `parent_id`, `user_id`) from the event payload."""
-    return cast("HassContext", CONTEXT_PATH(event))
+    return cast("HassContext", CONTEXT_GETTER(event))
 
 
 def get_all_changes(
@@ -281,7 +288,7 @@ def get_all_changes(
 
 
 def _recursive_get_differences(
-    old_dict: dict[str, Any], new_dict: dict[str, Any], exclude: Sequence[str] = DEFAULT_EXCLUDE
+    old_dict: dict[str, Any], new_dict: dict[str, Any], exclude: Sequence[str]
 ) -> dict[str, Any]:
     """Simple recursive diff between two dicts, returning a dict of changed keys to (old_value, new_value)."""
     changed_dict = {}
@@ -302,7 +309,7 @@ def _recursive_get_differences(
 
 def get_service(event: "CallServiceEvent") -> str | FalseySentinel:
     """Return the service name being called."""
-    return SERVICE_PATH(event)
+    return SERVICE_GETTER(event)
 
 
 def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | FalseySentinel:
@@ -311,7 +318,7 @@ def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | FalseySentin
     Returns:
         dict[str, Any] | FalseySentinel: The service_data dict, or MISSING_VALUE if not present.
     """
-    return SERVICE_DATA_PATH(event)
+    return SERVICE_DATA_GETTER(event)
 
 
 def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
