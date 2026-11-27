@@ -17,7 +17,7 @@ from hassette.core.telemetry.helpers import (
     SQL_STATUS_SKIPPED,
     SQL_STATUS_SUCCESS,
     SQL_STATUS_TIMED_OUT,
-    row_to_dict,
+    fetch_all_as_dicts,
     since_clause,
     source_tier_clause,
 )
@@ -186,9 +186,8 @@ class RegistrationQueriesMixin:
             since=since,
             source_tier=source_tier,
         )
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return [ListenerSummaryRow.model_validate(row_to_dict(row)) for row in rows]
+        rows = await fetch_all_as_dicts(self.execute(query, params))
+        return [ListenerSummaryRow.model_validate(row) for row in rows]
 
     async def get_listener_misses(
         self, listener_id: int, *, limit: int = DEFAULT_QUERY_LIMIT, since: float | None = None
@@ -209,9 +208,8 @@ class RegistrationQueriesMixin:
             LIMIT :limit
         """
         params = {"listener_id": listener_id, "limit": limit, **since_params}
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return [listener_miss_from_row(row_to_dict(row)) for row in rows]
+        rows = await fetch_all_as_dicts(self.execute(query, params))
+        return [listener_miss_from_row(row) for row in rows]
 
     async def get_job_summary(
         self,
@@ -240,9 +238,8 @@ class RegistrationQueriesMixin:
             since=since,
             source_tier=source_tier,
         )
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return [JobSummary.model_validate(row_to_dict(row)) for row in rows]
+        rows = await fetch_all_as_dicts(self.execute(query, params))
+        return [JobSummary.model_validate(row) for row in rows]
 
     async def get_slow_handlers(
         self,
@@ -277,9 +274,10 @@ class RegistrationQueriesMixin:
             ORDER BY e.duration_ms DESC
             LIMIT :limit
         """
-        async with self.execute(query, {"threshold_ms": threshold_ms, "limit": limit, **tier_params}) as cursor:
-            rows = await cursor.fetchall()
-        return [SlowHandlerRecord.model_validate(row_to_dict(row)) for row in rows]
+        rows = await fetch_all_as_dicts(
+            self.execute(query, {"threshold_ms": threshold_ms, "limit": limit, **tier_params})
+        )
+        return [SlowHandlerRecord.model_validate(row) for row in rows]
 
 
 def build_registration_summary_query(

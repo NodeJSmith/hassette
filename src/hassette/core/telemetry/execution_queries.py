@@ -13,6 +13,7 @@ from hassette.core.telemetry.helpers import (
     SQL_KIND_JOB,
     SQL_NO_FILTER,
     SQL_STATUS_SUCCESS,
+    fetch_all_as_dicts,
     handler_job_union_arms,
     row_to_dict,
     since_clause,
@@ -123,9 +124,8 @@ class ExecutionQueriesMixin:
             ORDER BY e.execution_start_ts DESC
             LIMIT :limit
         """
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return [execution_from_row(row_to_dict(row)) for row in rows]
+        rows = await fetch_all_as_dicts(self.execute(query, params))
+        return [execution_from_row(row) for row in rows]
 
     async def get_execution_by_id(self, execution_id: str) -> Execution | None:
         """Return a single execution record by its UUID, or None if not found."""
@@ -229,10 +229,9 @@ class ExecutionQueriesMixin:
             **union_params,
         }
 
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
+        rows = await fetch_all_as_dicts(self.execute(query, params))
 
-        return [ActivityFeedEntry.model_validate(row_to_dict(row)) for row in rows]
+        return [ActivityFeedEntry.model_validate(row) for row in rows]
 
     async def get_per_app_activity_buckets(
         self,
