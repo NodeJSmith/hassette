@@ -189,9 +189,8 @@ class AppFactory:
         """
         # Every live instance of a key was built from one class, so the first one speaks for all of them;
         # failed entries hold no App and aren't listed.
-        if (live := next(iter(self.registry.get_live_apps(app_key).values()), None)) is not None and built_from(
-            live, manifest
-        ):
+        live = next(iter(self.registry.get_live_apps(app_key).values()), None)
+        if live is not None and built_from(live, manifest):
             if force_reload:
                 self.logger.info(
                     "Reload of '%s' reuses the class its running instance(s) use, so the app file is not "

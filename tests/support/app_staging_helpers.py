@@ -50,10 +50,10 @@ def clear_app_import_caches(pkg_name: str, module_name: str) -> None:
     """Avoid cross-test module collisions and cached failures/successes."""
     sys.modules.pop(f"{pkg_name}.{module_name}", None)
     sys.modules.pop(pkg_name, None)
-    clear_loaded_class_caches()
+    clear_app_modules()
 
 
-def clear_loaded_class_caches(under: Path | None = None) -> None:
+def clear_app_modules(under: Path | None = None) -> None:
     """Drop every app module app_utils loaded (only those under ``under``, if given), with its cached results."""
     for module_path, record in list(app_utils.APP_MODULES.items()):
         if under is None or module_path.is_relative_to(under):

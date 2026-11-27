@@ -14,7 +14,7 @@ import pytest
 from hassette.testing import make_test_config
 from hassette.utils import app_utils
 from hassette.utils.app_utils import cached_class, cached_load_error, load_app_class
-from tests.support.app_staging_helpers import clear_loaded_class_caches, new_unique_app_dir
+from tests.support.app_staging_helpers import clear_app_modules, new_unique_app_dir
 from tests.support.helpers import write_app
 
 TWO_APPS_SOURCE = """
@@ -82,7 +82,7 @@ def sandbox(tmp_path: Path) -> Iterator[AppSandbox]:
     pkg_name, app_dir = new_unique_app_dir(tmp_path)
     config = make_test_config(data_dir=tmp_path, apps={"directory": app_dir})
     yield AppSandbox(app_dir=app_dir, pkg_name=pkg_name, runs_file=tmp_path / "runs.txt", config=config)
-    clear_loaded_class_caches(under=app_dir)
+    clear_app_modules(under=app_dir)
     sys.modules.pop(pkg_name, None)
 
 

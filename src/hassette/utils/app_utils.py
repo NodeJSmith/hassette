@@ -35,6 +35,10 @@ if typing.TYPE_CHECKING:
     from hassette.config.models import AppsConfig
 
 LOGGER = getLogger(__name__)
+APP_MODULES: "dict[Path, AppModuleRecord]" = {}
+"""One record per app module file, keyed by the manifest's module path. Only ``clear_app_module`` removes one."""
+LOGGED_HASH_LENGTH = 12
+"""How many hex digits of a module's content hash the forced-reload log lines show."""
 
 # Characters kept free under the instance-name length cap for a suggested key's ``_N`` suffix.
 SUGGESTED_KEY_SUFFIX_ROOM = 8
@@ -90,10 +94,6 @@ class AppModuleRecord:
         """Whether ``sys.modules`` still holds the module this record describes."""
         current = sys.modules.get(self.name) if self.name is not None else None
         return current is self.module
-
-
-APP_MODULES: dict[Path, AppModuleRecord] = {}
-"""One record per app module file, keyed by the manifest's module path. Only ``clear_app_module`` removes one."""
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -500,9 +500,9 @@ def load_module_record(app_dir: Path, module_path: Path, pkg_name: str, *, force
     Returns:
         The module's current record.
     """
-    record = APP_MODULES.get(module_path)
-    if not force_reload and record is not None and record.is_current():
-        return record
+    previous = APP_MODULES.get(module_path)
+    if not force_reload and previous is not None and previous.is_current():
+        return previous
 
     mod_name: str | None = None
     try:
@@ -514,14 +514,19 @@ def load_module_record(app_dir: Path, module_path: Path, pkg_name: str, *, force
         content_hash = file_content_hash(module_path)
 
         if force_reload:
-            if record is not None and unchanged_since_import(record, content_hash):
+            if previous is not None and unchanged_since_import(previous, content_hash):
                 LOGGER.info(
                     "Forced reload of %s: file unchanged (sha256 %s), reusing the loaded module",
                     mod_name,
-                    content_hash[:12],
+                    content_hash[:LOGGED_HASH_LENGTH],
                 )
-                return record
-            LOGGER.info("Forced reload of %s: re-importing %s (sha256 %s)", mod_name, module_path, content_hash[:12])
+                return previous
+            LOGGER.info(
+                "Forced reload of %s: re-importing %s (sha256 %s)",
+                mod_name,
+                module_path,
+                content_hash[:LOGGED_HASH_LENGTH],
+            )
             clear_app_module(module_path, mod_name)
             remove_cached_bytecode(module_path)
 
@@ -533,7 +538,8 @@ def load_module_record(app_dir: Path, module_path: Path, pkg_name: str, *, force
         if force_reload:
             # a failure before the eviction (an unreadable or deleted file) must not leave the old module to be
             # adopted; a deleted file fails before its name resolves, so fall back to the previous record's name
-            clear_app_module(module_path, mod_name or (record.name if record is not None else None))
+            known_name = mod_name if mod_name is not None else (previous.name if previous is not None else None)
+            clear_app_module(module_path, known_name)
         APP_MODULES[module_path] = AppModuleRecord(name=mod_name, module=None, import_failure=exc)
         raise
 
