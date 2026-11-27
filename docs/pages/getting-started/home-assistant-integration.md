@@ -7,7 +7,7 @@ The Hassette integration for Home Assistant turns each Hassette app into a Home 
 Each app gets a device named after its display name. The display name defaults to the app key, the `<key>` in its `[hassette.apps.<key>]` block. Set `display_name` to choose the name yourself. For an app keyed `motion_lights`, the integration creates:
 
 - **`switch.motion_lights`**: on while the app is `running` or `degraded`. Turn it off to stop the app, on to start it.
-- **`button.motion_lights_reload`**: stops the app, re-imports its own module file from disk, and starts it again. Modules that file imports keep their old code; see [What Reload Re-imports](../web-ui/manage-apps.md#what-reload-re-imports).
+- **`button.motion_lights_reload`**: stops the app and starts it again, re-importing its own module file first if the file changed or its last import failed. Modules that file imports keep their old code; see [What Reload Re-imports](../web-ui/manage-apps.md#what-reload-re-imports).
 - **`sensor.motion_lights_status`**: the app's current status.
 
 The integration also adds a `hassette.send` action, which sends a message from Home Assistant to your apps. See [Send Messages to Your Apps](#send-messages-to-your-apps).

@@ -11,7 +11,7 @@ from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.schemas.app_outcomes import OutcomeResult
 from tests.support.outcomes import AnyNameOutcomes
 
-from .conftest import as_app_class, created_names, failures, flag_names, make_app_class
+from .conftest import RunningApp, as_app_class, created_names, failures, flag_names, make_app_class, running_app
 
 
 class TestAppFactoryInit:
@@ -70,10 +70,9 @@ class TestAppFactoryCreateInstances:
         mock_app_class.assert_not_called()
         assert not created_names(results)
 
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    @patch("hassette.core.app_factory.get_class_load_error")
+    @patch("hassette.core.app_factory.cached_load_error")
     def test_create_instances_class_load_failure(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+        self, mock_get_error, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Records failure against the first configured name when class loading fails."""
         cached_error = ValueError("Failed to load")
@@ -84,10 +83,9 @@ class TestAppFactoryCreateInstances:
         assert failures(results) == {"test_instance": cached_error}
         assert not created_names(results)
 
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    @patch("hassette.core.app_factory.get_class_load_error")
+    @patch("hassette.core.app_factory.cached_load_error")
     def test_create_instances_class_load_failure_reports_unoccupied_sibling(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+        self, mock_get_error, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """When the first instance is already running (preserved) and class loading fails for a
         multi-instance app, the failure must be recorded against the first unstarted sibling
@@ -109,10 +107,9 @@ class TestAppFactoryCreateInstances:
         assert failures(results) == {"instance_1": cached_error}
         assert not created_names(results)
 
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    @patch("hassette.core.app_factory.get_class_load_error")
+    @patch("hassette.core.app_factory.cached_load_error")
     def test_create_instances_class_load_failure_all_instances_occupied(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+        self, mock_get_error, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """When every configured name already has a live entry, there is no unstarted instance
         to report the failure against -- skip recording entirely rather than overwriting a
@@ -215,8 +212,7 @@ class TestAppFactoryCreateInstances:
         assert len(created_names(results)) == 3
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    @patch("hassette.core.app_factory.class_already_loaded", return_value=True)
-    def test_create_instances_force_reload(self, mock_loaded, mock_load_class, factory: AppFactory, mock_manifest):
+    def test_create_instances_force_reload(self, mock_load_class, factory: AppFactory, mock_manifest):
         """Passes force_reload=True through to load_class()."""
         mock_load_class.return_value = make_app_class()
 
@@ -240,15 +236,15 @@ class TestAppFactoryCreateInstances:
             {"instance_name": "instance_1"},
         ]
         # "instance_0" is already running; "instance_1" is not.
-        existing_app = Mock()
+        existing_app = running_app("instance_0")
         mock_registry.get = Mock(side_effect=lambda _key, name: existing_app if name == "instance_0" else None)
         mock_registry.get_live_apps = Mock(return_value={"instance_0": existing_app})
-        mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
 
-        # load_class() must be called with force_reload downgraded to False.
-        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
+        # The new sibling runs the live instance's class; the loader is never reached.
+        assert isinstance(results["instance_1"], RunningApp)
+        mock_load_class.assert_not_called()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_when_all_instances_occupied(
@@ -281,14 +277,14 @@ class TestAppFactoryCreateInstances:
         configured instance across two class versions (Codex P2 finding on #2245, round 2).
         """
         mock_manifest.app_config = [{"instance_name": "instance_0"}]  # config shrank to 1 instance
-        orphan = Mock()
+        orphan = running_app("instance_1")
         mock_registry.get = Mock(return_value=None)  # "instance_0" (the only configured name) is not live
         mock_registry.get_live_apps = Mock(return_value={"instance_1": orphan})  # not configured: an orphan
-        mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
+        results = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyNameOutcomes())
 
-        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
+        assert isinstance(results["instance_0"], RunningApp)
+        mock_load_class.assert_not_called()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_skips_already_running_instances(
@@ -387,10 +383,9 @@ class TestAppFactoryNeedsRestartGate:
         ]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    @patch("hassette.core.app_factory.get_class_load_error")
+    @patch("hassette.core.app_factory.cached_load_error")
     def test_class_load_failure_skips_flagged_instance_when_choosing_where_to_record(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+        self, mock_get_error, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """A class-load failure is recorded against the first instance that is neither running nor flagged."""
         mock_get_error.return_value = cached_error = ValueError("Failed to load")
@@ -403,10 +398,9 @@ class TestAppFactoryNeedsRestartGate:
 
         assert failures(results) == {"instance_2": cached_error}
 
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    @patch("hassette.core.app_factory.get_class_load_error")
+    @patch("hassette.core.app_factory.cached_load_error")
     def test_class_load_failure_fails_every_instance_left_to_create(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+        self, mock_get_error, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """One shared class serves every instance, so its load failure fails each instance left to create."""
         mock_get_error.return_value = ValueError("Failed to load")
@@ -502,30 +496,33 @@ class TestAppFactoryLoadClass:
         assert result is mock_app_class
         mock_load_class.assert_called_once()
 
-    @patch("hassette.core.app_factory.get_loaded_class")
-    @patch("hassette.core.app_factory.class_already_loaded", return_value=True)
-    def test_load_class_returns_cached(self, mock_loaded, mock_get_loaded, factory: AppFactory, mock_manifest):
-        """Returns cached class when already loaded."""
-        mock_get_loaded.return_value = mock_app_class = Mock()
+    def test_load_class_reuses_live_instances_class(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
+        """While an instance of the app key is live, a new instance gets its class, even on a forced load."""
+        mock_registry.get_live_apps = Mock(return_value={"instance_0": running_app("instance_0")})
 
-        result = factory.load_class("test_app", mock_manifest, force_reload=False)
+        with patch("hassette.core.app_factory.load_app_class_from_manifest") as mock_load_class:
+            assert factory.load_class("test_app", mock_manifest, force_reload=False) is RunningApp
+            assert factory.load_class("test_app", mock_manifest, force_reload=True) is RunningApp
 
-        assert result is mock_app_class
-        mock_get_loaded.assert_called_once_with(mock_manifest.full_path, mock_manifest.class_name)
+        mock_load_class.assert_not_called()
 
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    def test_load_class_returns_none_when_previously_failed(self, mock_failed, factory: AppFactory, mock_manifest):
-        """Returns None for previously failed classes."""
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    @patch("hassette.core.app_factory.cached_load_error", return_value=ValueError("boom"))
+    def test_load_class_returns_none_when_previously_failed(
+        self, mock_failed, mock_load_class, factory: AppFactory, mock_manifest
+    ):
+        """A plain load of a previously failed class returns None without trying the import again."""
         result = factory.load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is None
+        mock_load_class.assert_not_called()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    @patch("hassette.core.app_factory.class_already_loaded", return_value=True)
-    def test_load_class_force_reload_clears_cache(
-        self, mock_loaded, mock_load_class, factory: AppFactory, mock_manifest
+    @patch("hassette.core.app_factory.cached_load_error", return_value=ValueError("boom"))
+    def test_load_class_force_reload_retries_a_failed_class(
+        self, mock_failed, mock_load_class, factory: AppFactory, mock_manifest
     ):
-        """Force reload attempts fresh load even if cached."""
+        """A forced load goes to the loader even after a cached failure."""
         mock_load_class.return_value = mock_app_class = Mock()
 
         result = factory.load_class("test_app", mock_manifest, force_reload=True)
@@ -544,11 +541,8 @@ class TestAppFactoryLoadClass:
 
 
 class TestAppFactoryGetLoadError:
-    @patch("hassette.core.app_factory.get_class_load_error")
-    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
-    def test_get_load_error_returns_cached_exception(
-        self, mock_failed, mock_get_error, factory: AppFactory, mock_manifest
-    ):
+    @patch("hassette.core.app_factory.cached_load_error")
+    def test_get_load_error_returns_cached_exception(self, mock_get_error, factory: AppFactory, mock_manifest):
         """Returns cached exception from app_utils."""
         cached_error = ValueError("Cached error")
         mock_get_error.return_value = cached_error

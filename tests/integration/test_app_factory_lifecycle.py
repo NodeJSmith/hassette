@@ -292,49 +292,32 @@ class TestAppFactoryIntegration:
 
         assert first_class is second_class
 
-    def test_factory_force_reload_reloads_class(self, app_factory: AppFactory, app_registry: AppRegistry):
-        """force_reload=True reimports the module."""
-        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
-
-        create_app(app_factory, app_registry, manifest)
-        first_instance = get_app(app_registry, "my_app")
-        first_class = first_instance.__class__
-
-        # Clear registry
-        remove_app(app_registry, "my_app")
-
-        create_instances(app_factory, app_registry, manifest, force_reload=True)
-        second_instance = get_app(app_registry, "my_app")
-        second_class = second_instance.__class__
-
-        # After force reload, it should be a different class object
-        assert first_class is not second_class
-
     def test_factory_force_reload_recovers_previously_failed_class(
         self, app_factory: AppFactory, app_registry: AppRegistry
     ):
-        """force_reload=True evicts a cached load failure so a fixed app loads again.
+        """force_reload=True retries a cached load failure so a fixed app loads again.
 
         Regression for #1005: a manual reload of a previously-failed app must re-import
         from disk rather than re-raising the cached failure.
         """
         manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
-        cache_key = app_utils.app_cache_key(manifest.full_path, manifest.class_name)
 
         # Simulate a prior failed load (e.g. a syntax error the user has since fixed).
-        app_utils.FAILED_TO_LOAD_CLASSES[cache_key] = ImportError("boom")
+        app_utils.APP_MODULES[manifest.full_path] = app_utils.AppModuleRecord(
+            name=None, module=None, import_failure=ImportError("boom")
+        )
         try:
             # Without force_reload the cached failure blocks loading — no instance is created.
             create_app(app_factory, app_registry, manifest)
             assert "my_app" not in app_registry
-            assert cache_key in app_utils.FAILED_TO_LOAD_CLASSES
+            assert app_utils.cached_load_error(manifest.full_path, manifest.class_name) is not None
 
-            # With force_reload the failure is evicted and the app loads from disk.
+            # With force_reload the failure is retried and the app loads from disk.
             create_instances(app_factory, app_registry, manifest, force_reload=True)
             assert "my_app" in app_registry
-            assert cache_key not in app_utils.FAILED_TO_LOAD_CLASSES
+            assert app_utils.cached_load_error(manifest.full_path, manifest.class_name) is None
         finally:
-            app_utils.FAILED_TO_LOAD_CLASSES.pop(cache_key, None)
+            app_utils.APP_MODULES.pop(manifest.full_path, None)
 
 
 class TestAppLifecycleServiceIntegration:
@@ -712,9 +695,7 @@ class TestInvalidInheritanceBlocksLoad:
         with pytest.raises(AppPrecheckFailedError):
             app_utils.run_apps_pre_check(config)
 
-        assert isinstance(
-            app_utils.get_class_load_error(manifest.full_path, manifest.class_name), InvalidInheritanceError
-        )
+        assert isinstance(app_utils.cached_load_error(manifest.full_path, manifest.class_name), InvalidInheritanceError)
 
     async def test_start_app_records_failure_for_invalid_inheritance(
         self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry

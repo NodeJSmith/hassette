@@ -31,7 +31,7 @@ The demo HA installs the pinned hass-hassette integration and ships a pre-seeded
 To try an unreleased hass-hassette change, set `HASS_HASSETTE_PATH` to a local hass-hassette checkout (`HASS_HASSETTE_PATH=~/source/hass-hassette mise run demo`). `DemoStack` resolves it to an absolute path (relative and `~` paths work), fails before starting anything if it has no `custom_components/hassette`, and layers in `scripts/docker/ha-demo.hass-hassette.yml`, which mounts that directory read-only in place of the release volume and skips the release download. Unset, the demo uses the pinned release. HA loads integration code only at startup, so restart the stack after editing the checkout.
 
 Gotchas:
-- **Stale app code:** reloading a *failed* app via the REST API reuses the stale module — after editing app code, restart the whole stack.
+- **Stale helper code:** Reload re-imports the app's own file (when it changed or its last import failed), never the modules it imports — after editing a shared helper or a package sibling, restart the whole stack.
 - **Stale telemetry:** `.demo-data/` persists between runs. If the dashboard shows old errors or inflated counts, stop the stack, `rm -rf .demo-data`, and restart.
 
 ## Screenshots (docs and PR evidence)

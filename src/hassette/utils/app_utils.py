@@ -1,4 +1,5 @@
 import ast
+import hashlib
 import importlib.machinery
 import importlib.util
 import os
@@ -34,8 +35,6 @@ if typing.TYPE_CHECKING:
     from hassette.config.models import AppsConfig
 
 LOGGER = getLogger(__name__)
-LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
-FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
 # Characters kept free under the instance-name length cap for a suggested key's ``_N`` suffix.
 SUGGESTED_KEY_SUFFIX_ROOM = 8
@@ -58,13 +57,43 @@ class AppScan:
     resolving it failed, or because it links to a file outside the apps directory."""
 
 
-def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
-    """Build the cache key identifying an app class by its module path and class name.
+@dataclass
+class AppModuleRecord:
+    """What loading one app module produced: the module object, the classes read from it, and its failures.
 
-    Returns:
-        A ``(module path string, class name)`` tuple.
+    A record is current only while ``sys.modules`` maps ``name`` to ``module`` (for a failed import, while
+    ``name`` is absent); a load that finds it stale imports again instead of trusting it. A failure recorded
+    before the name was resolved (a missing file, say) has no name to check, so it stays current until a
+    forced load retries it.
     """
-    return (str(module_path), class_name)
+
+    name: str | None
+    """The module's canonical dotted name, or None when the load failed before the name was known."""
+
+    module: "ModuleType | None"
+    """The module object, or None after an import failure."""
+
+    content_hash: str | None = None
+    """SHA-256 of the file's bytes, read before the import that produced ``module``. None when this record
+    adopted a module someone else imported, or after a failure, so a forced load always re-imports it."""
+
+    classes: "dict[str, type[App[AppConfig]]]" = field(default_factory=dict)
+    """The app classes read from ``module`` so far, by class name."""
+
+    class_failures: dict[str, Exception] = field(default_factory=dict)
+    """Why a class name failed: missing attribute, not an app class, or a failing ``validate_init_method``."""
+
+    import_failure: Exception | None = None
+    """The exception the import (or the read before it) raised; every class in the module fails with it."""
+
+    def is_current(self) -> bool:
+        """Whether ``sys.modules`` still holds the module this record describes."""
+        current = sys.modules.get(self.name) if self.name is not None else None
+        return current is self.module
+
+
+APP_MODULES: dict[Path, AppModuleRecord] = {}
+"""One record per app module file, keyed by the manifest's module path. Only ``clear_app_module`` removes one."""
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -362,66 +391,58 @@ def load_app_class_from_manifest(
     )
 
 
-def class_failed_to_load(module_path: Path, class_name: str) -> bool:
-    """Check if the given class previously failed to load.
+def current_module_record(module_path: Path) -> AppModuleRecord | None:
+    """Return the module path's record if it still describes the module in ``sys.modules``, else None."""
+    record = APP_MODULES.get(module_path)
+    if record is None or not record.is_current():
+        return None
+    return record
+
+
+def cached_class(module_path: Path, class_name: str) -> "type[App[AppConfig]] | None":
+    """Return the class an earlier load read from the module, without importing anything.
 
     Args:
         module_path: The full path to the app module file.
         class_name: The name of the app class.
 
     Returns:
-        True if the class failed to load previously, False otherwise.
+        The class, or None if no current load of the module produced it.
     """
-    cache_key = app_cache_key(module_path, class_name)
-    return cache_key in FAILED_TO_LOAD_CLASSES
+    record = current_module_record(module_path)
+    return record.classes.get(class_name) if record is not None else None
 
 
-def get_class_load_error(module_path: Path, class_name: str) -> Exception:
-    """Get the exception that caused the given class to fail to load. Raises KeyError if the class loaded successfully.
+def cached_load_error(module_path: Path, class_name: str) -> Exception | None:
+    """Return why an earlier load of the class failed, without importing anything.
 
     Args:
         module_path: The full path to the app module file.
         class_name: The name of the app class.
 
     Returns:
-        The exception that caused the class to fail to load.
-
-    Raises:
-        KeyError: If the class loaded successfully.
+        The module's import failure, else the class's own failure, else None.
     """
-    cache_key = app_cache_key(module_path, class_name)
-    return FAILED_TO_LOAD_CLASSES[cache_key]
+    record = current_module_record(module_path)
+    if record is None:
+        return None
+    if record.import_failure is not None:
+        return record.import_failure
+    return record.class_failures.get(class_name)
 
 
-def class_already_loaded(module_path: Path, class_name: str) -> bool:
-    """Check if the given class is already loaded.
+def clear_app_module(module_path: Path, mod_name: str | None) -> None:
+    """Remove an app module from ``sys.modules`` and drop its record, together.
+
+    The only code that removes app modules, so the class cache never outlives (or loses) its module.
 
     Args:
         module_path: The full path to the app module file.
-        class_name: The name of the app class.
-
-    Returns:
-        True if the class is already loaded, False otherwise.
+        mod_name: The module's canonical dotted name, if known.
     """
-    cache_key = app_cache_key(module_path, class_name)
-    return cache_key in LOADED_CLASSES
-
-
-def get_loaded_class(module_path: Path, class_name: str) -> "type[App[AppConfig]]":
-    """Get the loaded class for the given module path and class name. Raises KeyError if not loaded.
-
-    Args:
-        module_path: The full path to the app module file.
-        class_name: The name of the app class.
-
-    Returns:
-        The loaded class.
-
-    Raises:
-        KeyError: If the class is not loaded.
-    """
-    cache_key = app_cache_key(module_path, class_name)
-    return LOADED_CLASSES[cache_key]
+    if mod_name is not None:
+        sys.modules.pop(mod_name, None)
+    APP_MODULES.pop(module_path, None)
 
 
 def load_app_class(
@@ -435,6 +456,10 @@ def load_app_class(
 ) -> "type[App[AppConfig]]":
     """Import the app's class with a canonical package/module identity so isinstance works.
 
+    A plain load imports the module at most once and reuses its record after that, failures included. A
+    forced load re-imports the module only if its file changed since the last successful import, or that
+    import failed (see ``load_module_record``).
+
     Args:
         app_dir: The root directory containing apps.
         module_path: The full path to the app module file.
@@ -443,10 +468,90 @@ def load_app_class(
             read from context because callers reach the loader from tasks that may not carry the
             Hassette contextvars, such as a web request or the startup pre-check.
         display_name: Optional display name for logging.
-        force_reload: Whether to force reloading the module if already loaded.
+        force_reload: Whether to re-import the module if its file changed since it was imported.
 
     Returns:
         The app class.
+    """
+    display_name = display_name or class_name
+    if not module_path or not class_name:
+        raise ValueError(f"App {display_name} is missing filename or class_name")
+
+    record = load_module_record(app_dir, module_path, config.apps.directory.name, force_reload=force_reload)
+    return read_app_class(record, module_path, class_name)
+
+
+def load_module_record(app_dir: Path, module_path: Path, pkg_name: str, *, force_reload: bool) -> AppModuleRecord:
+    """Return the record for an app module, importing it under the apps namespace package when needed.
+
+    A plain load reuses a current record as it is. Otherwise it calls ``importlib.import_module``, which
+    imports the module or returns the one already in ``sys.modules``; only a module this call imported gets a
+    content hash. A forced load reuses the record only when its last import succeeded and the file's hash
+    still matches; otherwise it removes the module, deletes its cached bytecode, and imports it fresh.
+
+    A failure is recorded and re-raised; the module is not restored to ``sys.modules``.
+
+    Args:
+        app_dir: The root directory containing apps.
+        module_path: The full path to the app module file.
+        pkg_name: The package name to use (e.g. 'apps')
+        force_reload: Whether to re-import the module if its file changed or its last import failed.
+
+    Returns:
+        The module's current record.
+    """
+    record = APP_MODULES.get(module_path)
+    if not force_reload and record is not None and record.is_current():
+        return record
+
+    mod_name: str | None = None
+    try:
+        _ensure_on_sys_path(app_dir)
+        _ensure_on_sys_path(app_dir.parent)
+        _ensure_namespace_package(app_dir, pkg_name)
+        mod_name = _module_name_for(app_dir, module_path, pkg_name)
+        # read before importing, so a save racing the import costs one extra re-import, never a stale hash
+        content_hash = file_content_hash(module_path)
+
+        if force_reload:
+            if record is not None and unchanged_since_import(record, content_hash):
+                LOGGER.info(
+                    "Forced reload of %s: file unchanged (sha256 %s), reusing the loaded module",
+                    mod_name,
+                    content_hash[:12],
+                )
+                return record
+            LOGGER.info("Forced reload of %s: re-importing %s (sha256 %s)", mod_name, module_path, content_hash[:12])
+            clear_app_module(module_path, mod_name)
+            remove_cached_bytecode(module_path)
+
+        # A module already in sys.modules was imported by someone else (another app module's import), so its
+        # bytes may predate this hash. Only possible on a plain load: a forced load just removed it.
+        imported_here = mod_name not in sys.modules
+        module = importlib.import_module(mod_name)
+    except Exception as exc:
+        if force_reload:
+            # a failure before the eviction (an unreadable or deleted file) must not leave the old module to be
+            # adopted; a deleted file fails before its name resolves, so fall back to the previous record's name
+            clear_app_module(module_path, mod_name or (record.name if record is not None else None))
+        APP_MODULES[module_path] = AppModuleRecord(name=mod_name, module=None, import_failure=exc)
+        raise
+
+    record = AppModuleRecord(name=mod_name, module=module, content_hash=content_hash if imported_here else None)
+    APP_MODULES[module_path] = record
+    return record
+
+
+def unchanged_since_import(record: AppModuleRecord, content_hash: str) -> bool:
+    """Whether a record's module was imported here from bytes hashing to ``content_hash`` and is still loaded."""
+    return record.import_failure is None and record.content_hash == content_hash and record.is_current()
+
+
+def read_app_class(record: AppModuleRecord, module_path: Path, class_name: str) -> "type[App[AppConfig]]":
+    """Return the named app class from a module record, checking and caching it on first read.
+
+    Raises:
+        Exception: The module's import failure, or why the class is unusable (cached on the record).
     """
     # house-lint: ignore-next[HSL002] - break circular import, hassette.app imports this module
     from hassette.app import (  # noqa: PLC0415
@@ -454,87 +559,51 @@ def load_app_class(
         AppSync,
     )
 
-    display_name = display_name or class_name
-
-    # cache keyed by (absolute file path, class name)
-    cache_key = app_cache_key(module_path, class_name)
-
-    if force_reload:
-        if cache_key in LOADED_CLASSES:
-            LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
-            del LOADED_CLASSES[cache_key]
-        if cache_key in FAILED_TO_LOAD_CLASSES:
-            LOGGER.info("Forcing reload of previously failed app class %s from %s", class_name, module_path)
-            del FAILED_TO_LOAD_CLASSES[cache_key]
-
-    if cache_key in FAILED_TO_LOAD_CLASSES:
-        raise FAILED_TO_LOAD_CLASSES[cache_key]
-
-    if cache_key in LOADED_CLASSES:
-        return LOADED_CLASSES[cache_key]
-
-    if not module_path or not class_name:
-        raise ValueError(f"App {display_name} is missing filename or class_name")
-
-    # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
-    try:
-        pkg_name = config.apps.directory.name
-        mod_name, module = import_module(app_dir, module_path, pkg_name)
-    except Exception as exc:
-        FAILED_TO_LOAD_CLASSES[cache_key] = exc
-        raise
+    if record.import_failure is not None:
+        raise record.import_failure
+    if (app_class := record.classes.get(class_name)) is not None:
+        return app_class
+    if (failure := record.class_failures.get(class_name)) is not None:
+        raise failure
 
     try:
-        app_class = getattr(module, class_name)
-    except AttributeError:
-        FAILED_TO_LOAD_CLASSES[cache_key] = AttributeError(
-            f"Class {class_name} not found in module {mod_name} ({module_path})"
-        )
-        raise FAILED_TO_LOAD_CLASSES[cache_key] from None
-
-    if not (isinstance(app_class, type) and issubclass(app_class, App | AppSync)):
-        FAILED_TO_LOAD_CLASSES[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
-        raise FAILED_TO_LOAD_CLASSES[cache_key]
-
-    try:
+        try:
+            app_class = getattr(record.module, class_name)
+        except AttributeError:
+            raise AttributeError(f"Class {class_name} not found in module {record.name} ({module_path})") from None
+        if not (isinstance(app_class, type) and issubclass(app_class, App | AppSync)):
+            raise TypeError(f"Class {class_name} is not a subclass of App or AppSync")
         validate_init_method(app_class)
     except Exception as exc:
-        FAILED_TO_LOAD_CLASSES[cache_key] = exc
+        record.class_failures[class_name] = exc
         raise
 
-    LOADED_CLASSES[cache_key] = app_class
+    record.classes[class_name] = app_class
     return app_class
 
 
-def import_module(app_dir: Path, module_path: Path, pkg_name: str) -> tuple[str, "ModuleType"]:
-    """Import (or reload) a module from the given path under the 'apps' namespace package.
+def file_content_hash(path: Path) -> str:
+    """Return the SHA-256 hex digest of a file's bytes."""
+    with path.open("rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
 
-    Args:
-        app_dir: The root directory containing apps.
-        module_path: The full path to the app module file.
-        pkg_name: The package name to use (e.g. 'apps')
 
-    Returns:
-        The dotted module name (e.g. ``apps.my_app``) and the imported module.
+def remove_cached_bytecode(module_path: Path) -> None:
+    """Delete the module's ``__pycache__`` file so the next import compiles the current source.
+
+    The source loader trusts a ``.pyc`` whose recorded mtime (whole seconds) and size match the file, so a
+    same-size edit saved within a second of the last compile would otherwise import the old code.
     """
-    # specifically do not handle exceptions here, to let caller handle them
-
-    _ensure_on_sys_path(app_dir)
-    _ensure_on_sys_path(app_dir.parent)
-
-    # 1) Ensure 'apps' is a namespace package pointing at app_config.app_dir
-    _ensure_namespace_package(app_dir, pkg_name)
-
-    # 2) Compute canonical module name from relative path under app_dir
-    mod_name = _module_name_for(app_dir, module_path, pkg_name)
-
-    # 3) Import or reload the module by canonical name
-    if mod_name in sys.modules:
-        module = importlib.reload(sys.modules[mod_name])
-        return mod_name, module
-
-    module = importlib.import_module(mod_name)
-    return mod_name, module
+    pyc = Path(importlib.util.cache_from_source(str(module_path.resolve())))
+    try:
+        pyc.unlink(missing_ok=True)
+    except OSError as exc:
+        LOGGER.warning(
+            "Could not remove cached bytecode %s before re-importing %s; the import may use stale bytecode: %s",
+            pyc,
+            module_path,
+            exc,
+        )
 
 
 def _ensure_namespace_package(root: Path, pkg_name: str) -> None:

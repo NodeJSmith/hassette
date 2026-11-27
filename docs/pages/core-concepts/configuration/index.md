@@ -155,7 +155,7 @@ A running handler holds its slot until it returns or reaches `lifecycle.event_ha
 
 ### File Watcher
 
-The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, so edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). The watcher groups a burst of changes into one reload. It checks for changes every 500ms and reloads when a check finds no newly changed files, or about 3 seconds into a burst that keeps touching new files. `watch_files = false` in `[hassette.file_watcher]` disables watching entirely.
+The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, and only when that file changed. Edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). The watcher groups a burst of changes into one reload. It checks for changes every 500ms and reloads when a check finds no newly changed files, or about 3 seconds into a burst that keeps touching new files. `watch_files = false` in `[hassette.file_watcher]` disables watching entirely.
 
 ### State Proxy Polling
 

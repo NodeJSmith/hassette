@@ -437,9 +437,9 @@ async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> Act
 
 @action_route("/apps/{app_key}/reload", *ACTION_CODES)
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Re-import the app from disk, restart its instances, and report what the reload did to each one."""
-    # Always re-import from disk so a previously-failed app recovers once its
-    # source is fixed -- without force_reload the cached failed class is reused (#1005).
+    """Restart the app's instances, re-importing its module if the file changed, and report the result for each."""
+    # force_reload re-imports a module whose file changed or whose last import failed, so a previously-failed
+    # app recovers once its source is fixed; without it the cached failure is reused (#1005).
     return await _run_app_action(
         "reload", app_key, hassette, request, lambda: hassette.app_handler.reload_app(app_key, force_reload=True)
     )
@@ -475,10 +475,10 @@ async def stop_instance(app_key: str, instance_name: str, hassette: HassetteDep,
 
 @action_route("/apps/{app_key}/instances/{instance_name}/reload", *INSTANCE_ROUTE_CODES, *ACTION_CODES)
 async def reload_instance(app_key: str, instance_name: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Re-import the app from disk, restart one instance by name, and report what the reload did to it."""
+    """Restart one instance, re-importing a changed app file if no sibling instance is live, and report it."""
     _require_addressable_instance(app_key, instance_name, hassette, "reload")
-    # Always re-import from disk, matching the full app-key reload endpoint's force_reload=True
-    # convention (#1005) at instance granularity.
+    # force_reload as on the app-key route (#1005). While a sibling instance runs, the instance restarts on the
+    # siblings' class instead, so one app key never runs two versions of its class (AppFactory.load_class).
     return await _run_app_action(
         "reload",
         app_key,

@@ -39,7 +39,7 @@ class AppRestart:
     """The instance names to touch, or None for every instance of the app. Each one is stopped if tracked, and
     created if still configured, so a removed name is only stopped and an added one only created."""
     force_reload: bool = False
-    """Re-import the app class from disk before recreating (a file change). Only set with ``names=None``:
+    """Re-import the app class from disk, if its file changed, before recreating. Only set with ``names=None``:
     a re-import always restarts every instance."""
 
 
