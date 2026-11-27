@@ -7,12 +7,27 @@ Covers:
 - wait_for() detects async callable instances (#1244)
 """
 
+import typing
+
 import pytest
 
+from hassette.event_handling import predicates as P
 from hassette.event_handling.predicates import compare_value, normalize_where
 from hassette.testing import wait_for
 from tests.support.factories import make_mock_event
 from tests.support.helpers import create_listener
+from tests.unit.bus.conftest import mock_add_listener
+
+if typing.TYPE_CHECKING:
+    from hassette.bus.bus import Bus
+
+
+async def async_check(_ev: object) -> bool:
+    return False
+
+
+async def noop_handler() -> None:
+    pass
 
 
 class TestNormalizeWhereAsyncRejection:
@@ -63,6 +78,38 @@ class TestNormalizeWhereAsyncRejection:
 
     def test_none_passes(self) -> None:
         assert normalize_where(None) is None
+
+    def test_and_composition_with_async_member_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="synchronous"):
+            normalize_where(P.StateTo("on") & async_check)  # pyright: ignore[reportOperatorIssue]
+
+    def test_any_of_nested_in_all_of_with_async_member_raises_type_error(self) -> None:
+        nested = P.AllOf((P.StateTo("on"), P.AnyOf((P.StateFrom("off"), async_check))))  # pyright: ignore[reportArgumentType]
+        with pytest.raises(TypeError, match="synchronous"):
+            normalize_where(nested)
+
+    def test_not_wrapping_async_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="synchronous"):
+            normalize_where(P.Not(async_check))  # pyright: ignore[reportArgumentType]
+
+    def test_guard_wrapping_async_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="synchronous"):
+            normalize_where(P.Guard(async_check))  # pyright: ignore[reportArgumentType]
+
+    def test_sync_composition_passes(self) -> None:
+        where = P.StateTo("on") & ~P.StateFrom("off")
+        assert normalize_where(where) is where
+
+
+async def test_on_state_change_where_list_with_async_member_raises_type_error(bus: "Bus") -> None:
+    """on_state_change pre-wraps where= lists in AllOf; the async member is still rejected at registration."""
+    with mock_add_listener(bus), pytest.raises(TypeError, match="synchronous"):
+        await bus.on_state_change(
+            "light.kitchen",
+            handler=noop_handler,
+            name="async_where",
+            where=[async_check],  # pyright: ignore[reportArgumentType]
+        )
 
 
 class TestCompareValueAsyncCallableInstance:
