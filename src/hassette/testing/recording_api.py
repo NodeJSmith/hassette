@@ -388,19 +388,9 @@ class RecordingHelperClient:
         return record.model_copy(deep=deep_copy)
 
     def _update_helper(self, record_type: type, method_name: str, helper_id: str, params: Any) -> Any:
-        """Generic update helper — records an ApiCall and mutates the stored record.
+        """Record an ApiCall under ``method_name`` and merge ``params`` into the seeded record as HA does.
 
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        copy depth.
-
-        Args:
-            record_type: The Record class.
-            method_name: The API method name to record (e.g. ``"update_input_boolean"``).
-            helper_id: The helper id to update.
-            params: The Update*Params model instance.
-
-        Returns:
-            A copy of the updated record.
+        Returns a copy of the updated record.
 
         Raises:
             CommandRejectedError: With code='not_found' if helper_id is not seeded, or
