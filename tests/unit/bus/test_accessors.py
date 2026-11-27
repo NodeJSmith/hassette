@@ -332,7 +332,7 @@ def test_recursive_get_differences_direct() -> None:
     old = {"a": 1, "b": {"x": 1, "y": 2}, "unchanged": "same"}
     new = {"a": 2, "b": {"x": 1, "y": 3}, "unchanged": "same"}
 
-    diff = A._recursive_get_differences(old, new)
+    diff = A._recursive_get_differences(old, new, exclude=())
 
     assert diff == {"a": (1, 2), "b": {"y": (2, 3)}}
     assert "unchanged" not in diff

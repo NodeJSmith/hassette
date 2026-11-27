@@ -59,7 +59,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from hassette.const import MISSING_VALUE
+from hassette.const.misc import MISSING_VALUE
 from hassette.conversion.type_registry import TYPE_REGISTRY
 from hassette.exceptions import UnableToConvertValueError
 from hassette.utils.glob_utils import matches_globs

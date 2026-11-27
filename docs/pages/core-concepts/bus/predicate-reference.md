@@ -138,7 +138,7 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 | `C.NotIn` | `NotIn(collection: Sequence[Any])` | Returns `True` when the value is not in `collection`. |
 | `C.Intersects` | `Intersects(collection: Sequence[Any])` | Returns `True` when the value (itself a sequence) shares at least one element with `collection`. |
 | `C.NotIntersects` | `NotIntersects(collection: Sequence[Any])` | Returns `True` when the value (itself a sequence) shares no elements with `collection`. |
-| `C.IsOrContains` | `IsOrContains(condition: str)` | Returns `True` when the value equals `condition`, or when the value is a sequence containing it. |
+| `C.IsOrContains` | `IsOrContains(condition: Any)` | Returns `True` when the value equals `condition`, or when the value is a sequence containing it. |
 
 `collection` must be a sequence, not a string. Passing a string raises `ValueError`.
 
