@@ -18,9 +18,9 @@ Run `hassette app` to see each app's key and display name. Every app device show
 
 ## Prerequisites
 
-- **Hassette 0.62.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
+- **Hassette 0.66.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
 - **HACS** installed in Home Assistant.
-- **Home Assistant 2026.9 or newer**.
+- **Home Assistant 2026.11 or newer**.
 
 !!! tip "Running the Hassette add-on?"
     Do step 1 below, then skip steps 2 and 3. The add-on announces itself, so Home Assistant shows a **Discovered** Hassette card under **Settings → Devices & services**. Choose **Configure** and confirm; the add-on supplies the address and token. See [Add-on Setup](addon/index.md#step-5-pair-the-integration).
@@ -106,6 +106,8 @@ This automation turns `switch.motion_lights` off at 23:00. Paste it into **Setti
 | State | Meaning |
 |---|---|
 | `running` | The app runs. |
+| `starting` | The app is starting. |
+| `stopping` | The app is stopping. |
 | `degraded` | Some instances run and at least one has failed. |
 | `failed` | The app failed. |
 | `stopped` | The app is stopped. |
