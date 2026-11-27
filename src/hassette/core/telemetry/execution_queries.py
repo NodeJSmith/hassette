@@ -292,17 +292,12 @@ class ExecutionQueriesMixin:
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
-        result: dict[str, list[list[int]]] = {}
+        result: dict[str, list[tuple[int, int]]] = {}
         for row in rows:
-            app_key = row["app_key"]
-            if app_key not in result:
-                result[app_key] = [[0, 0] for _ in range(num_buckets)]
-            idx = int(row["bucket_idx"])
-            if 0 <= idx < num_buckets:
-                result[app_key][idx][0] = int(row["ok"] or 0)
-                result[app_key][idx][1] = int(row["err"] or 0)
+            buckets = result.setdefault(row["app_key"], [(0, 0)] * num_buckets)
+            buckets[row["bucket_idx"]] = (row["ok"], row["err"])
 
-        return {k: [(b[0], b[1]) for b in v] for k, v in result.items()}
+        return result
 
     async def get_per_app_last_errors(
         self,

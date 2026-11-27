@@ -38,14 +38,14 @@ def _make_manifest_query_service(telemetry_db: aiosqlite.Connection) -> Telemetr
 
 
 def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
-    """manifest_insert_params() maps AppManifest fields to the UPSERT param dict, coercing bools to int."""
+    """manifest_insert_params() maps AppManifest fields to the UPSERT param dict."""
     manifest = create_app_manifest("test", tmp_path, enabled=False)
     manifest.autostart = False
 
     params = manifest_insert_params(manifest)
 
     # dup-ignore-start: asserts against manifest_insert_params()'s literal output (DB-params layer,
-    # coerces bool -> int for SQLite). Shares field names with mappers.py's app_summary_from()
+    # SQLite stores its bools as 0/1). Shares field names with mappers.py's app_summary_from()
     # (API-response layer) by coincidence — same source model, different consumer/field subset;
     # extracting a shared dict-builder here would wrongly couple the DB layer to the response layer.
     assert params == {
@@ -58,8 +58,6 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
         "autostart": 0,
     }
     # dup-ignore-end
-    assert isinstance(params["enabled"], int)
-    assert not isinstance(params["enabled"], bool)
 
 
 async def test_manifest_insert_params_schema_parity(

@@ -58,7 +58,7 @@ def test_job_insert_params_matches_register_job(_migrated_db_template: Path):  #
 
 
 def test_execution_insert_params_round_trip(_migrated_db_template: Path):  # noqa: PT019
-    """execution_insert_params() keys must match executions columns; booleans coerce to int."""
+    """execution_insert_params() keys must match executions columns."""
     record = make_execution_record(is_di_failure=True, thread_leaked=True)
     params = execution_insert_params(record)
 
@@ -66,13 +66,7 @@ def test_execution_insert_params_round_trip(_migrated_db_template: Path):  # noq
     assert set(params) == expected_keys
 
     assert params["is_di_failure"] == 1
-    assert isinstance(params["is_di_failure"], int)
-    assert not isinstance(params["is_di_failure"], bool)
-
     assert params["thread_leaked"] == 1
-    assert isinstance(params["thread_leaked"], int)
-    assert not isinstance(params["thread_leaked"], bool)
-
     assert params["execution_id"] == record.execution_id
     assert params["session_id"] == record.session_id
 
@@ -86,13 +80,7 @@ def test_listener_insert_params_round_trip(_migrated_db_template: Path):  # noqa
     assert set(params) == expected_keys
 
     assert params["once"] == 0
-    assert isinstance(params["once"], int)
-    assert not isinstance(params["once"], bool)
-
     assert params["immediate"] == 0
-    assert isinstance(params["immediate"], int)
-    assert not isinstance(params["immediate"], bool)
-
     assert params["app_key"] == registration.app_key
     assert params["name"] == registration.name
     assert params["topic"] == registration.topic

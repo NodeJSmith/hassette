@@ -3,6 +3,8 @@
 import json
 from typing import Any
 
+from hassette.core.telemetry.helpers import SQL_SOURCE_TIER_APP
+
 # The reconciliation query builders interpolate the table and its executions FK column directly into
 # f-string SQL. Today every caller passes string literals, but this allowlist keeps that interpolation
 # injection-safe if a non-literal value is ever passed in.
@@ -166,7 +168,7 @@ def build_retire_unconfigured_instances_query(
     sql = f"""
         UPDATE {table} SET retired_at = :now
         WHERE retired_at IS NULL
-          AND source_tier = 'app'
+          AND source_tier = {SQL_SOURCE_TIER_APP}
           AND NOT EXISTS (
               SELECT 1 FROM json_each(:live_instances) live
               WHERE json_extract(live.value, '$[0]') = {table}.app_key
