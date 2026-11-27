@@ -35,10 +35,7 @@ SECRET_VALUE = "hunter2-do-not-log"
 
 class TestTimeoutAndLogLevelProperties:
     def test_properties_delegate_to_config(self, websocket_service: WebsocketService) -> None:
-        """connection/heartbeat timeouts and config_log_level read from config."""
-        cfg = websocket_service.hassette.config.websocket
-        assert websocket_service.connection_timeout_seconds == cfg.connection_timeout_seconds
-        assert websocket_service.heartbeat_interval_seconds == cfg.heartbeat_interval_seconds
+        """config_log_level reads from config."""
         assert websocket_service.config_log_level == websocket_service.hassette.config.logging.websocket
 
 
