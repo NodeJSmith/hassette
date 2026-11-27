@@ -185,7 +185,7 @@ def sync_issue(failing: list[str], ctx: RunContext) -> str:
     return f"failing, set changed on #{existing}"
 
 
-def main(argv: list[str]) -> int:
+def main(argv: list[str]) -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--junit", type=Path, required=True, help="JUnit XML report of the canary run.")
     p.add_argument(
@@ -203,8 +203,7 @@ def main(argv: list[str]) -> int:
     ctx = RunContext(ha_version=args.ha_version, image_tag=args.image_tag, run_url=args.run_url)
     print(f"Failing set: {failing or 'none'}")
     print(sync_issue(failing, ctx))
-    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    main(sys.argv[1:])
