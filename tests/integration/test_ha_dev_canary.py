@@ -2,7 +2,8 @@
 
 Runs the script as a subprocess against a stub `gh` placed first on PATH. The stub answers the
 lookups from environment variables and appends every mutating call (create, edit, comment, close),
-with its stdin, to a JSON-lines log the tests read back.
+with its stdin, to a JSON-lines log the tests read back. A mutating command named in
+`STUB_FAIL_COMMANDS` is logged and then exits non-zero.
 """
 
 import json
@@ -37,7 +38,7 @@ if cmd in ("issue create", "issue edit", "issue comment", "issue close"):
     stdin = sys.stdin.read() if "-" in args else ""
     with open(os.environ["STUB_GH_LOG"], "a") as f:
         f.write(json.dumps({"args": args, "stdin": stdin}) + "\\n")
-    sys.exit(0)
+    sys.exit(1 if cmd in os.environ.get("STUB_FAIL_COMMANDS", "").split(",") else 0)
 print(f"stub gh: unhandled args: {args}", file=sys.stderr)
 sys.exit(1)
 """
@@ -80,6 +81,7 @@ def run_canary(
     outcome: str,
     existing_issue: str = "",
     existing_body: str = "",
+    fail_commands: str = "",
 ) -> CanaryResult:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
@@ -97,6 +99,7 @@ def run_canary(
     env["STUB_EXISTING_ISSUE"] = existing_issue
     env["STUB_EXISTING_BODY"] = existing_body
     env["STUB_GH_LOG"] = str(log)
+    env["STUB_FAIL_COMMANDS"] = fail_commands
 
     result = subprocess.run(
         [
@@ -176,8 +179,8 @@ def test_body_without_marker_is_rewritten_and_commented(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert [c.command for c in result.calls] == ["issue edit", "issue comment"]
-    assert "Now failing:\n- `tests.system.test_api::test_b`" in result.calls[1].stdin
+    assert [c.command for c in result.calls] == ["issue comment", "issue edit"]
+    assert "Now failing:\n- `tests.system.test_api::test_b`" in result.calls[0].stdin
 
 
 @pytest.mark.integration
@@ -205,11 +208,32 @@ def test_changed_failing_set_rewrites_body_and_comments(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert [c.command for c in result.calls] == ["issue edit", "issue comment"]
-    assert '["tests.system.test_api::test_c"]' in result.calls[0].stdin
-    comment = result.calls[1].stdin
+    assert [c.command for c in result.calls] == ["issue comment", "issue edit"]
+    assert '["tests.system.test_api::test_c"]' in result.calls[1].stdin
+    comment = result.calls[0].stdin
     assert "Now failing:\n- `tests.system.test_api::test_c`" in comment
     assert "No longer failing:\n- `tests.system.test_api::test_b`" in comment
+
+
+@pytest.mark.integration
+def test_failed_change_comment_leaves_body_so_next_run_retries(tmp_path: Path) -> None:
+    old_body = body_for(["tests.system.test_api::test_b"])
+    result = run_canary(
+        tmp_path,
+        report=junit(("test_c", "bang")),
+        outcome="failure",
+        existing_issue="12",
+        existing_body=old_body,
+        fail_commands="issue comment",
+    )
+
+    assert result.returncode != 0
+    # The body still records the old set, so the next run sees a change and comments again.
+    assert [c.command for c in result.calls] == ["issue comment"]
+    retry = run_canary(
+        tmp_path, report=junit(("test_c", "bang")), outcome="failure", existing_issue="12", existing_body=old_body
+    )
+    assert [c.command for c in retry.calls] == ["issue comment", "issue edit"]
 
 
 @pytest.mark.integration
@@ -222,7 +246,11 @@ def test_container_that_never_started_is_one_startup_failure(tmp_path: Path) -> 
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("report", [None, junit(("test_a", None))], ids=["missing-report", "no-failing-test"])
+@pytest.mark.parametrize(
+    "report",
+    [None, junit(("test_a", None)), "", junit(("test_a", "boom"))[:60]],
+    ids=["missing-report", "no-failing-test", "empty-report", "truncated-report"],
+)
 def test_failed_step_without_failing_test_is_job_failed(tmp_path: Path, report: str | None) -> None:
     result = run_canary(tmp_path, report=report, outcome="failure")
 

@@ -5,8 +5,8 @@ Reads the JUnit report of the `system_canary` nox session and keeps at most one 
 labeled `ha-dev-canary`:
 
 - failing run, no open issue: open one listing the failing test IDs, the HA version and the run.
-- failing run, open issue, different failing set: rewrite the issue body to the new set and comment
-  with what was added and removed, so watchers get notified.
+- failing run, open issue, different failing set: comment with what was added and removed, so
+  watchers get notified, then rewrite the issue body to the new set.
 - failing run, same failing set: leave the issue alone.
 - green run: close the open issue, if any.
 
@@ -19,7 +19,7 @@ Two failures have no real test ID, so they get a synthetic one:
   that needs HA errors with the same fixture message, so they collapse into one ID instead of
   listing the whole suite.
 - `<job-failed>`: the test step failed but the report names no failing test (collection crash,
-  nox error, missing report).
+  nox error, missing report), or the report is unreadable (the step was killed mid-write).
 
 Usage:
     python3 ./tools/release/ha_dev_canary.py --junit test-results/ha-dev-canary.xml \
@@ -68,20 +68,27 @@ def failing_set(junit: Path, *, outcome: str) -> list[str]:
 
     Returns:
         Sorted `classname::name` IDs of failed or errored test cases, `[STARTUP_ID]` when HA never
-        started, or `[JOB_FAILED_ID]` when the step failed without a failing test in the report.
+        started, or `[JOB_FAILED_ID]` when the step failed without a failing test in the report or the
+        report can't be parsed.
     """
+    cases: list[ET.Element] = []
+    if junit.exists():
+        try:
+            # The report is written by this job's own pytest run, not fetched from anywhere.
+            cases = list(ET.parse(junit).getroot().iter("testcase"))  # noqa: S314
+        except ET.ParseError:
+            # pytest writes the report in place, so a step killed mid-write leaves truncated XML. Its
+            # partial test IDs are dropped: the run's outcome decides, as for a missing report.
+            print(f"::warning::unreadable JUnit report {junit}", file=sys.stderr)
     ids: set[str] = set()
     startup = False
-    if junit.exists():
-        # The report is written by this job's own pytest run, not fetched from anywhere.
-        root = ET.parse(junit).getroot()  # noqa: S314
-        for case in root.iter("testcase"):
-            problems = [*case.findall("failure"), *case.findall("error")]
-            if not problems:
-                continue
-            ids.add(f"{case.get('classname', '')}::{case.get('name', '')}")
-            if any(HA_STARTUP_FAILURE in (p.get("message", "") + (p.text or "")) for p in problems):
-                startup = True
+    for case in cases:
+        problems = [*case.findall("failure"), *case.findall("error")]
+        if not problems:
+            continue
+        ids.add(f"{case.get('classname', '')}::{case.get('name', '')}")
+        if any(HA_STARTUP_FAILURE in (p.get("message", "") + (p.text or "")) for p in problems):
+            startup = True
     # ha_container is session-scoped, so when HA never starts every test that needs it errors with
     # this message; listing them all would bury the one cause.
     if startup:
@@ -180,8 +187,10 @@ def sync_issue(failing: list[str], ctx: RunContext) -> str:
     recorded = recorded_set(current_body)
     if recorded == failing:
         return f"failing, set unchanged on #{existing}"
-    gh("issue", "edit", existing, "--body-file", "-", body=body)
+    # Comment first: the body's marker is what the next run compares against, so if the comment fails
+    # after the edit landed, the next run would see the set as unchanged and never notify.
     gh("issue", "comment", existing, "--body-file", "-", body=change_comment(recorded or [], failing, ctx))
+    gh("issue", "edit", existing, "--body-file", "-", body=body)
     return f"failing, set changed on #{existing}"
 
 

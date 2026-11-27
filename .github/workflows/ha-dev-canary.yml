@@ -108,7 +108,8 @@ jobs:
                       --image-tag "$IMAGE_TAG" \
                       --run-url "$RUN_URL"
 
-            # The report is missing when pytest never ran; the issue says <job-failed> then.
+            # The report is missing when pytest never ran, or truncated when the step was killed mid-write;
+            # the issue says <job-failed> then.
             - name: Upload JUnit report
               if: always() && steps.tests.outcome == 'failure'
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
