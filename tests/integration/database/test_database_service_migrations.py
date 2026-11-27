@@ -216,6 +216,7 @@ EXPECTED_TABLES = {
         "value",
         "attributes",
         "entity_category",
+        "icon",
     },
 }
 

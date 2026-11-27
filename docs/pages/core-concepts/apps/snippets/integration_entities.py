@@ -86,5 +86,14 @@ class PortionApp(App[PortionConfig]):
         )
         # --8<-- [end:category]
 
+        # --8<-- [start:icon]
+        self.last_fed = await self.integration.add_sensor(
+            "last_fed",
+            name="Last fed",
+            device_class="timestamp",
+            icon="mdi:food-drumstick",
+        )
+        # --8<-- [end:icon]
+
     async def on_reset_feeder(self):
         await self.mode.set("normal")

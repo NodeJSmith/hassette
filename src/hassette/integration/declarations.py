@@ -7,6 +7,7 @@ decides which Python types ``set()`` accepts.
 
 import json
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -21,6 +22,9 @@ from hassette.utils.hass_utils import VALID_ENTITY_ID
 
 KNOWN_DEVICE_CLASSES: frozenset[str] = frozenset(get_args(DEVICE_CLASS))
 KNOWN_STATE_CLASSES: frozenset[str] = frozenset(get_args(STATE_CLASS))
+ICON_PATTERN = re.compile(r"[^\s:]+:\S+")
+"""A Home Assistant icon name, ``prefix:name`` such as ``mdi:cat``. Loose on purpose, like Home Assistant's own check:
+the prefix names an icon set, and Hassette can't know which sets the frontend has installed."""
 ENTITY_CATEGORIES: frozenset[str] = frozenset({"config", "diagnostic"})
 """Home Assistant's entity categories: ``config`` for a control that changes the device's setup or maintains it,
 ``diagnostic`` for a reading or control that only helps diagnose it."""
@@ -59,7 +63,7 @@ class Declaration:
     """One declared entity: everything that describes it, without its state.
 
     ``initial`` is set for a switch only; ``unit``, ``device_class``, ``state_class`` and ``options`` for a
-    sensor only. ``entity_category`` applies to every platform.
+    sensor only. ``entity_category`` and ``icon`` apply to every platform.
     """
 
     key: str
@@ -67,6 +71,7 @@ class Declaration:
     name: str
     default_entity_id: str | None = None
     entity_category: str | None = None
+    icon: str | None = None
     initial: bool | None = None
     unit: str | None = None
     device_class: str | None = None
@@ -165,13 +170,26 @@ def validate_entity_category(entity_category: object, platform: IntegrationPlatf
     raise ValueError(f"{platform} entity_category must be one of {valid} or None, got {entity_category!r}")
 
 
+def validate_icon(icon: object, platform: IntegrationPlatform) -> str | None:
+    """Return ``icon`` if it is ``None`` or an icon name of the form ``prefix:name``; else raise ``ValueError``."""
+    if icon is None or (isinstance(icon, str) and ICON_PATTERN.fullmatch(icon)):
+        return icon
+    raise ValueError(f"{platform} icon must be 'prefix:name' (such as 'mdi:cat') or None, got {icon!r}")
+
+
 def base_declaration(
-    key: str, platform: IntegrationPlatform, *, name: object, default_entity_id: object, entity_category: object
+    key: str,
+    platform: IntegrationPlatform,
+    *,
+    name: object,
+    default_entity_id: object,
+    entity_category: object,
+    icon: object,
 ) -> Declaration:
     """A declaration with the fields every platform shares, each validated; ``replace()`` adds a platform's own.
 
     Raises:
-        ValueError: An invalid name, ``default_entity_id`` or ``entity_category``.
+        ValueError: An invalid name, ``default_entity_id``, ``entity_category`` or ``icon``.
     """
     return Declaration(
         key=key,
@@ -179,6 +197,7 @@ def base_declaration(
         name=validate_name(name, platform),
         default_entity_id=validate_default_entity_id(default_entity_id, platform),
         entity_category=validate_entity_category(entity_category, platform),
+        icon=validate_icon(icon, platform),
     )
 
 

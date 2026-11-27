@@ -131,6 +131,7 @@ class Integration(Resource):
         *,
         name: str,
         on_press: "HandlerType",
+        icon: str | None = None,
         mode: ExecutionMode | str | None = None,
         entity_category: str | None = None,
         default_entity_id: str | None = None,
@@ -145,6 +146,8 @@ class Integration(Resource):
                 letter. Changing it makes a new entity.
             name: The button's display name in Home Assistant.
             on_press: The handler to run on a press.
+            icon: The button's icon, an icon name such as ``"mdi:cat"``. ``None`` (the default) leaves Home
+                Assistant's default icon. An icon set by hand in Home Assistant overrides it.
             mode: What a press does while the previous one is still running; the bus's ``ExecutionMode``,
                 ``single`` by default.
             entity_category: ``"config"`` files the button under the device's Configuration section in Home
@@ -157,8 +160,9 @@ class Integration(Resource):
             The button's handle.
 
         Raises:
-            ValueError: An invalid or duplicate key, an invalid name, an invalid ``default_entity_id``, or an
-                ``entity_category`` other than ``"config"`` or ``"diagnostic"``.
+            ValueError: An invalid or duplicate key, an invalid name, an invalid ``default_entity_id``, an
+                ``entity_category`` other than ``"config"`` or ``"diagnostic"``, or an ``icon`` not of the form
+                ``prefix:name``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.BUTTON
@@ -168,6 +172,7 @@ class Integration(Resource):
             name=name,
             default_entity_id=default_entity_id,
             entity_category=entity_category,
+            icon=icon,
         )
         source_location, registration_source = capture_registration_source()
         return guard_await(
@@ -186,6 +191,7 @@ class Integration(Resource):
         name: str,
         on_toggle: "HandlerType",
         initial: bool = False,
+        icon: str | None = None,
         entity_category: str | None = None,
         mode: ExecutionMode | str | None = None,
         default_entity_id: str | None = None,
@@ -203,6 +209,8 @@ class Integration(Resource):
             on_toggle: The handler to run on a toggle.
             initial: The state of a switch that has never been stored. Changing it later has no effect on a switch
                 that already has a stored state.
+            icon: The switch's icon, an icon name such as ``"mdi:cat"``. ``None`` (the default) leaves Home
+                Assistant's default icon. An icon set by hand in Home Assistant overrides it.
             entity_category: ``"config"`` files the switch under the device's Configuration section in Home
                 Assistant, ``"diagnostic"`` under Diagnostic; either keeps it off auto-generated dashboards.
                 ``None`` (the default) makes it a primary control.
@@ -216,7 +224,8 @@ class Integration(Resource):
 
         Raises:
             ValueError: An invalid or duplicate key, an invalid name, a non-bool ``initial``, an invalid
-                ``default_entity_id``, or an ``entity_category`` other than ``"config"`` or ``"diagnostic"``.
+                ``default_entity_id``, an ``entity_category`` other than ``"config"`` or ``"diagnostic"``, or an
+                ``icon`` not of the form ``prefix:name``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.SWITCH
@@ -228,6 +237,7 @@ class Integration(Resource):
             name=name,
             default_entity_id=default_entity_id,
             entity_category=entity_category,
+            icon=icon,
         )
         declaration = replace(base, initial=initial)
         source_location, registration_source = capture_registration_source()
@@ -245,6 +255,7 @@ class Integration(Resource):
         key: str,
         *,
         name: str,
+        icon: str | None = None,
         unit: str | None = None,
         device_class: str | None = None,
         state_class: str | None = None,
@@ -261,6 +272,8 @@ class Integration(Resource):
             key: Identifies the sensor within this instance: lowercase letters, digits and ``_``, starting with a
                 letter. Changing it makes a new entity.
             name: The sensor's display name in Home Assistant.
+            icon: The sensor's icon, an icon name such as ``"mdi:cat"``. ``None`` (the default) leaves Home
+                Assistant's default icon. An icon set by hand in Home Assistant overrides it.
             unit: The unit of measurement; a sensor with a unit is numeric.
             device_class: One of Home Assistant's sensor device classes (``"temperature"``, ``"enum"``,
                 ``"timestamp"``, ...).
@@ -279,13 +292,19 @@ class Integration(Resource):
         Raises:
             ValueError: An invalid or duplicate key, an invalid name, an unknown device or state class, an enum
                 sensor without options or with a unit or state class, options on another sensor, an invalid
-                ``default_entity_id``, or an ``entity_category`` other than ``"config"`` or ``"diagnostic"``.
+                ``default_entity_id``, an ``entity_category`` other than ``"config"`` or ``"diagnostic"``, or an
+                ``icon`` not of the form ``prefix:name``.
             IntegrationDeclarationClosedError: The instance's declarations were already committed.
         """
         platform = IntegrationPlatform.SENSOR
         key = self._check_declarable(key, platform)
         base = base_declaration(
-            key, platform, name=name, default_entity_id=default_entity_id, entity_category=entity_category
+            key,
+            platform,
+            name=name,
+            default_entity_id=default_entity_id,
+            entity_category=entity_category,
+            icon=icon,
         )
         declaration = replace(
             base,

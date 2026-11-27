@@ -263,6 +263,11 @@ export interface DeclaredEntity {
    */
   entity_category?: string | null;
   /**
+   * The entity's icon, such as ``mdi:cat``. ``None`` for Home Assistant's default icon. An icon set by hand in
+   * Home Assistant's entity registry takes precedence.
+   */
+  icon?: string | null;
+  /**
    * A sensor's unit of measurement.
    */
   unit?: string | null;

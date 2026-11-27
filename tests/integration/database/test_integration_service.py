@@ -100,6 +100,22 @@ async def test_entity_category_persists_and_updates_on_recommit(db: DatabaseServ
     assert updated.declaration.entity_category == "diagnostic"
 
 
+async def test_icon_persists_and_updates_on_recommit(db: DatabaseService) -> None:
+    service = await start_service(db)
+    feeder = Declaration(key="feeder", platform=IntegrationPlatform.SENSOR, name="F", icon="mdi:cat")
+    await service.commit_instance(owner(), [feeder], {})
+
+    rebooted = await start_service(db)
+    [restored] = rebooted.entities("my_app", "kitchen")
+    assert restored.declaration == feeder
+
+    await rebooted.commit_instance(
+        owner(), [Declaration(key="feeder", platform=IntegrationPlatform.SENSOR, name="F")], {}
+    )
+    [updated] = (await start_service(db)).entities("my_app", "kitchen")
+    assert updated.declaration.icon is None
+
+
 async def test_recommit_keeps_state_ignores_new_initial_and_removes_dropped(db: DatabaseService) -> None:
     service = await start_service(db)
     await service.commit_instance(owner(), [FEED, SHOW, TEMP], {"temp": EntityState(21.5, {})})

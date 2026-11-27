@@ -43,6 +43,7 @@ class IntegrationSyncFacade(Resource):
         *,
         name: str,
         on_press: "HandlerType",
+        icon: str | None = None,
         mode: ExecutionMode | str | None = None,
         entity_category: str | None = None,
         default_entity_id: str | None = None,
@@ -56,6 +57,7 @@ class IntegrationSyncFacade(Resource):
                 mode=mode,
                 default_entity_id=default_entity_id,
                 entity_category=entity_category,
+                icon=icon,
             )
         )
 
@@ -66,6 +68,7 @@ class IntegrationSyncFacade(Resource):
         name: str,
         on_toggle: "HandlerType",
         initial: bool = False,
+        icon: str | None = None,
         entity_category: str | None = None,
         mode: ExecutionMode | str | None = None,
         default_entity_id: str | None = None,
@@ -80,6 +83,7 @@ class IntegrationSyncFacade(Resource):
                 mode=mode,
                 default_entity_id=default_entity_id,
                 entity_category=entity_category,
+                icon=icon,
             )
         )
 
@@ -88,6 +92,7 @@ class IntegrationSyncFacade(Resource):
         key: str,
         *,
         name: str,
+        icon: str | None = None,
         unit: str | None = None,
         device_class: str | None = None,
         state_class: str | None = None,
@@ -106,6 +111,7 @@ class IntegrationSyncFacade(Resource):
                 options=options,
                 default_entity_id=default_entity_id,
                 entity_category=entity_category,
+                icon=icon,
             )
         )
 
