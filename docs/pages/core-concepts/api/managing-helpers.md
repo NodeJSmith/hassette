@@ -97,8 +97,9 @@ whether the change landed:
     re-sent delete that already landed raises `CommandRejectedError(code="not_found")`.
 
 A call made while the WebSocket is disconnected raises
-[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. That call never left
-Hassette, so it is safe to send again once the connection is back.
+[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. So does an update whose
+read of the stored record gets no answer. Neither call left Hassette, so both are safe to send
+again once the connection is back.
 
 ## CRUD Operations
 
@@ -138,7 +139,8 @@ holding only the fields to change. Omitted fields keep their stored values. `Upd
 models import from `hassette.models.helpers`, like the create models.
 Home Assistant replaces the whole stored record on update, so Hassette reads the record first
 and sends it back with the changes applied. A `helper_id` that does not exist raises
-`CommandRejectedError(code="not_found")`.
+`CommandRejectedError(code="not_found")`, and a read that gets no answer raises
+`CommandNotSentError`. Nothing is sent in either case.
 
 !!! warning "Concurrent edits to the same helper are lost"
     An edit made to the same helper between that read and the write (in the Home Assistant UI,
