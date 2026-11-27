@@ -6,13 +6,14 @@ matches `Annotated[T, metadata]` annotations.
 
 import inspect
 from dataclasses import dataclass
-from types import UnionType
-from typing import Union, get_args, get_origin
+from typing import get_args
 from warnings import warn
 
 from hassette.utils.type_utils import (
     get_type_and_details,
     is_annotated_type,
+    is_subclass_of,
+    is_union,
     normalize_annotation,
     unwrap_type_alias,
 )
@@ -46,10 +47,9 @@ class TypeMatcher:
             return None
 
         annotation = unwrap_type_alias(annotation)
-        origin = get_origin(annotation)
 
         matched = is_subclass_of(annotation, self.match_type)
-        if not matched and (origin is UnionType or origin is Union):
+        if not matched and is_union(annotation):
             matched = any(is_subclass_of(arg, self.match_type) for arg in get_args(annotation))
 
         if not matched:
@@ -119,12 +119,6 @@ class AnnotatedMatcher:
             extractor=details.extractor,
             converter=details.converter,
         )
-
-
-def is_subclass_of(annotation: object, match_type: type) -> bool:
-    """Return whether `annotation`, unwrapped to its generic origin, is a class that subclasses `match_type`."""
-    base_type = get_origin(annotation) or annotation
-    return inspect.isclass(base_type) and issubclass(base_type, match_type)
 
 
 __all__ = ["AnnotatedMatcher", "TypeMatcher"]

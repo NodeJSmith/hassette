@@ -227,6 +227,15 @@ def is_union(tp: Any) -> bool:
     return origin is Union or origin is UnionType
 
 
+def is_subclass_of(annotation: object, match_type: type) -> bool:
+    """Return whether `annotation`, unwrapped to its generic origin, is a class that subclasses `match_type`.
+
+    Unions are not unwrapped; callers that accept union members check each one themselves.
+    """
+    base_type = get_origin(annotation) or annotation
+    return inspect.isclass(base_type) and issubclass(base_type, match_type)
+
+
 def is_optional(tp: Any) -> bool:
     """Return True if the annotation is a union that includes ``None``."""
     if not is_union(tp):
