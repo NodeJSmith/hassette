@@ -10,7 +10,8 @@ identical across all of them: comparing the two values, making sure the dedup la
 looking up an already-open tracking issue by that label. Filing, commenting on, or closing the
 tracking issue itself stays in each workflow, since title/body/labels differ per check.
 docs-inventory-drift.yml compares no versions: it passes "none" as current and the drifted
-inventory names as latest.
+inventory names as latest. ha_dev_canary.py (ha-dev-canary.yml) imports ensure_label and
+find_existing_issue directly and files, updates and closes its own issue.
 
 Usage:
     python3 ./tools/release/drift_check.py --current "$CURRENT" --latest "$LATEST" \

@@ -1,0 +1,126 @@
+name: HA Dev Canary
+
+on:
+    schedule:
+        - cron: "0 4 * * *" # daily at 04:00 UTC, after HA's nightly dev image build
+    workflow_dispatch:
+        inputs:
+            image_tag:
+                description: "homeassistant/home-assistant tag to test against"
+                type: string
+                default: dev
+            force_fail:
+                description: "Add one deliberately failing test, to exercise the issue path"
+                type: boolean
+                default: false
+
+concurrency:
+    group: ha-dev-canary
+    cancel-in-progress: false
+
+# Runs the non-destructive system suite against Home Assistant's dev image, so an HA wire change
+# (like 2026.11's item_id/run_id rename, #3949) shows up weeks before it reaches a stable release.
+# It never runs on PRs and is not a required check: dev breakage that isn't hassette's concern must
+# not block merges.
+#
+# Tracking issue contract: the `ha-dev-canary` label is a stable lookup key. At most one open issue
+# carries it, so `gh issue list --label ha-dev-canary --state open` finds the current canary failure
+# (the ha-version-bump skill reads it, and other tooling may too). Renaming the label breaks those
+# readers. tools/release/ha_dev_canary.py enforces the one-open-issue rule: it opens the issue on
+# failure, rewrites its body and comments only when the failing set changes, and closes it on the
+# next green run.
+#
+# Noise check: if failures turn out to be mostly unrelated dev breakage, switch the default tag to
+# `beta` (one value, below and in the input default) or run twice weekly.
+jobs:
+    canary:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read
+            issues: write
+        env:
+            TZ: America/Chicago
+            IMAGE_TAG: ${{ inputs.image_tag || 'dev' }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            # Matches SUPPORTED_PYTHONS[-1] in noxfile.py, the one version system_canary runs on.
+            - name: Install uv
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+              with:
+                  python-version: "3.14"
+
+            - run: uv sync
+
+            # The version comes from the image label rather than the running instance, so it is
+            # still known when the container never starts. A failed pull reports "unknown" and lets
+            # the test step record the failure as <startup>.
+            - name: Pull HA image and read its version
+              id: image
+              run: |
+                  IMAGE="homeassistant/home-assistant:${IMAGE_TAG}"
+                  VERSION=""
+                  if docker pull "$IMAGE"; then
+                      VERSION=$(docker image inspect "$IMAGE" --format '{{ index .Config.Labels "io.hass.version" }}' || true)
+                  fi
+                  echo "ha-version=${VERSION:-unknown}" >> "$GITHUB_OUTPUT"
+
+            # Written into the runner's throwaway checkout only, so the failing-test path runs
+            # end to end (JUnit parsing included) without a permanent test in the repo.
+            - name: Add a forced failure
+              if: inputs.force_fail
+              run: |
+                  cat > tests/system/test_forced_canary_failure.py <<'EOF'
+                  import pytest
+
+
+                  @pytest.mark.system
+                  def test_forced_canary_failure():
+                      raise AssertionError("forced by the force_fail dispatch input of ha-dev-canary.yml")
+                  EOF
+
+            - name: Run system tests against HA ${{ env.IMAGE_TAG }}
+              id: tests
+              continue-on-error: true
+              # A step timeout still leaves time for the issue sync; it reports as <job-failed>.
+              timeout-minutes: 20
+              env:
+                  HA_VERSION: ${{ env.IMAGE_TAG }}
+              run: uv run nox -s system_canary
+
+            # Only when the suite actually ran: a failed setup step or a cancelled run says nothing
+            # about HA dev. A step timeout reports as failure, so it still syncs (as <job-failed>).
+            - name: Sync the ha-dev-canary issue
+              if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  OUTCOME: ${{ steps.tests.outcome }}
+                  HA_IMAGE_VERSION: ${{ steps.image.outputs.ha-version }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  python3 ./tools/release/ha_dev_canary.py \
+                      --junit test-results/ha-dev-canary.xml \
+                      --outcome "$OUTCOME" \
+                      --ha-version "$HA_IMAGE_VERSION" \
+                      --image-tag "$IMAGE_TAG" \
+                      --run-url "$RUN_URL"
+
+            # The report is missing when pytest never ran, or truncated when the step was killed mid-write;
+            # the issue says <job-failed> then.
+            - name: Upload JUnit report
+              if: always() && steps.tests.outcome == 'failure'
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+              with:
+                  name: ha-dev-canary-junit
+                  path: test-results/ha-dev-canary.xml
+                  if-no-files-found: ignore
+                  retention-days: 14
+
+            - name: Fail the run when the suite failed
+              if: always() && steps.tests.outcome == 'failure'
+              run: |
+                  echo "::error::System suite failed against homeassistant/home-assistant:${IMAGE_TAG}"
+                  exit 1

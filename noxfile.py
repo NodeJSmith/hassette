@@ -335,6 +335,29 @@ def system(session: "Session"):
     _run_system_tests(session, marker="system_destructive")
 
 
+@nox.session(python=SUPPORTED_PYTHONS[-1])
+def system_canary(session: "Session"):
+    """Non-destructive system tests for the HA dev canary (``.github/workflows/ha-dev-canary.yml``).
+
+    Runs every test instead of stopping at the first failure, so the canary sees the whole failing
+    set, and writes a JUnit report for ``tools/release/ha_dev_canary.py`` to read. The HA image tag
+    comes from ``HA_VERSION`` in the environment when set (the workflow sets it to its image tag),
+    which wins over the pin in ``tests/system/.env`` because ``ha_container`` passes the process
+    environment to docker compose. ``test_hass_hassette.py`` is left out: it checks a released hass-hassette
+    against this repo, not hassette against HA.
+    """
+    _run_system_tests(
+        session,
+        marker="system and not system_destructive",
+        exitfirst=False,
+        extra_args=[
+            "--ignore=tests/system/test_hass_hassette.py",
+            "--junitxml=test-results/ha-dev-canary.xml",
+            *session.posargs,
+        ],
+    )
+
+
 @nox.session(python=False)
 def screenshots(session: "Session"):
     """Capture all documentation screenshots via the YAML manifest."""
@@ -433,7 +456,9 @@ def _install_coverage_pth(session: "Session") -> None:
     pth_path.write_text("import coverage; coverage.process_startup()\n")
 
 
-def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] | None = None) -> None:
+def _run_system_tests(
+    session: "Session", *, marker: str, exitfirst: bool = True, extra_args: list[str] | None = None
+) -> None:
     session.env["PYTHONTRACEMALLOC"] = "1"
     session.env["PYTHONASYNCIODEBUG"] = "1"
     session.run(
@@ -446,7 +471,7 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
         "-m",
         marker,
         "-v",
-        "-x",
+        *(["-x"] if exitfirst else []),
         "-n",
         "0",
         "--tb=short",
