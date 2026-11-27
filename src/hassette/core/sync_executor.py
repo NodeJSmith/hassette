@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
+from hassette.config.models import LifecycleConfig
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.utils.warn_pacer import WarnPacer
 
@@ -33,15 +34,18 @@ if TYPE_CHECKING:
 P = ParamSpec("P")
 R = TypeVar("R")
 
-# Pool saturation defaults — mirror command_executor's capacity-warning defaults but scoped
-# to global pool saturation. Pool saturation is a global condition (not per-entity), so a
-# single global timestamp is the right rate-limit model (cf. execution_pipeline.enqueue_record).
-# Both are user-configurable via lifecycle.sync_executor_saturation_warn_threshold /
-# lifecycle.sync_executor_saturation_warn_rate_limit_seconds (see config/models.py); these
-# module-level defaults exist only so SyncExecutor works standalone (e.g. in tests) without
-# a HassetteConfig, and are what rebuild_pool() falls back to when the caller omits them.
-_DEFAULT_SATURATION_WARN_THRESHOLD = 0.75
-_DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
+# Pool saturation defaults, read from LifecycleConfig so the config model is their only owner.
+# Pool saturation is a global condition (not per-entity), so a single global timestamp is the right
+# rate-limit model (cf. execution_pipeline.enqueue_record). Users configure them via
+# lifecycle.sync_executor_saturation_warn_threshold / lifecycle.sync_executor_saturation_warn_rate_limit_seconds;
+# these module-level copies exist only so SyncExecutor works standalone (e.g. in tests) without a
+# HassetteConfig, and are what rebuild_pool() falls back to when the caller omits them.
+_DEFAULT_SATURATION_WARN_THRESHOLD: float = LifecycleConfig.model_fields[
+    "sync_executor_saturation_warn_threshold"
+].default
+_DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS: float = LifecycleConfig.model_fields[
+    "sync_executor_saturation_warn_rate_limit_seconds"
+].default
 
 # Probe cadence — how often serve() reads pool occupancy when there are no new submissions.
 # This is the "8/8 workers stuck" detection signal: a submission-only check goes silent
