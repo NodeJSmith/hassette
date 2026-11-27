@@ -294,6 +294,13 @@ Helper writes record under names built from the helper domain:
 
 `<domain>` is one of `input_boolean`, `input_number`, `input_text`,
 `input_select`, `input_datetime`, `input_button`, `counter`, or `timer`.
+`helpers.update` merges into a seeded record the way Home Assistant does:
+fields you leave out keep their value, and clearing a required field raises
+`CommandRejectedError(code="invalid_format")`. An optional field passed as
+`None` becomes `None` in the harness, while Home Assistant applies its own
+default (a counter's `step` comes back as `1`). The harness also accepts an
+`input_datetime` with both `has_date` and `has_time` false, which Home
+Assistant rejects.
 `helpers.increment`, `helpers.decrement`, and `helpers.reset` record as
 `call_service` with `domain="counter"`.
 

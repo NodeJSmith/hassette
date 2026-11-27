@@ -10,6 +10,7 @@ avoiding SimpleTestServer and its REST layer entirely. This is the correct
 strategy because all helper CRUD uses the WebSocket path.
 """
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -60,6 +61,24 @@ IBT_RECORD = {"id": "restart_btn", "name": "Restart"}
 CTR_RECORD = {"id": "motion_count", "name": "Motion Count", "initial": 0, "step": 1}
 TMR_RECORD = {"id": "cooldown", "name": "Cooldown Timer", "duration": "00:05:00"}
 SERVICE_RESPONSE = ServiceResponse(context=Context(id="ctx-1"))
+
+
+def mock_helper_ws(api: Api, *, stored: dict[str, Any] | None, updated: dict[str, Any]) -> AsyncMock:
+    """Answer ``<domain>/list`` with ``stored`` (no items when None) and every other command with ``updated``."""
+
+    async def respond(**kwargs: Any) -> Any:
+        if kwargs["type"].endswith("/list"):
+            return [] if stored is None else [stored]
+        return updated
+
+    mock = AsyncMock(side_effect=respond)
+    api.ws_send_and_wait = mock
+    return mock
+
+
+def last_sent_fields(mock: AsyncMock) -> dict[str, Any]:
+    """The payload of the last command sent, without ``type`` and ``_ws_helper_call``'s transport kwargs."""
+    return {k: v for k, v in mock.call_args.kwargs.items() if k not in {"type", "retry_on_timeout", "record"}}
 
 
 @pytest.fixture
@@ -179,12 +198,12 @@ async def test_helper_create_does_not_retry_on_timeout(api: Api):
 
 
 async def test_helper_update_does_not_retry_on_timeout(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=IB_RECORD)
+    mock = mock_helper_ws(api, stored=IB_RECORD, updated=IB_RECORD)
 
     await api.helpers.update("vacation_mode", UpdateInputBooleanParams(name="Holiday Mode"))
 
-    assert api.ws_send_and_wait.await_args is not None
-    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+    assert mock.await_args is not None
+    assert mock.await_args.kwargs["retry_on_timeout"] is False
 
 
 async def test_helper_delete_does_not_retry_on_timeout(api: Api):
@@ -244,17 +263,58 @@ async def test_create_input_boolean(api: Api):
 async def test_update_input_boolean(api: Api):
     """update_input_boolean sends correct command with domain_id key."""
     updated = {**IB_RECORD, "name": "Holiday Mode"}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=IB_RECORD, updated=updated)
     params = UpdateInputBooleanParams(name="Holiday Mode")
 
     result = await api.helpers.update("vacation_mode", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "input_boolean/update"
     assert call_kwargs["input_boolean_id"] == "vacation_mode"
     assert call_kwargs["name"] == "Holiday Mode"
     assert isinstance(result, InputBooleanRecord)
     assert result.name == "Holiday Mode"
+
+
+async def test_update_sends_stored_fields_with_changes_applied(api: Api):
+    """HA replaces the stored item on update, so fields the caller left out are sent from storage."""
+    mock = mock_helper_ws(api, stored=CTR_RECORD, updated={**CTR_RECORD, "name": "Motion Total"})
+
+    await api.helpers.update("motion_count", UpdateCounterParams(name="Motion Total"))
+
+    assert last_sent_fields(mock) == {
+        "counter_id": "motion_count",
+        "name": "Motion Total",
+        "initial": 0,
+        "step": 1,
+    }
+
+
+async def test_update_keeps_stored_fields_hassette_does_not_model(api: Api):
+    mock = mock_helper_ws(api, stored={**IB_RECORD, "future_field": "kept"}, updated=IB_RECORD)
+
+    await api.helpers.update("vacation_mode", UpdateInputBooleanParams(name="Holiday Mode"))
+
+    assert last_sent_fields(mock)["future_field"] == "kept"
+
+
+async def test_update_explicit_none_clears_the_stored_field(api: Api):
+    mock = mock_helper_ws(api, stored={**IB_RECORD, "icon": "mdi:palm-tree"}, updated=IB_RECORD)
+
+    await api.helpers.update("vacation_mode", UpdateInputBooleanParams(icon=None))
+
+    assert "icon" not in last_sent_fields(mock)
+    assert last_sent_fields(mock)["name"] == "Vacation Mode"
+
+
+async def test_update_unknown_id_raises_not_found_without_sending(api: Api):
+    mock = mock_helper_ws(api, stored=None, updated=IB_RECORD)
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.update("missing", UpdateInputBooleanParams(name="Ghost"))
+
+    assert exc_info.value.code == "not_found"
+    assert [call.kwargs["type"] for call in mock.call_args_list] == ["input_boolean/list"]
 
 
 async def test_delete_input_boolean(api: Api):
@@ -293,12 +353,12 @@ async def test_create_input_number(api: Api):
 
 async def test_update_input_number(api: Api):
     updated = {**IN_RECORD, "max": 200.0}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=IN_RECORD, updated=updated)
     params = UpdateInputNumberParams(max=200.0)
 
     result = await api.helpers.update("brightness", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "input_number/update"
     assert call_kwargs["input_number_id"] == "brightness"
     assert isinstance(result, InputNumberRecord)
@@ -338,12 +398,12 @@ async def test_create_input_text(api: Api):
 
 async def test_update_input_text(api: Api):
     updated = {**IT_RECORD, "name": "Wifi Passphrase"}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=IT_RECORD, updated=updated)
     params = UpdateInputTextParams(name="Wifi Passphrase")
 
     result = await api.helpers.update("wifi_password", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "input_text/update"
     assert call_kwargs["input_text_id"] == "wifi_password"
     assert isinstance(result, InputTextRecord)
@@ -385,12 +445,12 @@ async def test_create_input_select(api: Api):
 
 async def test_update_input_select(api: Api):
     updated = {**IS_RECORD, "options": ["light", "dark", "auto"]}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=IS_RECORD, updated=updated)
     params = UpdateInputSelectParams(options=["light", "dark", "auto"])
 
     result = await api.helpers.update("theme", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "input_select/update"
     assert call_kwargs["input_select_id"] == "theme"
     assert isinstance(result, InputSelectRecord)
@@ -431,12 +491,12 @@ async def test_create_input_datetime(api: Api):
 
 async def test_update_input_datetime(api: Api):
     updated = {**IDT_RECORD, "name": "Wake Up Time"}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=IDT_RECORD, updated=updated)
     params = UpdateInputDatetimeParams(name="Wake Up Time")
 
     result = await api.helpers.update("alarm_time", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "input_datetime/update"
     assert call_kwargs["input_datetime_id"] == "alarm_time"
     assert isinstance(result, InputDatetimeRecord)
@@ -477,12 +537,12 @@ async def test_create_input_button(api: Api):
 
 async def test_update_input_button(api: Api):
     updated = {**IBT_RECORD, "name": "Reboot Button"}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=IBT_RECORD, updated=updated)
     params = UpdateInputButtonParams(name="Reboot Button")
 
     result = await api.helpers.update("restart_btn", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "input_button/update"
     assert call_kwargs["input_button_id"] == "restart_btn"
     assert isinstance(result, InputButtonRecord)
@@ -525,12 +585,12 @@ async def test_create_counter(api: Api):
 
 async def test_update_counter(api: Api):
     updated = {**CTR_RECORD, "maximum": 100}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=CTR_RECORD, updated=updated)
     params = UpdateCounterParams(maximum=100)
 
     result = await api.helpers.update("motion_count", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "counter/update"
     assert call_kwargs["counter_id"] == "motion_count"
     assert call_kwargs["maximum"] == 100
@@ -573,12 +633,12 @@ async def test_create_timer(api: Api):
 
 async def test_update_timer(api: Api):
     updated = {**TMR_RECORD, "duration": "00:10:00"}
-    api.ws_send_and_wait = AsyncMock(return_value=updated)
+    mock = mock_helper_ws(api, stored=TMR_RECORD, updated=updated)
     params = UpdateTimerParams(duration="00:10:00")
 
     result = await api.helpers.update("cooldown", params)
 
-    call_kwargs = api.ws_send_and_wait.call_args.kwargs
+    call_kwargs = mock.call_args.kwargs
     assert call_kwargs["type"] == "timer/update"
     assert call_kwargs["timer_id"] == "cooldown"
     assert call_kwargs["duration"] == "00:10:00"

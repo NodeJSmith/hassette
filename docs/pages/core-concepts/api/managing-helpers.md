@@ -53,14 +53,15 @@ domain from an `entity_id` is not a reliable way to get the stored `id`;
 
 **`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
 fields `False` raises `ValidationError` at construction time, before any network call.
-`UpdateInputDatetimeParams` does not enforce this constraint on partial updates, because
-the counterpart field retains its stored value.
+`UpdateInputDatetimeParams` does not enforce it, because an update keeps the stored value of
+any field you leave out. Home Assistant checks the merged record.
 
-**`exclude_unset=True` vs explicit `None`.** All CRUD methods serialize params with
-`model_dump(exclude_unset=True)`. A field omitted from the constructor is not sent to
-HA; HA keeps its stored value. A field passed as `None` is sent as `null`, which may
-clear the value on the HA side. Omitting `icon` and passing `icon=None` produce
-different wire payloads.
+**Leaving a field out vs passing `None`.** On `update`, a field you leave out keeps its
+stored value, and an optional field you pass as `None` is cleared back to Home Assistant's
+default: `UpdateCounterParams(icon=None)` removes the counter's icon. Passing `None` for a
+required field (`name`, `input_number`'s `min`/`max`, `input_select`'s `options`) raises
+`CommandRejectedError`. On `create`, a field you leave out is not sent at all, while one
+passed as `None` is sent as `null`.
 
 **`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
 represents stored configuration, returned by `helpers.list("counter")`, `helpers.create(...)`, and
@@ -131,9 +132,12 @@ is useful, as `helpers.list("input_boolean")` is the only retrieval path if the 
 ```
 
 `helpers.update(helper_id, params)` accepts a `helper_id` string (the stored `id` field, not the
-display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a partial params
-object. Only fields present in the params object are sent to HA; absent fields retain their
-stored values. A `helper_id` that does not exist raises `CommandRejectedError(code="not_found")`.
+display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a params object
+holding only the fields to change. Fields you leave out keep their stored values.
+Home Assistant replaces the whole stored record on update, so Hassette reads the record first
+and sends it back with your changes applied. An edit made to the same helper in the Home
+Assistant UI between that read and the write is overwritten. A `helper_id` that does not exist
+raises `CommandRejectedError(code="not_found")`.
 
 ### Delete
 
@@ -236,9 +240,8 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
     `CreateInputDatetimeParams` also needs `has_date=True` or `has_time=True`.
     `counter` spells its bounds `minimum` and `maximum`, while `input_number` and `input_text` use `min` and `max`.
 
-    The two CRUD methods that accept a params object (`helpers.create` and `helpers.update`) serialize it with
-    `model_dump(exclude_unset=True)`, not `exclude_none`. Omitting a field and explicitly
-    setting it to `None` produce different wire payloads.
+    Omitting a field and passing it as `None` mean different things; see
+    [Common Pitfalls](#common-pitfalls).
 
 ## See Also
 

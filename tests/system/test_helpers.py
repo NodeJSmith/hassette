@@ -155,3 +155,16 @@ async def test_helper_crud_against_real_ha(
             await helpers.delete(domain, created.id)
 
         assert created.id not in {record.id for record in await helpers.list(domain)}
+
+
+async def test_helper_update_none_clears_an_optional_field(ha_container: str, tmp_path) -> None:
+    """An explicit None in an update leaves the field out of the merged item, so HA drops it."""
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        helpers = hassette.api.helpers
+        created = await helpers.create(CreateInputBooleanParams(name="Clear Probe", icon="mdi:plane", initial=True))
+        try:
+            updated = await helpers.update(created.id, UpdateInputBooleanParams(icon=None))
+            assert (updated.name, updated.icon, updated.initial) == ("Clear Probe", None, True)
+        finally:
+            await helpers.delete("input_boolean", created.id)

@@ -9,9 +9,9 @@ commands. For the live runtime state of an ``input_number`` entity, use
 Note:
     HA's server-side schema enforces ``max > min`` and
     ``min <= initial <= max``. Hassette does not mirror this invariant on
-    ``Create*Params`` / ``Update*Params`` — partial updates make the check
-    context-dependent (it must merge with existing stored state). Errors
-    surface from HA via :class:`hassette.exceptions.CommandRejectedError`.
+    ``Create*Params`` / ``Update*Params``: an update only carries the fields
+    it changes, so HA checks the record it merges them into. Errors surface
+    from HA via :class:`hassette.exceptions.CommandRejectedError`.
 """
 
 from typing import Literal
@@ -54,8 +54,8 @@ class UpdateInputNumberParams(BaseModel):
     """Parameters accepted by ``input_number/update``.
 
     Note:
-        HA requires ``min``/``max`` to be valid floats when set and rejects an
-        explicit ``None``.
+        HA requires ``min`` and ``max``, so passing ``None`` for either (which
+        clears it) is rejected.
     """
 
     model_config = ConfigDict(extra="ignore")

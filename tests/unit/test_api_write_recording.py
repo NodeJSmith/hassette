@@ -148,7 +148,12 @@ class TestWhatEachWriteRecords:
         rec.api.helpers = helpers
         rec.ws.send_and_wait.return_value = {"id": "away", "name": "Away"}
         await rec.api.helpers.create(CreateInputBooleanParams(name="Away"))
+        # update reads the stored item with input_boolean/list first; reads record nothing.
+        rec.ws.send_and_wait.side_effect = lambda **kw: (
+            [{"id": "away", "name": "Away"}] if kw["type"].endswith("/list") else {"id": "away", "name": "Gone"}
+        )
         await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+        rec.ws.send_and_wait.side_effect = None
         rec.ws.send_and_wait.return_value = None
         await rec.api.helpers.delete("input_boolean", "away")
 

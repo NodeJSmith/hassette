@@ -21,6 +21,7 @@ from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
     CreateInputBooleanParams,
+    CreateInputNumberParams,
     CreateInputSelectParams,
     InputBooleanRecord,
     InputButtonRecord,
@@ -30,6 +31,7 @@ from hassette.models.helpers import (
     InputTextRecord,
     TimerRecord,
     UpdateInputBooleanParams,
+    UpdateInputNumberParams,
 )
 from hassette.testing import AppTestHarness
 from hassette.testing.recording_api import RECORD_TYPE_TO_DOMAIN, slugify_helper_name
@@ -134,6 +136,27 @@ async def test_update_input_boolean_mutates_seed():
     listed = await api.helpers.list("input_boolean")
     assert len(listed) == 1
     assert listed[0].initial is True
+
+
+async def test_update_keeps_unset_fields_and_clears_explicit_none():
+    """The harness merges an update the way production does: unset keeps, ``None`` clears."""
+    api = make_recording_api()
+    record = await api.helpers.create(CreateInputBooleanParams(name="Away", icon="mdi:plane", initial=True))
+
+    updated = await api.helpers.update(record.id, UpdateInputBooleanParams(icon=None))
+
+    assert (updated.name, updated.icon, updated.initial) == ("Away", None, True)
+
+
+async def test_update_clearing_a_required_field_raises_invalid_format():
+    api = make_recording_api()
+    record = await api.helpers.create(CreateInputNumberParams(name="Level", min=0, max=10))
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.update(record.id, UpdateInputNumberParams(max=None))
+
+    assert exc_info.value.code == "invalid_format"
+    assert (await api.helpers.list("input_number"))[0].max == 10
 
 
 async def test_delete_input_boolean_raises_on_missing_id():

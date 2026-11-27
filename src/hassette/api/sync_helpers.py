@@ -84,8 +84,11 @@ class HelperClientSyncFacade(Resource):
                 ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
                 The two often look alike but are not guaranteed to match (renaming the entity
                 changes only the ``entity_id``); look the id up with ``list(domain)``.
-            params: Fields to update (unset fields are left unchanged). The concrete type
-                determines the domain and the return type via overload resolution.
+            params: Fields to update. Fields you don't set keep their stored value. An optional
+                field set to ``None`` is cleared back to Home Assistant's default; a required one
+                (``name``, ``input_number``'s ``min``/``max``, ``input_select``'s ``options``) is
+                rejected. The concrete type determines the domain and the return type via overload
+                resolution.
 
         Returns:
             The updated stored record.
@@ -93,6 +96,9 @@ class HelperClientSyncFacade(Resource):
         Raises:
             TypeError: If ``params`` is not exactly one of the ``Update*Params`` models (subclasses
                 are not supported).
+            CommandRejectedError: With ``code="not_found"`` if no helper with ``helper_id`` is
+                stored (raised before anything is sent), or HA's own code if it rejects the
+                merged record.
         """
         return self.task_bucket.run_sync(self._helpers.update(helper_id, params))  # pyright: ignore[reportCallIssue, reportArgumentType]
 

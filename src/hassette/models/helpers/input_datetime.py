@@ -50,14 +50,10 @@ class CreateInputDatetimeParams(BaseModel):
 class UpdateInputDatetimeParams(BaseModel):
     """Parameters accepted by ``input_datetime/update``.
 
-    The ``has_date``/``has_time`` invariant is **not** enforced on update
-    because partial updates only carry fields the caller changed — validating
-    them in isolation would reject legitimate updates that leave the other
-    flag at its stored value. HA validates the merged state server-side.
-
-    Note:
-        HA requires ``has_date``/``has_time`` to be valid booleans when set and
-        rejects an explicit ``None``.
+    The ``has_date``/``has_time`` invariant is **not** enforced here: an update
+    keeps the stored value of every field it leaves out, so a lone flag is
+    valid. HA validates the merged record and rejects it when both end up
+    ``False``. Passing ``None`` clears a flag back to ``False``.
     """
 
     model_config = ConfigDict(extra="ignore")

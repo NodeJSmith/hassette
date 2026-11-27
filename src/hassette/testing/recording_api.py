@@ -16,7 +16,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Never, Protocol, cast, runtime_checkable
 
 import aiohttp
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from slugify import slugify as _py_slugify
 from whenever import Date, PlainDateTime, ZonedDateTime
 
@@ -26,6 +26,7 @@ from hassette.api.helpers import (
     UPDATE_DISPATCH,
     dispatch_on_domain,
     dispatch_on_params_type,
+    merge_update,
 )
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
@@ -402,7 +403,8 @@ class RecordingHelperClient:
             A copy of the updated record.
 
         Raises:
-            CommandRejectedError: With code='not_found' if helper_id is not seeded.
+            CommandRejectedError: With code='not_found' if helper_id is not seeded, or
+                code='invalid_format' if the update clears a required field.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self._parent._record_call(
@@ -418,7 +420,14 @@ class RecordingHelperClient:
                 code="not_found",
             )
         existing = self.helper_definitions[domain][helper_id]
-        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        merged = merge_update(existing.model_dump(), params.model_dump(exclude_unset=True))
+        try:
+            updated = record_type.model_validate({"id": helper_id, **merged})
+        except ValidationError as exc:
+            # Real HA rejects an update that clears a required field with invalid_format.
+            raise CommandRejectedError(
+                f"{domain} helper {helper_id!r} update is invalid: {exc}", code="invalid_format"
+            ) from exc
         self.helper_definitions[domain][helper_id] = updated
         return updated.model_copy(deep=deep_copy)
 
