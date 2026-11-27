@@ -11,7 +11,7 @@ from hassette.exceptions import UnableToConvertValueError
 from hassette.types import WhereClause
 from hassette.utils.func_utils import is_async_callable
 
-from .combinators import AllOf
+from .combinators import AllOf, Guard, Not, _PredicateCombinator
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -66,15 +66,27 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     return result
 
 
-def _reject_async_predicate(pred: Any) -> None:
+def reject_async_predicate(pred: Any) -> None:
+    """Raise ``TypeError`` if ``pred`` or any predicate nested inside a combinator is an async callable.
+
+    Descends into ``AllOf``/``AnyOf`` members, ``Not.predicate`` and ``Guard.fn``, so composition with
+    ``&``/``|``/``~`` cannot hide an async callable whose coroutine would always be truthy at dispatch.
+    """
     if is_async_callable(pred):
         raise TypeError(f"Bus predicates must be synchronous; got async callable {pred!r}")
+    if isinstance(pred, _PredicateCombinator):
+        for child in pred.predicates:
+            reject_async_predicate(child)
+    elif isinstance(pred, Not):
+        reject_async_predicate(pred.predicate)
+    elif isinstance(pred, Guard):
+        reject_async_predicate(pred.fn)
 
 
 def normalize_where(where: WhereClause) -> "Predicate | None":
     """Normalize a 'where' clause into a single Predicate, or None.
 
-    Rejects async callables (including inside collections) at registration time.
+    Rejects async callables at registration time, including inside collections and nested combinators.
 
     - If where is None → None
     - If where is a predicate collection (list/tuple/set/...) → AllOf wrapping flattened members
@@ -83,16 +95,13 @@ def normalize_where(where: WhereClause) -> "Predicate | None":
     if where is None:
         return None
 
-    _reject_async_predicate(where)
-
     if is_predicate_collection(where):
-        flat = ensure_tuple(where)
-        for pred in flat:
-            _reject_async_predicate(pred)
-        return AllOf(flat)
+        normalized: Predicate = AllOf(ensure_tuple(where))
+    else:
+        # help the type checker know that `where` is not an Sequence here
+        if typing.TYPE_CHECKING:
+            assert not isinstance(where, Sequence)
+        normalized = where  # single predicate or mapping gets handled by the caller
 
-    # help the type checker know that `where` is not an Sequence here
-    if typing.TYPE_CHECKING:
-        assert not isinstance(where, Sequence)
-
-    return where  # single predicate or mapping gets handled by the caller
+    reject_async_predicate(normalized)
+    return normalized
