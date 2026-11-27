@@ -536,7 +536,8 @@ dashboard and REST API like any other entity state, but it does not control a re
 ```
 
 Attributes are merged: the method reads the entity's current attributes and overlays only the
-keys passed in `attributes`. Keys not mentioned in the call are preserved.
+keys passed in `attributes`. Keys not mentioned in the call are preserved. A read that gets no
+answer raises `CommandNotSentError` (see [Errors and unknown outcomes](#errors-and-unknown-outcomes)).
 
 !!! note "Synthetic states do not survive HA restarts"
     States written with `set_state` live in HA's in-memory state machine. They are lost when HA
@@ -643,6 +644,10 @@ transports. `CommandRejectedError` is WebSocket-only; REST reports an error stat
 
 A REST connect that hangs until the timeout raises `ResponseTimeoutError`, although nothing was
 sent. One timeout covers the whole request, connect included, so Hassette reports the outcome as unknown.
+
+A write that reads first (`set_state` fetches the current attributes, `helpers.update` fetches the stored
+record) raises `CommandNotSentError` when that read gets no answer. The write itself never went out, and
+the read's error is chained as the cause.
 
 `(CommandNotSentError, OutcomeUnknownError)` catches connection and timeout failures on both
 transports. It doesn't catch every outage: a Home Assistant restart can also surface as

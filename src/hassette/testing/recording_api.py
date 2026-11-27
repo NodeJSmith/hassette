@@ -16,7 +16,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Never, Protocol, cast, runtime_checkable
 
 import aiohttp
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from slugify import slugify as _py_slugify
 from whenever import Date, PlainDateTime, ZonedDateTime
 
@@ -26,6 +26,7 @@ from hassette.api.helpers import (
     UPDATE_DISPATCH,
     dispatch_on_domain,
     dispatch_on_params_type,
+    merge_update,
 )
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
@@ -138,6 +139,14 @@ def generate_helper_id(existing_ids: set[str], name: str) -> str:
         if candidate not in existing_ids:
             return candidate
         n += 1
+
+
+def validate_helper_record(record_type: type[BaseModel], domain: str, data: dict[str, Any]) -> Any:
+    """Build a Record, raising ``CommandRejectedError(code="invalid_format")`` where HA would reject it."""
+    try:
+        return record_type.model_validate(data)
+    except ValidationError as exc:
+        raise CommandRejectedError(f"{domain} helper is invalid: {exc}", code="invalid_format") from exc
 
 
 @runtime_checkable
@@ -359,19 +368,10 @@ class RecordingHelperClient:
         return [r.model_copy(deep=deep_copy) for r in self.helper_definitions[domain].values()]
 
     def _create_helper(self, record_type: type, method_name: str, params: Any) -> Any:
-        """Generic create helper — records an ApiCall and inserts a new record.
+        """Record an ApiCall under ``method_name`` and store a new record built from ``params``.
 
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        copy depth. Auto-suffixes the generated id on collision (mirrors HA's
-        IDManager.generate_id).
-
-        Args:
-            record_type: The Record class to instantiate.
-            method_name: The API method name to record (e.g. ``"create_input_boolean"``).
-            params: The Create*Params model instance.
-
-        Returns:
-            A copy of the newly created record.
+        Auto-suffixes the generated id on collision (mirrors HA's ``IDManager.generate_id``).
+        Returns a copy of the new record; raises like :func:`validate_helper_record`.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self._parent._record_call(
@@ -382,27 +382,20 @@ class RecordingHelperClient:
             )
         )
         generated_id = self._new_helper_id(domain, params.name)
-        record = record_type(id=generated_id, **params.model_dump(exclude_unset=True))
+        record = validate_helper_record(
+            record_type, domain, {"id": generated_id, **params.model_dump(exclude_unset=True)}
+        )
         self.helper_definitions[domain][record.id] = record
         return record.model_copy(deep=deep_copy)
 
     def _update_helper(self, record_type: type, method_name: str, helper_id: str, params: Any) -> Any:
-        """Generic update helper — records an ApiCall and mutates the stored record.
+        """Record an ApiCall under ``method_name`` and merge ``params`` into the seeded record as HA does.
 
-        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
-        copy depth.
-
-        Args:
-            record_type: The Record class.
-            method_name: The API method name to record (e.g. ``"update_input_boolean"``).
-            helper_id: The helper id to update.
-            params: The Update*Params model instance.
-
-        Returns:
-            A copy of the updated record.
+        Returns a copy of the updated record.
 
         Raises:
-            CommandRejectedError: With code='not_found' if helper_id is not seeded.
+            CommandRejectedError: With code='not_found' if helper_id is not seeded, or
+                code='invalid_format' if the update clears a required field.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self._parent._record_call(
@@ -418,7 +411,8 @@ class RecordingHelperClient:
                 code="not_found",
             )
         existing = self.helper_definitions[domain][helper_id]
-        updated = existing.model_copy(update=params.model_dump(exclude_unset=True))
+        merged = merge_update(existing.model_dump(), params.model_dump(exclude_unset=True))
+        updated = validate_helper_record(record_type, domain, {"id": helper_id, **merged})
         self.helper_definitions[domain][helper_id] = updated
         return updated.model_copy(deep=deep_copy)
 

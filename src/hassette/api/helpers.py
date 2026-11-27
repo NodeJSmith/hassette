@@ -31,6 +31,8 @@ from typing import Any, Literal, TypeVar, overload
 from hassette_wire import LogLevel
 from pydantic import BaseModel
 
+from hassette.api.write_outcomes import read_before_write, resolve_unsent
+from hassette.exceptions import CommandRejectedError
 from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
@@ -139,6 +141,23 @@ def dispatch_on_domain(table: dict[str, _DispatchT], domain: str) -> _DispatchT:
         raise ValueError(f"Unknown helper domain {domain!r}; expected one of {sorted(table)}") from None
 
 
+def merge_update(stored: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
+    """Return the full item an update sends: ``stored`` with the caller's ``fields`` laid over it.
+
+    HA validates an update against the domain's full schema and replaces the stored item, so a
+    partial payload would be rejected for a missing required field or drop the fields it leaves
+    out. ``id`` is left out because the update command names the helper by its ``{domain}_id``
+    key. ``None`` values are left out so HA applies its default: that is how a caller's explicit
+    ``None`` clears an optional field (a required one is then rejected by HA).
+    """
+    return {k: v for k, v in (stored | fields).items() if k != "id" and v is not None}
+
+
+async def fetch_stored_items(api: "Api", domain: str) -> list[Any]:
+    """Return the raw stored items of ``domain`` from HA's ``<domain>/list`` command."""
+    return _expect_list(await _ws_helper_call(api, domain, "list"), f"{domain}/list")
+
+
 class HelperClient(Resource):
     """Client for CRUD operations on Home Assistant helper entities.
 
@@ -196,8 +215,7 @@ class HelperClient(Resource):
             ValueError: If ``domain`` is not a supported helper domain.
         """
         record_type = dispatch_on_domain(DOMAIN_DISPATCH, domain)
-        val = await _ws_helper_call(self._api, domain, "list")
-        items = _expect_list(val, f"{domain}/list")
+        items = await fetch_stored_items(self._api, domain)
         self.logger.debug("Listed %d %s helpers", len(items), domain)
         return [record_type.model_validate(item) for item in items]
 
@@ -265,8 +283,11 @@ class HelperClient(Resource):
                 ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
                 The two often look alike but are not guaranteed to match (renaming the entity
                 changes only the ``entity_id``); look the id up with ``list(domain)``.
-            params: Fields to update (unset fields are left unchanged). The concrete type
-                determines the domain and the return type via overload resolution.
+            params: Fields to update. Fields you don't set keep their stored value. An optional
+                field set to ``None`` is cleared back to Home Assistant's default; a required one
+                (``name``, ``input_number``'s ``min``/``max``, ``input_select``'s ``options``) is
+                rejected. The concrete type determines the domain and the return type via overload
+                resolution.
 
         Returns:
             The updated stored record.
@@ -274,14 +295,25 @@ class HelperClient(Resource):
         Raises:
             TypeError: If ``params`` is not exactly one of the ``Update*Params`` models (subclasses
                 are not supported).
+            CommandRejectedError: With ``code="not_found"`` if no helper with ``helper_id`` is
+                stored (raised before anything is sent), or HA's own code if it rejects the
+                merged record.
+            CommandNotSentError: If the update was never sent, including when the read of the
+                stored helper got no answer (that read's error is the ``__cause__``).
         """
         domain, record_type = dispatch_on_params_type(UPDATE_DISPATCH, params)
         id_key = dispatch_on_domain(ID_KEYS, domain)
         fields = params.model_dump(exclude_unset=True)
+        # The write records the caller's change, not the full item merge_update sends.
         write = self._api.begin_write("helper_update", domain, target={"helper_id": [helper_id]}, data=fields or None)
-        val = await _ws_helper_call(
-            self._api, domain, "update", retry_on_timeout=False, record=write, **{id_key: helper_id}, **fields
-        )
+        # Raw items rather than parsed Records, so fields Hassette doesn't model survive the merge.
+        items = await read_before_write(write, fetch_stored_items(self._api, domain))
+        stored = next((item for item in items if isinstance(item, dict) and item.get("id") == helper_id), None)
+        if stored is None:
+            resolve_unsent(write)
+            raise CommandRejectedError(f"{domain} helper {helper_id!r} not found", code="not_found")
+        payload = {id_key: helper_id, **merge_update(stored, fields)}
+        val = await _ws_helper_call(self._api, domain, "update", retry_on_timeout=False, record=write, **payload)
         record = record_type.model_validate(_expect_dict(val, f"{domain}/update"))
         self.logger.info("Updated %s helper %r", domain, helper_id)
         return record

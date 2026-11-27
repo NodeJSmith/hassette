@@ -19,15 +19,19 @@ from pydantic import BaseModel, ConfigDict
 
 
 class TimerRecord(BaseModel):
-    """Stored ``timer`` helper configuration returned by HA."""
+    """Stored ``timer`` helper configuration returned by HA.
+
+    Fields HA fills in when a helper is stored default to HA's own values, so a record built
+    without them (by the test harness, say) matches what HA would return.
+    """
 
     model_config = ConfigDict(extra="allow")
 
     id: str
     name: str
     icon: str | None = None
-    duration: str | int | None = None
-    restore: bool | None = None
+    duration: str | int = "0:00:00"
+    restore: bool = False
 
 
 class CreateTimerParams(BaseModel):

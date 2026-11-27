@@ -294,6 +294,12 @@ Helper writes record under names built from the helper domain:
 
 `<domain>` is one of `input_boolean`, `input_number`, `input_text`,
 `input_select`, `input_datetime`, `input_button`, `counter`, or `timer`.
+`helpers.create` and `helpers.update` build records the way Home Assistant
+does. An update keeps omitted fields, and a field passed as `None` goes back
+to Home Assistant's default (a counter's `step` returns to `1`). An update
+that clears a required field, or leaves an `input_datetime` with neither a
+date nor a time, raises `CommandRejectedError(code="invalid_format")`.
+
 `helpers.increment`, `helpers.decrement`, and `helpers.reset` record as
 `call_service` with `domain="counter"`.
 

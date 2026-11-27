@@ -6,8 +6,9 @@ HA's `.storage/` directory. They survive restarts and appear in the HA UI.
 `self.api.helpers` is a [`HelperClient`][hassette.api.helpers.HelperClient] with 4 generic
 CRUD methods (`list`, `create`, `update`, `delete`) covering all 8 domains, plus 3 counter
 shortcuts (`increment`, `decrement`, `reset`). Each CRUD method dispatches to the right
-domain from its argument — a domain string for `list`/`delete`, a typed params model for
-`create`/`update` — and returns the domain-specific record type.
+domain from its argument: a domain string for `list`/`delete`, a typed params model for
+`create`/`update`. `create` and `update` return the domain-specific record type, `list`
+returns a list of them, and `delete` returns `None`.
 
 The record and params models import from `hassette.models.helpers`, and the exceptions
 on this page import from `hassette.exceptions`.
@@ -53,14 +54,15 @@ domain from an `entity_id` is not a reliable way to get the stored `id`;
 
 **`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
 fields `False` raises `ValidationError` at construction time, before any network call.
-`UpdateInputDatetimeParams` does not enforce this constraint on partial updates, because
-the counterpart field retains its stored value.
+`UpdateInputDatetimeParams` does not enforce it, because an update keeps the stored value of
+every field it leaves out. Home Assistant checks the merged record.
 
-**`exclude_unset=True` vs explicit `None`.** All CRUD methods serialize params with
-`model_dump(exclude_unset=True)`. A field omitted from the constructor is not sent to
-HA; HA keeps its stored value. A field passed as `None` is sent as `null`, which may
-clear the value on the HA side. Omitting `icon` and passing `icon=None` produce
-different wire payloads.
+**Leaving a field out vs passing `None`.** On `update`, an omitted field keeps its stored
+value. An optional field passed as `None` goes back to Home Assistant's default:
+`UpdateCounterParams(icon=None)` removes the counter's icon. `None` for a required field
+(`name`, `input_number`'s `min`/`max`, `input_select`'s `options`) raises
+`CommandRejectedError`. On `create`, an omitted field is not sent at all, while one passed
+as `None` is sent as `null`.
 
 **`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
 represents stored configuration, returned by `helpers.list("counter")`, `helpers.create(...)`, and
@@ -95,8 +97,9 @@ whether the change landed:
     re-sent delete that already landed raises `CommandRejectedError(code="not_found")`.
 
 A call made while the WebSocket is disconnected raises
-[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. That call never left
-Hassette, so it is safe to send again once the connection is back.
+[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. So does an update whose
+read of the stored record gets no answer. Neither call left Hassette, so both are safe to send
+again once the connection is back.
 
 ## CRUD Operations
 
@@ -131,9 +134,19 @@ is useful, as `helpers.list("input_boolean")` is the only retrieval path if the 
 ```
 
 `helpers.update(helper_id, params)` accepts a `helper_id` string (the stored `id` field, not the
-display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a partial params
-object. Only fields present in the params object are sent to HA; absent fields retain their
-stored values. A `helper_id` that does not exist raises `CommandRejectedError(code="not_found")`.
+display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a params object
+holding only the fields to change. Omitted fields keep their stored values. `Update*Params`
+models import from `hassette.models.helpers`, like the create models.
+Home Assistant replaces the whole stored record on update, so Hassette reads the record first
+and sends it back with the changes applied. A `helper_id` that does not exist raises
+`CommandRejectedError(code="not_found")`, and a read that gets no answer raises
+`CommandNotSentError`. Nothing is sent in either case.
+
+!!! warning "Concurrent edits to the same helper are lost"
+    An edit made to the same helper between that read and the write (in the Home Assistant UI,
+    or by another app or client) is overwritten with the values Hassette read. Updates are safe
+    when each helper has one writer and its configuration isn't edited in the UI while an app
+    updates it. A lock inside an app doesn't help, because UI edits never pass through it.
 
 ### Delete
 
@@ -209,6 +222,10 @@ that already holds any helpers the app created. Seeding an id the app already cr
 Seeded records are stored as deep copies. Later mutations to the record passed into
 `seed_helper` do not affect harness state.
 
+Record models hold what Home Assistant stores. Fields Home Assistant fills in default to its
+values, so `CounterRecord(id="visits", name="Visits")` has `step=1`, and an
+`InputDatetimeRecord` needs `has_date=True` or `has_time=True`, as on create.
+
 ??? note "Typed model reference"
 
     Each domain exposes three Pydantic model classes in `hassette.models.helpers`:
@@ -236,9 +253,8 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
     `CreateInputDatetimeParams` also needs `has_date=True` or `has_time=True`.
     `counter` spells its bounds `minimum` and `maximum`, while `input_number` and `input_text` use `min` and `max`.
 
-    The two CRUD methods that accept a params object (`helpers.create` and `helpers.update`) serialize it with
-    `model_dump(exclude_unset=True)`, not `exclude_none`. Omitting a field and explicitly
-    setting it to `None` produce different wire payloads.
+    Omitting a field and passing it as `None` mean different things; see
+    [Common Pitfalls](#common-pitfalls).
 
 ## See Also
 

@@ -21,6 +21,8 @@ from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
     CreateInputBooleanParams,
+    CreateInputDatetimeParams,
+    CreateInputNumberParams,
     CreateInputSelectParams,
     InputBooleanRecord,
     InputButtonRecord,
@@ -29,7 +31,10 @@ from hassette.models.helpers import (
     InputSelectRecord,
     InputTextRecord,
     TimerRecord,
+    UpdateCounterParams,
     UpdateInputBooleanParams,
+    UpdateInputDatetimeParams,
+    UpdateInputNumberParams,
 )
 from hassette.testing import AppTestHarness
 from hassette.testing.recording_api import RECORD_TYPE_TO_DOMAIN, slugify_helper_name
@@ -134,6 +139,64 @@ async def test_update_input_boolean_mutates_seed():
     listed = await api.helpers.list("input_boolean")
     assert len(listed) == 1
     assert listed[0].initial is True
+
+
+async def test_update_keeps_unset_fields_and_clears_explicit_none():
+    """The harness merges an update the way production does: unset keeps, ``None`` clears."""
+    api = make_recording_api()
+    record = await api.helpers.create(CreateInputBooleanParams(name="Away", icon="mdi:plane", initial=True))
+
+    updated = await api.helpers.update(record.id, UpdateInputBooleanParams(icon=None))
+
+    assert (updated.name, updated.icon, updated.initial) == ("Away", None, True)
+
+
+async def test_create_fills_home_assistant_defaults():
+    api = make_recording_api()
+
+    record = await api.helpers.create(CreateCounterParams(name="Visits"))
+
+    assert (record.initial, record.step, record.restore) == (0, 1, True)
+
+
+async def test_create_with_none_for_a_defaulted_field_raises_invalid_format():
+    """HA rejects ``null`` for a field its schema defaults, so the harness does too."""
+    api = make_recording_api()
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.create(CreateCounterParams(name="Visits", step=None))
+
+    assert exc_info.value.code == "invalid_format"
+
+
+async def test_update_none_restores_home_assistant_default():
+    api = make_recording_api()
+    record = await api.helpers.create(CreateCounterParams(name="Visits", step=5))
+
+    updated = await api.helpers.update(record.id, UpdateCounterParams(step=None))
+
+    assert updated.step == 1
+
+
+async def test_update_leaving_datetime_without_date_or_time_raises_invalid_format():
+    api = make_recording_api()
+    record = await api.helpers.create(CreateInputDatetimeParams(name="Alarm", has_time=True))
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.update(record.id, UpdateInputDatetimeParams(has_time=False))
+
+    assert exc_info.value.code == "invalid_format"
+
+
+async def test_update_clearing_a_required_field_raises_invalid_format():
+    api = make_recording_api()
+    record = await api.helpers.create(CreateInputNumberParams(name="Level", min=0, max=10))
+
+    with pytest.raises(CommandRejectedError) as exc_info:
+        await api.helpers.update(record.id, UpdateInputNumberParams(max=None))
+
+    assert exc_info.value.code == "invalid_format"
+    assert (await api.helpers.list("input_number"))[0].max == 10
 
 
 async def test_delete_input_boolean_raises_on_missing_id():

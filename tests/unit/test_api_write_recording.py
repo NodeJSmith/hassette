@@ -142,13 +142,15 @@ class TestWhatEachWriteRecords:
         assert rec.row.data == '{"pin":"**********","codes":["**********"]}'
 
     async def test_helper_writes(self, rec: Recorded) -> None:
-        helpers = HelperClient.__new__(HelperClient)  # bypass Resource wiring; only _api and logger are read
-        helpers._api = rec.api
-        helpers.logger = rec.api.logger
-        rec.api.helpers = helpers
+        attach_helper_client(rec)
         rec.ws.send_and_wait.return_value = {"id": "away", "name": "Away"}
         await rec.api.helpers.create(CreateInputBooleanParams(name="Away"))
+        # update reads the stored item with input_boolean/list first; reads record nothing.
+        rec.ws.send_and_wait.side_effect = lambda **kw: (
+            [{"id": "away", "name": "Away"}] if kw["type"].endswith("/list") else {"id": "away", "name": "Gone"}
+        )
         await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+        rec.ws.send_and_wait.side_effect = None
         rec.ws.send_and_wait.return_value = None
         await rec.api.helpers.delete("input_boolean", "away")
 
@@ -157,6 +159,56 @@ class TestWhatEachWriteRecords:
             ("helper_update", "input_boolean", {"helper_id": ["away"]}, '{"name":"Gone"}'),
             ("helper_delete", "input_boolean", {"helper_id": ["away"]}, None),
         ]
+
+    async def test_helper_update_of_an_unknown_id_is_not_sent(self, rec: Recorded) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.return_value = []
+
+        with pytest.raises(CommandRejectedError):
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert [(r.kind, o["outcome"]) for r, o in zip(rec.rows, rec.outcomes, strict=True)] == [
+            ("helper_update", "not_sent")
+        ]
+
+    async def test_helper_update_whose_stored_read_fails_is_not_sent(self, rec: Recorded) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = CommandNotSentError("down")
+
+        with pytest.raises(CommandNotSentError):
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert [(r.kind, o["outcome"]) for r, o in zip(rec.rows, rec.outcomes, strict=True)] == [
+            ("helper_update", "not_sent")
+        ]
+
+    @pytest.mark.parametrize("read_exc", [ResponseLostError("lost"), ResponseTimeoutError("slow")])
+    async def test_helper_update_whose_stored_read_has_no_answer_is_not_sent(
+        self, rec: Recorded, read_exc: BaseException
+    ) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = read_exc
+
+        with pytest.raises(CommandNotSentError) as exc_info:
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert exc_info.value.__cause__ is read_exc
+        assert [(r.kind, o["outcome"]) for r, o in zip(rec.rows, rec.outcomes, strict=True)] == [
+            ("helper_update", "not_sent")
+        ]
+
+    @pytest.mark.parametrize("read_exc", [CommandRejectedError("nope", code="denied"), asyncio.CancelledError()])
+    async def test_helper_update_read_failure_that_is_not_unknown_passes_through(
+        self, rec: Recorded, read_exc: BaseException
+    ) -> None:
+        attach_helper_client(rec)
+        rec.ws.send_and_wait.side_effect = read_exc
+
+        with pytest.raises(type(read_exc)) as exc_info:
+            await rec.api.helpers.update("away", UpdateInputBooleanParams(name="Gone"))
+
+        assert getattr(exc_info.value, "code", None) == getattr(read_exc, "code", None)
+        assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
 
     async def test_data_is_cut_at_the_limit(self, rec: Recorded) -> None:
         await rec.api.fire_event("big", {"text": "x" * (API_WRITE_DATA_MAX_CHARS * 2)})
@@ -289,6 +341,14 @@ class TestWebSocketOwnership:
         rec.ws.send_fire_and_forget.assert_not_awaited()
 
 
+def attach_helper_client(rec: Recorded) -> None:
+    """Give ``rec.api`` a ``HelperClient``, bypassing Resource wiring: only ``_api`` and ``logger`` are read."""
+    helpers = HelperClient.__new__(HelperClient)
+    helpers._api = rec.api
+    helpers.logger = rec.api.logger
+    rec.api.helpers = helpers
+
+
 def begin_light_write(rec: Recorded, *, fire_and_forget: bool) -> Any:
     """Begin a ``light.turn_on`` write under execution ``exec-7``, straight on the recorder."""
     token = CURRENT_EXECUTION_ID.set("exec-7")
@@ -408,9 +468,25 @@ class TestRestOwnership:
     async def test_failed_preliminary_get_is_not_sent(self, rec: Recorded) -> None:
         rec.api.rest_request = AsyncMock(side_effect=ResponseTimeoutError("slow"))
 
-        with pytest.raises(ResponseTimeoutError):
+        with pytest.raises(CommandNotSentError) as exc_info:
             await rec.api.set_state("sensor.x", "on")
 
+        assert isinstance(exc_info.value.__cause__, ResponseTimeoutError)
+        assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
+
+    @pytest.mark.parametrize(
+        "read_exc",
+        [HttpRequestError(500, "boom", method="GET", url="/states/sensor.x"), asyncio.CancelledError()],
+    )
+    async def test_preliminary_get_failure_that_is_not_unknown_passes_through(
+        self, rec: Recorded, read_exc: BaseException
+    ) -> None:
+        rec.api.rest_request = AsyncMock(side_effect=read_exc)
+
+        with pytest.raises(type(read_exc)) as exc_info:
+            await rec.api.set_state("sensor.x", "on")
+
+        assert exc_info.value is read_exc
         assert [o["outcome"] for o in rec.outcomes] == ["not_sent"]
 
     async def test_delete_entity_records_success(self, rec: Recorded) -> None:
