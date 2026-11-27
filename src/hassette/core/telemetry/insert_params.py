@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
     """Build the named-parameter dict for an executions INSERT.
 
-    All booleans are converted to int (SQLite has no native bool type).
+    Booleans are passed as-is; sqlite3 binds them as integer 1/0.
     Columns match the ``executions`` table schema (001.sql original; 004.sql adds ``thread_leaked``;
     023.sql adds the event-summary ``trigger_*`` columns).
 
@@ -40,7 +40,7 @@ def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
         "error_type": record.error_type,
         "error_message": record.error_message,
         "error_traceback": record.error_traceback,
-        "is_di_failure": 1 if record.is_di_failure else 0,
+        "is_di_failure": record.is_di_failure,
         "source_tier": record.source_tier,
         "execution_id": record.execution_id,
         "trigger_context_id": record.trigger_context_id,
@@ -55,7 +55,7 @@ def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
         "attempt_number": record.attempt_number,
         "args_json": record.args_json,
         "kwargs_json": record.kwargs_json,
-        "thread_leaked": 1 if record.thread_leaked else 0,
+        "thread_leaked": record.thread_leaked,
     }
 
 
@@ -123,7 +123,7 @@ def listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]
         "topic": registration.topic,
         "debounce": registration.debounce,
         "throttle": registration.throttle,
-        "once": 1 if registration.once else 0,
+        "once": registration.once,
         "priority": registration.priority,
         "predicate_description": registration.predicate_description,
         "human_description": registration.human_description,
@@ -131,7 +131,7 @@ def listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]
         "registration_source": registration.registration_source,
         "name": registration.name or "",
         "source_tier": registration.source_tier,
-        "immediate": 1 if registration.immediate else 0,
+        "immediate": registration.immediate,
         "duration": registration.duration,
         "entity_id": registration.entity_id,
         "mode": registration.mode,
@@ -198,8 +198,8 @@ def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
         "display_name": manifest.display_name,
         "description": manifest.description,
         "filename": manifest.filename,
-        "enabled": 1 if manifest.enabled else 0,
-        "autostart": 1 if manifest.autostart else 0,
+        "enabled": manifest.enabled,
+        "autostart": manifest.autostart,
     }
     # dup-ignore-end
 
