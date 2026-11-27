@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-11-24
+Last reviewed: 2026-11-27
 
 ## How the pieces fit
 
@@ -58,6 +58,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
 | **Declared entity parity** | *Declared Entity Parity* (hassette + hass-hassette milestones of the same name) | Gaps hit converting hautomate off `api.set_state`: binary sensors, icons, `entity_category`, app-set availability, and taking over a leftover `set_state` id instead of `<id>_2`. Small, and the hautomate migration is waiting on it. One hassette release carries the four wire additions; the hass-hassette side ships after it (hass-hassette#92 doesn't need it). Before Owned state durability, which then moves the new persisted state (binary sensor values, the unavailable flag) along with the rest |
+| **App reload without restart** | *App Reload Without Restart* (brief: `design/research/2026-11-27-helper-module-reload/`) | hautomate restarts its container on every deploy, because a reload never picks up a changed shared helper, and one restart dropped a button press. #1697 (idempotent import, evict-and-reimport) comes first, then an in-process reload-all (#4498). The precise dependency reload (#4141) stays parked out of the milestone. After Declared entity parity, which is small and which the hautomate migration is waiting on |
 | **Owned state durability** | *Owned State Durability* (brief: `design/research/2026-11-19-persistence-model/`) | Recovery paths reset app-declared switches (#4284 stores them in `hassette.db`) and delete `self.cache` files that real apps use as durable state. Includes the `self.cache` → `self.store` breaking change, so it lands before 1.0. Hardening the store layer comes first; everything else follows it |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Module boundaries** | *Module Boundaries* (parent #633) | Enforce the layer map with no exceptions, split `core/` into subpackages, clear the 800-line backlog so HSL102 can block. Mostly mechanical, so it fits between bigger PRs. After the testing redesign, which reshapes `recording_api.py` (#2731) |
@@ -87,6 +88,7 @@ testing redesign + all breaking changes ──> v1.0 tag
 #1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
 #2989 seed anchor ──> #2996 snapshot mode
 #3231 layer map ──> #3965 core subpackages
+#1697 import semantics ──> #4498 reload-all ──> #4141 dependency reload (parked)
 testing redesign (#2731), #2333, #2730, #3966 ──> #3967 HSL102 blocking
 ```
 
