@@ -16,6 +16,7 @@ from hassette.integration.declarations import (
     fits,
     validate_default_entity_id,
     validate_entity_category,
+    validate_icon,
     validate_key,
     validate_name,
     validate_sensor_fields,
@@ -87,6 +88,17 @@ def test_valid_entity_category_passes(category: str | None) -> None:
 def test_invalid_entity_category_raises(category: object) -> None:
     with pytest.raises(ValueError, match="entity_category must be one of 'config', 'diagnostic' or None"):
         validate_entity_category(category, IntegrationPlatform.SWITCH)
+
+
+@pytest.mark.parametrize("icon", ["mdi:cat", "mdi:battery-50", "hass:home", None])
+def test_valid_icon_passes(icon: str | None) -> None:
+    assert validate_icon(icon, IntegrationPlatform.SENSOR) == icon
+
+
+@pytest.mark.parametrize("icon", ["cat", "mdi:", ":cat", "mdi:cat food", "", 1, []])
+def test_invalid_icon_raises(icon: object) -> None:
+    with pytest.raises(ValueError, match="icon must be 'prefix:name'"):
+        validate_icon(icon, IntegrationPlatform.SENSOR)
 
 
 @pytest.mark.parametrize(

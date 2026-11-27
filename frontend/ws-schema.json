@@ -321,6 +321,19 @@
           "description": "``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a\nprimary entity.",
           "title": "Entity Category"
         },
+        "icon": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The entity's icon, such as ``mdi:cat``. ``None`` for Home Assistant's default icon. An icon set by hand in\nHome Assistant's entity registry takes precedence.",
+          "title": "Icon"
+        },
         "unit": {
           "anyOf": [
             {

@@ -163,6 +163,7 @@ class BadDeclarationsApp(App[EntitiesConfig]):
             lambda: self.integration.add_switch("s", name="S", on_toggle=self.noop, default_entity_id="button.s"),
             lambda: self.integration.add_sensor("e", name="E", device_class="enum"),
             lambda: self.integration.add_button("b", name="B", on_press=self.noop, entity_category="system"),
+            lambda: self.integration.add_sensor("i", name="I", icon="cat"),
         ):
             try:
                 call()
@@ -176,12 +177,13 @@ class BadDeclarationsApp(App[EntitiesConfig]):
 async def test_invalid_declarations_raise_at_the_call() -> None:
     async with AppTestHarness(BadDeclarationsApp, config={"instance_name": "bad"}) as harness:
         errors = harness.app.errors
-        assert len(errors) == 5
+        assert len(errors) == 6
         assert "already declared" in errors[0]
         assert "Bad-Key" in errors[1]
         assert "default_entity_id" in errors[2]
         assert "needs options" in errors[3]
         assert "entity_category" in errors[4]
+        assert "icon" in errors[5]
         assert [entity.declaration.key for entity in harness.integration_entities] == ["dup"]
 
 

@@ -46,6 +46,9 @@ class DeclaredEntity(BaseModel):
     entity_category: str | None = None
     """``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a
     primary entity."""
+    icon: str | None = None
+    """The entity's icon, such as ``mdi:cat``. ``None`` for Home Assistant's default icon. An icon set by hand in
+    Home Assistant's entity registry takes precedence."""
     unit: str | None = None
     """A sensor's unit of measurement."""
     device_class: str | None = None

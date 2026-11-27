@@ -1702,6 +1702,12 @@ export interface components {
              */
             entity_category?: string | null;
             /**
+             * Icon
+             * @description The entity's icon, such as ``mdi:cat``. ``None`` for Home Assistant's default icon. An icon set by hand in
+             *     Home Assistant's entity registry takes precedence.
+             */
+            icon?: string | null;
+            /**
              * Unit
              * @description A sensor's unit of measurement.
              */

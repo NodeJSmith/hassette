@@ -168,6 +168,13 @@ const schema11 = {
             "``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a\nprimary entity.",
           title: "Entity Category",
         },
+        icon: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+          default: null,
+          description:
+            "The entity's icon, such as ``mdi:cat``. ``None`` for Home Assistant's default icon. An icon set by hand in\nHome Assistant's entity registry takes precedence.",
+          title: "Icon",
+        },
         unit: {
           anyOf: [{ type: "string" }, { type: "null" }],
           default: null,
@@ -3167,6 +3174,13 @@ const schema33 = {
         "``config`` or ``diagnostic``: where Home Assistant files the entity on its device page. ``None`` for a\nprimary entity.",
       title: "Entity Category",
     },
+    icon: {
+      anyOf: [{ type: "string" }, { type: "null" }],
+      default: null,
+      description:
+        "The entity's icon, such as ``mdi:cat``. ``None`` for Home Assistant's default icon. An icon set by hand in\nHome Assistant's entity registry takes precedence.",
+      title: "Icon",
+    },
     unit: {
       anyOf: [{ type: "string" }, { type: "null" }],
       default: null,
@@ -3551,16 +3565,16 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                   var valid2 = true;
                                 }
                                 if (valid2) {
-                                  if (data4.unit !== undefined) {
-                                    let data10 = data4.unit;
+                                  if (data4.icon !== undefined) {
+                                    let data10 = data4.icon;
                                     const _errs30 = errors;
                                     const _errs31 = errors;
                                     let valid5 = false;
                                     const _errs32 = errors;
                                     if (typeof data10 !== "string") {
                                       const err6 = {
-                                        instancePath: instancePath + "/entity/unit",
-                                        schemaPath: "#/$defs/DeclaredEntity/properties/unit/anyOf/0/type",
+                                        instancePath: instancePath + "/entity/icon",
+                                        schemaPath: "#/$defs/DeclaredEntity/properties/icon/anyOf/0/type",
                                         keyword: "type",
                                         params: { type: "string" },
                                         message: "must be string",
@@ -3578,8 +3592,8 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                       const _errs34 = errors;
                                       if (data10 !== null) {
                                         const err7 = {
-                                          instancePath: instancePath + "/entity/unit",
-                                          schemaPath: "#/$defs/DeclaredEntity/properties/unit/anyOf/1/type",
+                                          instancePath: instancePath + "/entity/icon",
+                                          schemaPath: "#/$defs/DeclaredEntity/properties/icon/anyOf/1/type",
                                           keyword: "type",
                                           params: { type: "null" },
                                           message: "must be null",
@@ -3596,8 +3610,8 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                     }
                                     if (!valid5) {
                                       const err8 = {
-                                        instancePath: instancePath + "/entity/unit",
-                                        schemaPath: "#/$defs/DeclaredEntity/properties/unit/anyOf",
+                                        instancePath: instancePath + "/entity/icon",
+                                        schemaPath: "#/$defs/DeclaredEntity/properties/icon/anyOf",
                                         keyword: "anyOf",
                                         params: {},
                                         message: "must match a schema in anyOf",
@@ -3625,16 +3639,16 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                     var valid2 = true;
                                   }
                                   if (valid2) {
-                                    if (data4.device_class !== undefined) {
-                                      let data11 = data4.device_class;
+                                    if (data4.unit !== undefined) {
+                                      let data11 = data4.unit;
                                       const _errs36 = errors;
                                       const _errs37 = errors;
                                       let valid6 = false;
                                       const _errs38 = errors;
                                       if (typeof data11 !== "string") {
                                         const err9 = {
-                                          instancePath: instancePath + "/entity/device_class",
-                                          schemaPath: "#/$defs/DeclaredEntity/properties/device_class/anyOf/0/type",
+                                          instancePath: instancePath + "/entity/unit",
+                                          schemaPath: "#/$defs/DeclaredEntity/properties/unit/anyOf/0/type",
                                           keyword: "type",
                                           params: { type: "string" },
                                           message: "must be string",
@@ -3652,8 +3666,8 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                         const _errs40 = errors;
                                         if (data11 !== null) {
                                           const err10 = {
-                                            instancePath: instancePath + "/entity/device_class",
-                                            schemaPath: "#/$defs/DeclaredEntity/properties/device_class/anyOf/1/type",
+                                            instancePath: instancePath + "/entity/unit",
+                                            schemaPath: "#/$defs/DeclaredEntity/properties/unit/anyOf/1/type",
                                             keyword: "type",
                                             params: { type: "null" },
                                             message: "must be null",
@@ -3670,8 +3684,8 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                       }
                                       if (!valid6) {
                                         const err11 = {
-                                          instancePath: instancePath + "/entity/device_class",
-                                          schemaPath: "#/$defs/DeclaredEntity/properties/device_class/anyOf",
+                                          instancePath: instancePath + "/entity/unit",
+                                          schemaPath: "#/$defs/DeclaredEntity/properties/unit/anyOf",
                                           keyword: "anyOf",
                                           params: {},
                                           message: "must match a schema in anyOf",
@@ -3699,16 +3713,16 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                       var valid2 = true;
                                     }
                                     if (valid2) {
-                                      if (data4.state_class !== undefined) {
-                                        let data12 = data4.state_class;
+                                      if (data4.device_class !== undefined) {
+                                        let data12 = data4.device_class;
                                         const _errs42 = errors;
                                         const _errs43 = errors;
                                         let valid7 = false;
                                         const _errs44 = errors;
                                         if (typeof data12 !== "string") {
                                           const err12 = {
-                                            instancePath: instancePath + "/entity/state_class",
-                                            schemaPath: "#/$defs/DeclaredEntity/properties/state_class/anyOf/0/type",
+                                            instancePath: instancePath + "/entity/device_class",
+                                            schemaPath: "#/$defs/DeclaredEntity/properties/device_class/anyOf/0/type",
                                             keyword: "type",
                                             params: { type: "string" },
                                             message: "must be string",
@@ -3726,8 +3740,8 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                           const _errs46 = errors;
                                           if (data12 !== null) {
                                             const err13 = {
-                                              instancePath: instancePath + "/entity/state_class",
-                                              schemaPath: "#/$defs/DeclaredEntity/properties/state_class/anyOf/1/type",
+                                              instancePath: instancePath + "/entity/device_class",
+                                              schemaPath: "#/$defs/DeclaredEntity/properties/device_class/anyOf/1/type",
                                               keyword: "type",
                                               params: { type: "null" },
                                               message: "must be null",
@@ -3744,8 +3758,8 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                         }
                                         if (!valid7) {
                                           const err14 = {
-                                            instancePath: instancePath + "/entity/state_class",
-                                            schemaPath: "#/$defs/DeclaredEntity/properties/state_class/anyOf",
+                                            instancePath: instancePath + "/entity/device_class",
+                                            schemaPath: "#/$defs/DeclaredEntity/properties/device_class/anyOf",
                                             keyword: "anyOf",
                                             params: {},
                                             message: "must match a schema in anyOf",
@@ -3773,46 +3787,39 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                         var valid2 = true;
                                       }
                                       if (valid2) {
-                                        if (data4.options !== undefined) {
-                                          let data13 = data4.options;
+                                        if (data4.state_class !== undefined) {
+                                          let data13 = data4.state_class;
                                           const _errs48 = errors;
                                           const _errs49 = errors;
                                           let valid8 = false;
                                           const _errs50 = errors;
-                                          if (errors === _errs50) {
-                                            if (Array.isArray(data13)) {
-                                              var valid9 = true;
-                                              const len0 = data13.length;
-                                              for (let i0 = 0; i0 < len0; i0++) {
-                                                const _errs52 = errors;
-                                                if (typeof data13[i0] !== "string") {
-                                                  const err15 = {
-                                                    instancePath: instancePath + "/entity/options/" + i0,
-                                                    schemaPath:
-                                                      "#/$defs/DeclaredEntity/properties/options/anyOf/0/items/type",
-                                                    keyword: "type",
-                                                    params: { type: "string" },
-                                                    message: "must be string",
-                                                  };
-                                                  if (vErrors === null) {
-                                                    vErrors = [err15];
-                                                  } else {
-                                                    vErrors.push(err15);
-                                                  }
-                                                  errors++;
-                                                }
-                                                var valid9 = _errs52 === errors;
-                                                if (!valid9) {
-                                                  break;
-                                                }
-                                              }
+                                          if (typeof data13 !== "string") {
+                                            const err15 = {
+                                              instancePath: instancePath + "/entity/state_class",
+                                              schemaPath: "#/$defs/DeclaredEntity/properties/state_class/anyOf/0/type",
+                                              keyword: "type",
+                                              params: { type: "string" },
+                                              message: "must be string",
+                                            };
+                                            if (vErrors === null) {
+                                              vErrors = [err15];
                                             } else {
+                                              vErrors.push(err15);
+                                            }
+                                            errors++;
+                                          }
+                                          var _valid5 = _errs50 === errors;
+                                          valid8 = valid8 || _valid5;
+                                          if (!valid8) {
+                                            const _errs52 = errors;
+                                            if (data13 !== null) {
                                               const err16 = {
-                                                instancePath: instancePath + "/entity/options",
-                                                schemaPath: "#/$defs/DeclaredEntity/properties/options/anyOf/0/type",
+                                                instancePath: instancePath + "/entity/state_class",
+                                                schemaPath:
+                                                  "#/$defs/DeclaredEntity/properties/state_class/anyOf/1/type",
                                                 keyword: "type",
-                                                params: { type: "array" },
-                                                message: "must be array",
+                                                params: { type: "null" },
+                                                message: "must be null",
                                               };
                                               if (vErrors === null) {
                                                 vErrors = [err16];
@@ -3821,41 +3828,21 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                               }
                                               errors++;
                                             }
-                                          }
-                                          var _valid5 = _errs50 === errors;
-                                          valid8 = valid8 || _valid5;
-                                          if (!valid8) {
-                                            const _errs54 = errors;
-                                            if (data13 !== null) {
-                                              const err17 = {
-                                                instancePath: instancePath + "/entity/options",
-                                                schemaPath: "#/$defs/DeclaredEntity/properties/options/anyOf/1/type",
-                                                keyword: "type",
-                                                params: { type: "null" },
-                                                message: "must be null",
-                                              };
-                                              if (vErrors === null) {
-                                                vErrors = [err17];
-                                              } else {
-                                                vErrors.push(err17);
-                                              }
-                                              errors++;
-                                            }
-                                            var _valid5 = _errs54 === errors;
+                                            var _valid5 = _errs52 === errors;
                                             valid8 = valid8 || _valid5;
                                           }
                                           if (!valid8) {
-                                            const err18 = {
-                                              instancePath: instancePath + "/entity/options",
-                                              schemaPath: "#/$defs/DeclaredEntity/properties/options/anyOf",
+                                            const err17 = {
+                                              instancePath: instancePath + "/entity/state_class",
+                                              schemaPath: "#/$defs/DeclaredEntity/properties/state_class/anyOf",
                                               keyword: "anyOf",
                                               params: {},
                                               message: "must match a schema in anyOf",
                                             };
                                             if (vErrors === null) {
-                                              vErrors = [err18];
+                                              vErrors = [err17];
                                             } else {
-                                              vErrors.push(err18);
+                                              vErrors.push(err17);
                                             }
                                             errors++;
                                             validate24.errors = vErrors;
@@ -3875,38 +3862,66 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                           var valid2 = true;
                                         }
                                         if (valid2) {
-                                          if (data4.value !== undefined) {
-                                            let data15 = data4.value;
+                                          if (data4.options !== undefined) {
+                                            let data14 = data4.options;
+                                            const _errs54 = errors;
+                                            const _errs55 = errors;
+                                            let valid9 = false;
                                             const _errs56 = errors;
-                                            const _errs57 = errors;
-                                            let valid10 = false;
-                                            const _errs58 = errors;
-                                            if (!(typeof data15 == "number" && !(data15 % 1) && !isNaN(data15))) {
-                                              const err19 = {
-                                                instancePath: instancePath + "/entity/value",
-                                                schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf/0/type",
-                                                keyword: "type",
-                                                params: { type: "integer" },
-                                                message: "must be integer",
-                                              };
-                                              if (vErrors === null) {
-                                                vErrors = [err19];
+                                            if (errors === _errs56) {
+                                              if (Array.isArray(data14)) {
+                                                var valid10 = true;
+                                                const len0 = data14.length;
+                                                for (let i0 = 0; i0 < len0; i0++) {
+                                                  const _errs58 = errors;
+                                                  if (typeof data14[i0] !== "string") {
+                                                    const err18 = {
+                                                      instancePath: instancePath + "/entity/options/" + i0,
+                                                      schemaPath:
+                                                        "#/$defs/DeclaredEntity/properties/options/anyOf/0/items/type",
+                                                      keyword: "type",
+                                                      params: { type: "string" },
+                                                      message: "must be string",
+                                                    };
+                                                    if (vErrors === null) {
+                                                      vErrors = [err18];
+                                                    } else {
+                                                      vErrors.push(err18);
+                                                    }
+                                                    errors++;
+                                                  }
+                                                  var valid10 = _errs58 === errors;
+                                                  if (!valid10) {
+                                                    break;
+                                                  }
+                                                }
                                               } else {
-                                                vErrors.push(err19);
-                                              }
-                                              errors++;
-                                            }
-                                            var _valid6 = _errs58 === errors;
-                                            valid10 = valid10 || _valid6;
-                                            if (!valid10) {
-                                              const _errs60 = errors;
-                                              if (!(typeof data15 == "number")) {
-                                                const err20 = {
-                                                  instancePath: instancePath + "/entity/value",
-                                                  schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf/1/type",
+                                                const err19 = {
+                                                  instancePath: instancePath + "/entity/options",
+                                                  schemaPath: "#/$defs/DeclaredEntity/properties/options/anyOf/0/type",
                                                   keyword: "type",
-                                                  params: { type: "number" },
-                                                  message: "must be number",
+                                                  params: { type: "array" },
+                                                  message: "must be array",
+                                                };
+                                                if (vErrors === null) {
+                                                  vErrors = [err19];
+                                                } else {
+                                                  vErrors.push(err19);
+                                                }
+                                                errors++;
+                                              }
+                                            }
+                                            var _valid6 = _errs56 === errors;
+                                            valid9 = valid9 || _valid6;
+                                            if (!valid9) {
+                                              const _errs60 = errors;
+                                              if (data14 !== null) {
+                                                const err20 = {
+                                                  instancePath: instancePath + "/entity/options",
+                                                  schemaPath: "#/$defs/DeclaredEntity/properties/options/anyOf/1/type",
+                                                  keyword: "type",
+                                                  params: { type: "null" },
+                                                  message: "must be null",
                                                 };
                                                 if (vErrors === null) {
                                                   vErrors = [err20];
@@ -3916,122 +3931,198 @@ function validate24(data, { instancePath = "", parentData, parentDataProperty, r
                                                 errors++;
                                               }
                                               var _valid6 = _errs60 === errors;
-                                              valid10 = valid10 || _valid6;
-                                              if (!valid10) {
-                                                const _errs62 = errors;
-                                                if (typeof data15 !== "string") {
-                                                  const err21 = {
-                                                    instancePath: instancePath + "/entity/value",
-                                                    schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf/2/type",
-                                                    keyword: "type",
-                                                    params: { type: "string" },
-                                                    message: "must be string",
-                                                  };
-                                                  if (vErrors === null) {
-                                                    vErrors = [err21];
-                                                  } else {
-                                                    vErrors.push(err21);
-                                                  }
-                                                  errors++;
-                                                }
-                                                var _valid6 = _errs62 === errors;
-                                                valid10 = valid10 || _valid6;
-                                                if (!valid10) {
-                                                  const _errs64 = errors;
-                                                  if (typeof data15 !== "boolean") {
-                                                    const err22 = {
-                                                      instancePath: instancePath + "/entity/value",
-                                                      schemaPath:
-                                                        "#/$defs/DeclaredEntity/properties/value/anyOf/3/type",
-                                                      keyword: "type",
-                                                      params: { type: "boolean" },
-                                                      message: "must be boolean",
-                                                    };
-                                                    if (vErrors === null) {
-                                                      vErrors = [err22];
-                                                    } else {
-                                                      vErrors.push(err22);
-                                                    }
-                                                    errors++;
-                                                  }
-                                                  var _valid6 = _errs64 === errors;
-                                                  valid10 = valid10 || _valid6;
-                                                  if (!valid10) {
-                                                    const _errs66 = errors;
-                                                    if (data15 !== null) {
-                                                      const err23 = {
-                                                        instancePath: instancePath + "/entity/value",
-                                                        schemaPath:
-                                                          "#/$defs/DeclaredEntity/properties/value/anyOf/4/type",
-                                                        keyword: "type",
-                                                        params: { type: "null" },
-                                                        message: "must be null",
-                                                      };
-                                                      if (vErrors === null) {
-                                                        vErrors = [err23];
-                                                      } else {
-                                                        vErrors.push(err23);
-                                                      }
-                                                      errors++;
-                                                    }
-                                                    var _valid6 = _errs66 === errors;
-                                                    valid10 = valid10 || _valid6;
-                                                  }
-                                                }
-                                              }
+                                              valid9 = valid9 || _valid6;
                                             }
-                                            if (!valid10) {
-                                              const err24 = {
-                                                instancePath: instancePath + "/entity/value",
-                                                schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf",
+                                            if (!valid9) {
+                                              const err21 = {
+                                                instancePath: instancePath + "/entity/options",
+                                                schemaPath: "#/$defs/DeclaredEntity/properties/options/anyOf",
                                                 keyword: "anyOf",
                                                 params: {},
                                                 message: "must match a schema in anyOf",
                                               };
                                               if (vErrors === null) {
-                                                vErrors = [err24];
+                                                vErrors = [err21];
                                               } else {
-                                                vErrors.push(err24);
+                                                vErrors.push(err21);
                                               }
                                               errors++;
                                               validate24.errors = vErrors;
                                               return false;
                                             } else {
-                                              errors = _errs57;
+                                              errors = _errs55;
                                               if (vErrors !== null) {
-                                                if (_errs57) {
-                                                  vErrors.length = _errs57;
+                                                if (_errs55) {
+                                                  vErrors.length = _errs55;
                                                 } else {
                                                   vErrors = null;
                                                 }
                                               }
                                             }
-                                            var valid2 = _errs56 === errors;
+                                            var valid2 = _errs54 === errors;
                                           } else {
                                             var valid2 = true;
                                           }
                                           if (valid2) {
-                                            if (data4.attributes !== undefined) {
-                                              let data16 = data4.attributes;
-                                              const _errs68 = errors;
-                                              if (errors === _errs68) {
-                                                if (data16 && typeof data16 == "object" && !Array.isArray(data16)) {
+                                            if (data4.value !== undefined) {
+                                              let data16 = data4.value;
+                                              const _errs62 = errors;
+                                              const _errs63 = errors;
+                                              let valid11 = false;
+                                              const _errs64 = errors;
+                                              if (!(typeof data16 == "number" && !(data16 % 1) && !isNaN(data16))) {
+                                                const err22 = {
+                                                  instancePath: instancePath + "/entity/value",
+                                                  schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf/0/type",
+                                                  keyword: "type",
+                                                  params: { type: "integer" },
+                                                  message: "must be integer",
+                                                };
+                                                if (vErrors === null) {
+                                                  vErrors = [err22];
                                                 } else {
-                                                  validate24.errors = [
-                                                    {
-                                                      instancePath: instancePath + "/entity/attributes",
-                                                      schemaPath: "#/$defs/DeclaredEntity/properties/attributes/type",
+                                                  vErrors.push(err22);
+                                                }
+                                                errors++;
+                                              }
+                                              var _valid7 = _errs64 === errors;
+                                              valid11 = valid11 || _valid7;
+                                              if (!valid11) {
+                                                const _errs66 = errors;
+                                                if (!(typeof data16 == "number")) {
+                                                  const err23 = {
+                                                    instancePath: instancePath + "/entity/value",
+                                                    schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf/1/type",
+                                                    keyword: "type",
+                                                    params: { type: "number" },
+                                                    message: "must be number",
+                                                  };
+                                                  if (vErrors === null) {
+                                                    vErrors = [err23];
+                                                  } else {
+                                                    vErrors.push(err23);
+                                                  }
+                                                  errors++;
+                                                }
+                                                var _valid7 = _errs66 === errors;
+                                                valid11 = valid11 || _valid7;
+                                                if (!valid11) {
+                                                  const _errs68 = errors;
+                                                  if (typeof data16 !== "string") {
+                                                    const err24 = {
+                                                      instancePath: instancePath + "/entity/value",
+                                                      schemaPath:
+                                                        "#/$defs/DeclaredEntity/properties/value/anyOf/2/type",
                                                       keyword: "type",
-                                                      params: { type: "object" },
-                                                      message: "must be object",
-                                                    },
-                                                  ];
-                                                  return false;
+                                                      params: { type: "string" },
+                                                      message: "must be string",
+                                                    };
+                                                    if (vErrors === null) {
+                                                      vErrors = [err24];
+                                                    } else {
+                                                      vErrors.push(err24);
+                                                    }
+                                                    errors++;
+                                                  }
+                                                  var _valid7 = _errs68 === errors;
+                                                  valid11 = valid11 || _valid7;
+                                                  if (!valid11) {
+                                                    const _errs70 = errors;
+                                                    if (typeof data16 !== "boolean") {
+                                                      const err25 = {
+                                                        instancePath: instancePath + "/entity/value",
+                                                        schemaPath:
+                                                          "#/$defs/DeclaredEntity/properties/value/anyOf/3/type",
+                                                        keyword: "type",
+                                                        params: { type: "boolean" },
+                                                        message: "must be boolean",
+                                                      };
+                                                      if (vErrors === null) {
+                                                        vErrors = [err25];
+                                                      } else {
+                                                        vErrors.push(err25);
+                                                      }
+                                                      errors++;
+                                                    }
+                                                    var _valid7 = _errs70 === errors;
+                                                    valid11 = valid11 || _valid7;
+                                                    if (!valid11) {
+                                                      const _errs72 = errors;
+                                                      if (data16 !== null) {
+                                                        const err26 = {
+                                                          instancePath: instancePath + "/entity/value",
+                                                          schemaPath:
+                                                            "#/$defs/DeclaredEntity/properties/value/anyOf/4/type",
+                                                          keyword: "type",
+                                                          params: { type: "null" },
+                                                          message: "must be null",
+                                                        };
+                                                        if (vErrors === null) {
+                                                          vErrors = [err26];
+                                                        } else {
+                                                          vErrors.push(err26);
+                                                        }
+                                                        errors++;
+                                                      }
+                                                      var _valid7 = _errs72 === errors;
+                                                      valid11 = valid11 || _valid7;
+                                                    }
+                                                  }
                                                 }
                                               }
-                                              var valid2 = _errs68 === errors;
+                                              if (!valid11) {
+                                                const err27 = {
+                                                  instancePath: instancePath + "/entity/value",
+                                                  schemaPath: "#/$defs/DeclaredEntity/properties/value/anyOf",
+                                                  keyword: "anyOf",
+                                                  params: {},
+                                                  message: "must match a schema in anyOf",
+                                                };
+                                                if (vErrors === null) {
+                                                  vErrors = [err27];
+                                                } else {
+                                                  vErrors.push(err27);
+                                                }
+                                                errors++;
+                                                validate24.errors = vErrors;
+                                                return false;
+                                              } else {
+                                                errors = _errs63;
+                                                if (vErrors !== null) {
+                                                  if (_errs63) {
+                                                    vErrors.length = _errs63;
+                                                  } else {
+                                                    vErrors = null;
+                                                  }
+                                                }
+                                              }
+                                              var valid2 = _errs62 === errors;
                                             } else {
                                               var valid2 = true;
+                                            }
+                                            if (valid2) {
+                                              if (data4.attributes !== undefined) {
+                                                let data17 = data4.attributes;
+                                                const _errs74 = errors;
+                                                if (errors === _errs74) {
+                                                  if (data17 && typeof data17 == "object" && !Array.isArray(data17)) {
+                                                  } else {
+                                                    validate24.errors = [
+                                                      {
+                                                        instancePath: instancePath + "/entity/attributes",
+                                                        schemaPath: "#/$defs/DeclaredEntity/properties/attributes/type",
+                                                        keyword: "type",
+                                                        params: { type: "object" },
+                                                        message: "must be object",
+                                                      },
+                                                    ];
+                                                    return false;
+                                                  }
+                                                }
+                                                var valid2 = _errs74 === errors;
+                                              } else {
+                                                var valid2 = true;
+                                              }
                                             }
                                           }
                                         }

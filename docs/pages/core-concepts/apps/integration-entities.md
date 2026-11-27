@@ -92,6 +92,21 @@ Every `add_*` call raises `ValueError` when `name` isn't a non-empty string, or 
 !!! note "Needs a Hassette integration that supports categories"
     The Hassette integration in Home Assistant applies the category only from the release that adds support for it ([hass-hassette#94](https://github.com/NodeJSmith/hass-hassette/issues/94)). An older integration ignores it and shows the entity as a primary control.
 
+## Icons
+
+`icon` gives an entity its icon in Home Assistant. Every `add_*` method takes it:
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/integration_entities.py:icon"
+```
+
+An icon name has the form `prefix:name`, such as `mdi:food-drumstick`. Any other value raises `ValueError` from the `add_*` call. Without an icon, Home Assistant picks one from the platform and device class. An icon set by hand in Home Assistant's entity settings overrides the declared one.
+
+The Hassette integration drops an `icon` passed in `set(attributes=...)`, because Home Assistant owns that attribute. Only the `icon` argument sets it.
+
+!!! note "Needs a Hassette integration that supports icons"
+    The Hassette integration in Home Assistant applies the icon only from the release that adds support for it ([hass-hassette#91](https://github.com/NodeJSmith/hass-hassette/issues/91)). An older integration ignores it and shows Home Assistant's default icon.
+
 ## Integration Entities or Helpers
 
 [`Api.helpers`](../api/managing-helpers.md) creates `input_button`, `input_boolean` and `input_number` helpers from code. Declared entities differ from helpers in four ways:
