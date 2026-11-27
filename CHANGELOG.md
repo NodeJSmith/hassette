@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.67.0](https://github.com/NodeJSmith/hassette/compare/v0.66.0...v0.67.0) (2026-11-27)
+
+`self.api.helpers.update()` now changes only the fields you pass. It used to reject updates that left out required fields and reset the fields it was given no value for. App files are also imported once at startup and re-run on reload only when they changed. App-declared entities can set an icon and an entity category.
+
+### Breaking Changes
+
+- **Helper records use Home Assistant's stored defaults instead of `None`** (#4503). `CounterRecord` `initial`/`step`/`restore`, `TimerRecord` `duration`/`restore`, `InputNumberRecord` `step`/`mode` and `InputTextRecord` `min`/`max`/`mode` now default to HA's values and no longer accept `None`. This mostly affects tests that build a record to seed the harness: leave the field out (it gets HA's default) or pass a real value. `InputDatetimeRecord` needs `has_date=True` or `has_time=True`, as HA does. Records parsed from Home Assistant are unaffected.
+- **A write whose preceding read gets no answer raises `CommandNotSentError`** (#4503). `Api.set_state` and `helpers.update()` read the current state before they write. When that read times out or loses its response, they now raise `CommandNotSentError`, with the read's error as `__cause__`. They used to raise `ResponseTimeoutError` or `ResponseLostError`, which are `OutcomeUnknownError`s and imply the write may have applied. If you catch `OutcomeUnknownError` around either call to handle an unreachable HA, catch `(CommandNotSentError, OutcomeUnknownError)`. The write never went out, so it's safe to send again.
+- **The prebuilt accessor extractors are renamed from `*_PATH` to `*_GETTER`** (#4492). `A.DOMAIN_PATH` → `A.DOMAIN_GETTER`, `A.ENTITY_ID_PATH` → `A.ENTITY_ID_GETTER`, `A.CONTEXT_PATH` → `A.CONTEXT_GETTER`, `A.SERVICE_PATH` → `A.SERVICE_GETTER`, `A.SERVICE_DATA_PATH` → `A.SERVICE_DATA_GETTER`. Use the new names, or call the matching accessor (`A.get_domain`, `A.get_entity_id`, `A.get_context`, `A.get_service`, `A.get_service_data`).
+
+### For App Authors: You Can Now Delete
+
+- **Copying a helper's existing fields into an `Update*Params` before calling `self.api.helpers.update()`**, such as re-sending `name`, `min`/`max`, `options` or `has_date`/`has_time` so the update isn't rejected, or `initial`/`step` so they aren't reset. Pass only the fields you're changing. (#4503)
+- **Guards against an app file's top-level code running twice at startup**, for example a module-level "already set up" flag in a file that holds two app classes or is imported by another app module. Each app file now runs once. (#4505)
+
+### API
+
+- `helpers.update()` reads the stored helper and sends it back with your fields applied. Fields you don't pass keep their stored value, including ones Hassette doesn't model. An optional field passed as `None` goes back to HA's default. An unknown id raises `CommandRejectedError(code="not_found")` before anything is sent. Each update costs one extra WebSocket round-trip, and an edit made in the HA UI to the same helper between the read and the write is overwritten. Give each helper one writer. (#4503)
+
+### App-Declared Entities
+
+- `add_button`, `add_switch` and `add_sensor` (and their sync versions) take an optional `icon`, such as `"mdi:cat"`. A value that isn't in `prefix:name` form raises `ValueError`. Home Assistant shows the icon once hass-hassette supports it. (#4500)
+- The same methods take an optional `entity_category` of `"config"` or `"diagnostic"`, which puts the entity in the matching section of the HA device page. Any other value raises `ValueError`. (#4470)
+
+### Test Utilities
+
+- The harness's helper create and update use the same merge as production. Where HA would reject the record (a cleared required field, `None` for a defaulted field, a datetime with neither `has_date` nor `has_time`), the harness raises `CommandRejectedError(code="invalid_format")`. (#4503)
+
+### Bug Fixes
+
+- Each app file is imported once at startup. A second app class in the same file, or an app module imported by another app module, no longer runs the file again. Reloading an app (the Reload button, `hassette app reload`, the HA reload button, or a file change) re-imports the file only when its contents changed, and app keys from the same file share one run of it. An app module that holds another as a module object (`import apps.helpers as h`) keeps the old copy until it reloads too. (#4505)
+- A listener that re-registers under the same name and topic with a renamed handler or a changed `once` now shows the new values in the web UI and CLI. A stale `once` could also make a now-persistent listener eligible for once-listener cleanup. (#4480)
+- `A.get_attrs_*` accepts any sequence of attribute names, not only a list. (#4492)
+- An async predicate nested inside a combinator (`&`, `|`, `~`, `AllOf`, `AnyOf`, `Not`, `Guard`, or a `where=` list on `on_state_change`) now raises `TypeError` at registration, like a top-level one. It used to get through, and because calling it returns a truthy coroutine, the filter always passed. (#4506)
+
+### Documentation
+
+- The Home Assistant integration's getting-started page lists the current minimums, Hassette 0.66.0 and Home Assistant 2026.11, and adds the app status sensor's `starting` and `stopping` states. (#4508)
+
 ## [0.66.0](https://github.com/NodeJSmith/hassette/compare/v0.65.0...v0.66.0) (2026-11-23)
 
 App instances can now declare their own Home Assistant buttons, switches and sensors with `self.integration`: hassette keeps each entity's state across restarts, runs your handler when it is pressed or toggled, and serves the entities to the hass-hassette integration over the web API and `/ws`. Home Assistant creates them once you install a hass-hassette release that supports declared entities. The existing hass-hassette v0.8.0 keeps working with this release.
