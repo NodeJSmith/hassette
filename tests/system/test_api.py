@@ -117,3 +117,28 @@ async def test_get_history(ha_container: str, tmp_path) -> None:
         history = await hassette.api.get_history(ENTITY, start_time=start)
         assert isinstance(history, list)
         assert len(history) > 0
+
+
+async def test_call_service_return_response(ha_container: str, tmp_path) -> None:
+    """A response-returning service parses into ServiceResponse, context included.
+
+    ``ServiceResponse.context`` is required, so if HA ever drops it from the result envelope the
+    call raises a validation error after HA has already run the service. ``weather.get_forecasts``
+    is declared response-only in HA core, and the fixture's ``demo:`` integration supplies the
+    weather entities.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        states = await hassette.api.get_states_raw()
+        weather = sorted(s["entity_id"] for s in states if s["entity_id"].startswith("weather."))
+        assert weather, "the demo integration provides no weather entities"
+        entity_id = weather[0]
+
+        resp = await hassette.api.call_service(
+            "weather", "get_forecasts", target={"entity_id": entity_id}, return_response=True, type="daily"
+        )
+
+        assert resp.context.id
+        forecast = resp.response.get(entity_id, {}).get("forecast")
+        assert isinstance(forecast, list), resp.response
+        assert forecast, resp.response
