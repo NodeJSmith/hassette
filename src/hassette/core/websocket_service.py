@@ -7,7 +7,7 @@ import asyncio
 import time
 import traceback
 import typing
-from contextlib import AsyncExitStack, suppress
+from contextlib import suppress
 from itertools import count
 from typing import ClassVar
 
@@ -110,9 +110,6 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
     url: str
     """WebSocket URL to connect to."""
 
-    _stack: AsyncExitStack
-    """Async context stack for managing resources."""
-
     _session: aiohttp.ClientSession | None
     """HTTP client session for making requests."""
 
@@ -162,7 +159,6 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self.url = self.hassette.ws_url
-        self._stack = AsyncExitStack()
         self._session = None
         self._ws = None
         self._pending = PendingResponses(
@@ -275,16 +271,6 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         record_connection_change(self.hassette, old, new, detail)
 
     @property
-    def connection_timeout_seconds(self) -> int:
-        """Seconds aiohttp allows to open the WebSocket connection, from the websocket config."""
-        return self.hassette.config.websocket.connection_timeout_seconds
-
-    @property
-    def heartbeat_interval_seconds(self) -> int:
-        """Seconds between aiohttp keep-alive pings on the WebSocket, from the websocket config."""
-        return self.hassette.config.websocket.heartbeat_interval_seconds
-
-    @property
     def is_connected(self) -> bool:
         """True while the connection state is CONNECTED, i.e. externally ready for HA traffic."""
         return self._connection_state == ConnectionState.CONNECTED
@@ -343,7 +329,9 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         cancellation, at shutdown) escape.
         """
         async with self._connect_lock:
-            timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=TOTAL_TIMEOUT_SECONDS)
+            timeout = ClientTimeout(
+                connect=self.hassette.config.websocket.connection_timeout_seconds, total=TOTAL_TIMEOUT_SECONDS
+            )
 
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 self._policy = ReconnectPolicy()
@@ -431,7 +419,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         self._session = session
         self._ws = await session.ws_connect(
             self.url,
-            heartbeat=self.heartbeat_interval_seconds,
+            heartbeat=self.hassette.config.websocket.heartbeat_interval_seconds,
             ssl=self.hassette.config.verify_ssl,
             max_msg_size=WS_MAX_MSG_SIZE,
         )
