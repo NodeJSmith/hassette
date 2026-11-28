@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.67.1](https://github.com/NodeJSmith/hassette/compare/v0.67.0...v0.67.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* show event class and topic in Event's repr ([#4517](https://github.com/NodeJSmith/hassette/issues/4517)) ([99e6985](https://github.com/NodeJSmith/hassette/commit/99e698505112bf941974b70253d3c4a849f56bc3))
+
+
+### Refactoring
+
+* log every dropped telemetry row through one best-effort write helper ([#4510](https://github.com/NodeJSmith/hassette/issues/4510)) ([50c46a7](https://github.com/NodeJSmith/hassette/commit/50c46a7ba7d4dcb16ca7a8d58488ce4173fe554e))
+* tidy hassette event factories and payload placement ([#4513](https://github.com/NodeJSmith/hassette/issues/4513)) ([312fa64](https://github.com/NodeJSmith/hassette/commit/312fa6442e7e220d0a0f81c15ddf63cab1c84205))
+* tidy predicates package imports, annotations and docstring ([#4516](https://github.com/NodeJSmith/hassette/issues/4516)) ([a5b534e](https://github.com/NodeJSmith/hassette/commit/a5b534ebbe7be59602ae67e9493bb4bd79bd3744))
+
+
+### Documentation
+
+* document hass event payload fields and create_event_from_hass in the API reference ([#4519](https://github.com/NodeJSmith/hassette/issues/4519)) ([1930b50](https://github.com/NodeJSmith/hassette/commit/1930b50b07a52617995fdf1fc09575e77c5db4be))
+* fix app table name in migration checklist ([#4523](https://github.com/NodeJSmith/hassette/issues/4523)) ([fa6807a](https://github.com/NodeJSmith/hassette/commit/fa6807a6330a3a09a86a32c9cab4379573746429))
+* install the HA integration from the Marketplace and fix stale version floors ([#4514](https://github.com/NodeJSmith/hassette/issues/4514)) ([ebae182](https://github.com/NodeJSmith/hassette/commit/ebae1822a284deb82aa08ff21c809468684a3749))
+
 ## [0.67.0](https://github.com/NodeJSmith/hassette/compare/v0.66.0...v0.67.0) (2026-11-27)
 
 `self.api.helpers.update()` now changes only the fields you pass. It used to reject updates that left out required fields and reset the fields it was given no value for. App files are also imported once at startup and re-run on reload only when they changed. App-declared entities can set an icon and an entity category.
