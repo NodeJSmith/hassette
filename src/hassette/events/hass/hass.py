@@ -24,7 +24,7 @@ HASS_EVENT_TOPIC_PREFIX = "hass.event."
 DataclassT = TypeVar("DataclassT", bound="DataclassInstance")
 
 reported_unknown_keys: set[tuple[str, str]] = set()
-"""(class name, key) pairs already logged by `construct_ignoring_unknown_keys`.
+"""(class name, key) pairs already logged by ``construct_ignoring_unknown_keys``.
 
 Process-global on purpose: a new Home Assistant key is reported once per process, not once per event.
 """
@@ -37,7 +37,8 @@ class CallServicePayload:
     domain: str
     service: str
     service_data: dict[str, Any] = field(default_factory=dict)
-    service_call_id: str | None = None  # documented by Home Assistant, rarely sent
+    service_call_id: str | None = None
+    """Documented by Home Assistant, rarely sent."""
 
 
 @dataclass(slots=True, frozen=True)
@@ -93,11 +94,11 @@ class AutomationTriggeredPayload:
 
     name: str
     entity_id: str
-    # sent by Home Assistant but missing from https://www.home-assistant.io/docs/configuration/events/#automation_triggered
     source: str | None = None
+    """Where the trigger came from. Sent by Home Assistant but not listed in its automation_triggered event docs."""
 
     item_id: str | None = None
-    """The automation's config ID (its `id:` in YAML). Sent by Home Assistant 2026.11 and later."""
+    """The automation's config ID (its ``id:`` in YAML). Sent by Home Assistant 2026.11 and later."""
 
     run_id: str | None = None
     """Identifier of this automation run, matching its trace. Sent by Home Assistant 2026.11 and later."""
@@ -273,7 +274,7 @@ HASS_EVENT_TYPES: "dict[str, tuple[Topic, type[HassEvent], type[DataclassInstanc
 }
 """Home Assistant event types with a typed event: event type -> (topic, event class, payload class).
 
-Any other event type becomes a generic `Event` on `HASS_EVENT_TOPIC_PREFIX + event_type` with its raw data.
+Any other event type becomes a generic ``Event`` on ``HASS_EVENT_TOPIC_PREFIX + event_type`` with its raw data.
 """
 
 
@@ -291,14 +292,14 @@ class MissingPayloadFieldsError(HassetteError):
 
 
 def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, Any]) -> DataclassT:
-    """Construct dataclass `cls` from `data`, ignoring keys `cls` doesn't declare.
+    """Construct dataclass ``cls`` from ``data``, ignoring keys ``cls`` doesn't declare.
 
     Home Assistant adds keys to event data and contexts between releases. Dropping the ones a payload doesn't
     know keeps a new key from failing every event of that type. Each dropped key name is logged once at debug
     level; values are never logged, since they can carry user data.
 
     Raises:
-        MissingPayloadFieldsError: If `data` lacks a field `cls` requires.
+        MissingPayloadFieldsError: If ``data`` lacks a field ``cls`` requires.
     """
     known = {f.name for f in fields(cls)}
     unknown = [key for key in data if key not in known]
@@ -318,7 +319,7 @@ def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, An
 
 
 def construct_or_name_missing(cls: type[DataclassT], data: Mapping[str, Any]) -> DataclassT:
-    """Construct `cls` from `data`; when that fails for missing required fields, raise naming them."""
+    """Construct ``cls`` from ``data``; when that fails for missing required fields, raise naming them."""
     try:
         return cls(**data)
     except TypeError as exc:
@@ -334,7 +335,15 @@ def construct_or_name_missing(cls: type[DataclassT], data: Mapping[str, Any]) ->
 
 
 def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:
-    """Create an Event from a dictionary."""
+    """Build an event from a Home Assistant websocket event envelope.
+
+    Event types registered in ``HASS_EVENT_TYPES`` become their typed event with a typed payload. Any other event
+    type becomes a generic ``Event`` on ``HASS_EVENT_TOPIC_PREFIX + event_type`` carrying the raw event data.
+
+    Raises:
+        ValueError: If the envelope's ``event_type`` is empty.
+        MissingPayloadFieldsError: If the event context, or the data of a typed event, lacks a required field.
+    """
     event = data["event"]
     event_type = event["event_type"]
     if not event_type:
