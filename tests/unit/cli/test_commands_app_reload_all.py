@@ -15,7 +15,6 @@ from tests.unit.cli.conftest import (
     CommandRunner,
     MockTransportBuilder,
     capture_json_stdout,
-    capture_stdout,
 )
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
@@ -113,29 +112,19 @@ class TestReloadAll:
     def test_a_failed_app_exits_1_and_is_named_with_its_reason(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes([("POST", RELOAD_ALL, 200, reload_all_body(failed=True))])
 
-        with (
-            capture_stdout() as buf,
-            patch(runner.make_client_path, return_value=client),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cmd_app_reload(all_apps=True, yes=True)
+        code, output = runner.exit_stdout(client, cmd_app_reload, all_apps=True, yes=True)
 
-        assert exc_info.value.code == 1
-        assert "door (reload) failed: door: ImportError: no VALUE" in buf.getvalue()
+        assert code == 1
+        assert "door (reload) failed: door: ImportError: no VALUE" in output
 
     def test_a_refused_app_exits_1(self, cli_client_factory: CLIClientFactory) -> None:
         """A refused app kept its old code, so a deploy script must see the reload as not OK."""
         client = cli_client_factory.build_with_routes([("POST", RELOAD_ALL, 200, reload_all_body(refused=True))])
 
-        with (
-            capture_stdout() as buf,
-            patch(runner.make_client_path, return_value=client),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            cmd_app_reload(all_apps=True, yes=True)
+        code, output = runner.exit_stdout(client, cmd_app_reload, all_apps=True, yes=True)
 
-        assert exc_info.value.code == 1
-        assert "garage (reload) refused" in buf.getvalue()
+        assert code == 1
+        assert "garage (reload) refused" in output
 
     def test_json_output_is_the_response(self, cli_client_factory: CLIClientFactory) -> None:
         body = reload_all_body()

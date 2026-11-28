@@ -18,6 +18,7 @@ from hassette.core.app_lifecycle_common import (
 )
 from hassette.core.app_lifecycle_config import AppConfigStateMixin
 from hassette.core.app_lifecycle_instances import AppInstanceLifecycleMixin
+from hassette.core.app_lifecycle_reconcile import AppDiskReconcileMixin
 from hassette.core.app_lifecycle_registrations import AppRegistrationReconcilerMixin
 from hassette.core.app_lifecycle_start_stop import AppStartStopMixin
 from hassette.events.hassette import HassetteSimpleEvent
@@ -37,6 +38,7 @@ class AppLifecycleService(
     AppInstanceLifecycleMixin,
     AppStartStopMixin,
     AppChangeReconcilerMixin,
+    AppDiskReconcileMixin,
     AppConfigStateMixin,
     AppRegistrationReconcilerMixin,
     Resource,
