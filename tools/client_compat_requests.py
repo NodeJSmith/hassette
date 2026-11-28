@@ -226,6 +226,17 @@ BOOTSTRAP_NOT_RELEASED_REQUEST = FixtureRequest(
 """Starting an app before app bootstrap is released. Sent to the ``hold_bootstrap`` stub variant
 (``STUB_VARIANTS`` in the generator)."""
 
+RELOAD_CONFIG_INVALID_REQUEST = FixtureRequest(
+    "problem-reload-config-invalid", "POST", "/api/apps/reload", problem_code=ProblemCode.RELOAD_CONFIG_INVALID
+)
+"""A reload-all against an invalid config. Sent to the ``refuse_reload_config_invalid`` stub variant."""
+
+RELOAD_SYNTAX_ERROR_REQUEST = FixtureRequest(
+    "problem-reload-syntax-error", "POST", "/api/apps/reload", problem_code=ProblemCode.RELOAD_SYNTAX_ERROR
+)
+"""A reload-all with a syntax error in a file it would import. Sent to the ``refuse_reload_syntax_error`` stub
+variant."""
+
 HEALTH_READY_UNAVAILABLE_REQUEST = FixtureRequest("health-ready-unavailable", "GET", "/api/health/ready", probe=True)
 """Readiness while app bootstrap is unreleased, so the system status isn't ``ok`` and the probe answers 503.
 Sent to the ``hold_bootstrap`` stub variant."""
@@ -270,6 +281,7 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
         FixtureRequest("app-start", "POST", "/api/apps/{app_key}/start", my_app),
         FixtureRequest("app-stop", "POST", "/api/apps/{app_key}/stop", my_app),
         FixtureRequest("app-reload", "POST", "/api/apps/{app_key}/reload", my_app),
+        FixtureRequest("apps-reload-all", "POST", "/api/apps/reload"),
         FixtureRequest(
             "app-instance-start", "POST", "/api/apps/{app_key}/instances/{instance_name}/start", my_app_instance
         ),

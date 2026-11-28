@@ -1,6 +1,7 @@
 """Tests for AppChangeDetector."""
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -106,6 +107,12 @@ class TestChangeSet:
     def test_has_changes_with_bucket(self, bucket: str) -> None:
         changes = make_change_set(**{bucket: {"app1"}})
         assert changes.has_changes
+
+    def test_reload_all_alone_is_a_change(self) -> None:
+        """A helper-only edit names no app, but must not be dropped as "no app changes"."""
+        changes = replace(make_change_set(), reload_all=True)
+        assert changes.has_changes
+        assert changes.has_any_change
 
     def test_repr(self) -> None:
         """Test string representation."""
@@ -588,3 +595,56 @@ class TestAppChangeDetector:
         assert "app1" not in changes.reload_apps
         assert not changes.orphans
         assert not changes.new_apps
+
+
+class TestReloadAllDetection:
+    """``reload_all`` from the changed paths (spec 162 D4), or forced by a manual reload-all."""
+
+    @pytest.fixture
+    def root(self, tmp_path: Path) -> Path:
+        return tmp_path.resolve()
+
+    def manifest(self, root: Path, app_key: str) -> AppManifest:
+        return AppManifest(
+            app_key=app_key,
+            filename=f"{app_key}.py",
+            class_name=app_key.capitalize(),
+            app_dir=root,
+            app_config={"instance_name": app_key},
+            full_path=root / f"{app_key}.py",
+        )
+
+    def test_a_changed_helper_sets_reload_all(self, root: Path) -> None:
+        config = {"door": self.manifest(root, "door")}
+
+        changes = AppChangeDetector().detect_changes(
+            config, config, frozenset({root / "notify.py"}), app_roots=frozenset({root})
+        )
+
+        assert changes.reload_all
+        assert not changes.reimport_apps
+
+    def test_a_lone_app_file_edit_reimports_only_that_app(self, root: Path) -> None:
+        config = {"door": self.manifest(root, "door")}
+
+        changes = AppChangeDetector().detect_changes(
+            config, config, frozenset({root / "door.py"}), app_roots=frozenset({root})
+        )
+
+        assert not changes.reload_all
+        assert changes.reimport_apps == frozenset({"door"})
+
+    def test_without_app_roots_no_path_sets_reload_all(self, root: Path) -> None:
+        """The watcher passes no roots when the config on disk was invalid, so a helper edit does nothing."""
+        config = {"door": self.manifest(root, "door")}
+
+        changes = AppChangeDetector().detect_changes(config, config, frozenset({root / "notify.py"}))
+
+        assert not changes.reload_all
+
+    def test_force_reload_all_sets_it_with_no_paths(self, root: Path) -> None:
+        config = {"door": self.manifest(root, "door")}
+
+        changes = AppChangeDetector().detect_changes(config, config, force_reload_all=True)
+
+        assert changes.reload_all

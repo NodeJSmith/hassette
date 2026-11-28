@@ -15,6 +15,7 @@ paths, and reconcile_app_registrations' degraded-mode fallbacks.
 
 import asyncio
 from collections.abc import Callable, Coroutine
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -22,9 +23,15 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_common import AppAdmissionMode, PendingReconciliation
+from hassette.core.app_lifecycle_common import AppAdmissionMode, ManualReload, PendingReconciliation
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.exceptions import ConfigError, InvalidInheritanceError, ReloadConfigInvalidError, UndefinedUserConfigError
+from hassette.exceptions import (
+    ConfigError,
+    InvalidInheritanceError,
+    ReloadBusyError,
+    ReloadConfigInvalidError,
+    UndefinedUserConfigError,
+)
 from hassette.schemas.app_outcomes import ReloadAllResult
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
@@ -34,7 +41,7 @@ from .conftest import assert_load_completed_count, set_registry_apps, stub_detec
 
 
 class ChangeEventLockRace:
-    """Deterministic scaffold for the "must serialize on ``_change_event_lock``" tests.
+    """Deterministic scaffold for the "must serialize on ``_reconcile_lock``" tests.
 
     Each of those tests gates one collaborator while the lock is held, then proves a concurrent
     ``handle_change_event()`` queues on the lock instead of running alongside it. Only the gated
@@ -80,12 +87,12 @@ class ChangeEventLockRace:
         # rather than assuming a single scheduler tick is enough — see regression-test-patterns.md's
         # "Startup races" pattern.
         await wait_for(
-            lambda: bool(self.lifecycle_service._change_event_lock._waiters),
+            lambda: bool(self.lifecycle_service._reconcile_lock._waiters),
             desc="second call queued on the lock",
         )
 
         # The second call must be blocked acquiring the lock, not yet inside the gated collaborator.
-        assert self.lifecycle_service._change_event_lock.locked()
+        assert self.lifecycle_service._reconcile_lock.locked()
         assert self.call_count == 1
         assert not second_task.done()
 
@@ -373,13 +380,13 @@ class TestHandleChangeEventBranches:
             return make_change_set(new_apps={"post_release_app"})
 
         lifecycle_service.change_detector.detect_changes = capture_detect_changes  # pyright: ignore[reportAttributeAccessIssue]
-        lifecycle_service.apply_changes = AsyncMock()
+        lifecycle_service.apply_changes = AsyncMock(side_effect=run_adopt_hook)
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/post.py")}))
 
-        # The merge must use the pre-release baseline (not the fresh refresh_config() original
-        # from this call) and union the changed paths, proving the queued snapshot was folded
-        # into this diff rather than dropped or replayed later on its own.
+        # The merge must use the pre-release baseline (not the fresh baseline from this call) and
+        # union the changed paths, proving the queued snapshot was folded into this diff rather than
+        # dropped or replayed later on its own.
         assert captured_calls[0][0] is pending_original_snapshot
         assert captured_calls[0][2] == frozenset({Path("/tmp/pre.py"), Path("/tmp/post.py")})
 
@@ -387,7 +394,25 @@ class TestHandleChangeEventBranches:
         assert lifecycle_service._pending_reconciliation is None
         lifecycle_service.apply_changes.assert_awaited_once()
 
-    async def test_concurrent_invocations_are_serialized_by_the_change_event_lock(
+    async def test_a_refused_manual_reload_leaves_the_queued_reconciliation(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
+    ) -> None:
+        """A manual reload-all refusing after it read the queue commits nothing, so bootstrap's replay still runs."""
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"pre_release_app"}))
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/pre.py")}))
+        pending = lifecycle_service._pending_reconciliation
+        assert pending is not None
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
+        stub_detected_changes(lifecycle_service, make_change_set(reload_apps={"app_a"}))
+        lifecycle_service.apply_changes = AsyncMock(side_effect=ReloadBusyError("busy", app_key="app_a"))
+
+        with pytest.raises(ReloadBusyError):
+            await lifecycle_service.reconcile_from_disk(ManualReload(wait=False))
+
+        assert lifecycle_service._pending_reconciliation is pending
+
+    async def test_concurrent_invocations_are_serialized_by_the_reconcile_lock(
         self, lifecycle_service: AppLifecycleService
     ) -> None:
         """Two overlapping handle_change_event() calls — as the bus's ``parallel`` dispatch
@@ -469,7 +494,7 @@ class TestReplayPreReleaseReconciliationSerialization:
     async def test_replay_and_handle_change_event_do_not_race(self, lifecycle_service: AppLifecycleService) -> None:
         """_replay_pre_release_reconciliation_if_needed() (called from bootstrap_apps()) reads and
         clears the same _pending_reconciliation state as handle_change_event(); both must serialize on
-        _change_event_lock. Without that, a file-watcher event arriving while bootstrap is replaying
+        _reconcile_lock. Without that, a file-watcher event arriving while bootstrap is replaying
         could race the take/clear of that state.
         """
         race = ChangeEventLockRace(lifecycle_service)
@@ -621,3 +646,41 @@ class TestReconcileAppRegistrationsDegradedPaths:
         assert set(call_kwargs.args[1]) == {42}
         assert call_kwargs.args[2] == [7, 8]
         # dup-ignore-end
+
+
+async def run_adopt_hook(changes: ChangeSet, *_args: Any, adopt: Any = None, **_kwargs: Any) -> ReloadAllResult:
+    """An ``apply_changes`` stand-in that only runs the commit hook, as the real one does once it holds the locks."""
+    if adopt is not None:
+        await adopt(changes)
+    return ReloadAllResult()
+
+
+class TestReloadAllRestartDecision:
+    """``_decide_restart`` for a reload-all's tracked keys, decided under each key's lock (spec 162 D1)."""
+
+    def test_a_still_tracked_key_restarts_as_a_full_reimport(self, lifecycle_service: AppLifecycleService) -> None:
+        changes = replace(make_change_set(), reload_all=True, tracked_restarts=frozenset({"app_a"}))
+
+        restart = lifecycle_service._decide_restart("app_a", changes, {}, {}, still_tracked=True)
+
+        assert restart is not None
+        assert restart.force_reload
+
+    def test_a_key_stopped_while_the_reload_waited_stays_stopped(self, lifecycle_service: AppLifecycleService) -> None:
+        changes = replace(make_change_set(), reload_all=True, tracked_restarts=frozenset({"app_a"}))
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
+
+        assert lifecycle_service._decide_restart("app_a", changes, {}, {}, still_tracked=False) is None
+
+    def test_a_stopped_key_whose_file_changed_follows_the_watcher_rule(
+        self, lifecycle_service: AppLifecycleService
+    ) -> None:
+        changes = replace(
+            make_change_set(reimport_apps={"app_a"}), reload_all=True, tracked_restarts=frozenset({"app_a"})
+        )
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
+
+        restart = lifecycle_service._decide_restart("app_a", changes, {}, {}, still_tracked=False)
+
+        assert restart is not None
+        assert restart.force_reload

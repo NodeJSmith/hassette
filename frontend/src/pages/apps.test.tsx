@@ -347,11 +347,11 @@ describe("AppsPage", () => {
           ),
         ),
       );
-      const { findByRole, findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+      const { findByRole, findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       const filterBtn = await findByRole("button", { name: /filter status/i });
       await user.click(filterBtn);
       // Popover should now be open and show filter options
-      expect(await findByText(/all/i)).toBeDefined();
+      expect(await findByTestId("filter-all")).toBeDefined();
     });
   });
 

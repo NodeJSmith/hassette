@@ -35,6 +35,7 @@ import { EMPTY_PLACEHOLDER, pluralize } from "@/utils/format";
 import type { StatusKind } from "@/utils/status";
 import { PRESET_WINDOW_SECONDS } from "@/utils/time-window";
 
+import { ReloadAllButton } from "./apps-reload-all";
 import { AppTableRow } from "./apps-table-row";
 
 const FILTER_OPTIONS = ["all", "running", "failed", "degraded", "stopped", "disabled", "blocked"] as const;
@@ -336,6 +337,7 @@ export function AppsPage() {
       {/* Header */}
       <div className={PAGE_HEADER_CLASS}>
         <h1 className={PAGE_TITLE_CLASS}>apps</h1>
+        <ReloadAllButton />
       </div>
 
       <div className={TABLE_SECTION_CLASS}>

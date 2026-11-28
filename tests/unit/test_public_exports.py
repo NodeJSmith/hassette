@@ -5,12 +5,15 @@ import inspect
 import pytest
 
 import hassette
-from hassette import config, const, events, exceptions, types
+from hassette import config, const, events, exception_base, exceptions, state_errors, types
 from hassette.config.models import BlockingIODetectionConfig
 from hassette.const.misc import FalseySentinel
 from hassette.events.hass.hass import TypedStateChangeEvent, TypedStateChangePayload
 from hassette.exceptions import HassetteError, HassetteNotInitializedError
 from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
+
+EXCEPTION_MODULES = {exceptions.__name__, exception_base.__name__, state_errors.__name__}
+"""``hassette.exceptions`` and the modules it re-exports from, split out to keep it under the file-size gate."""
 
 
 @pytest.mark.parametrize(
@@ -34,13 +37,15 @@ def test_symbol_exported(module: object, name: str, expected: object) -> None:
 
 
 def test_exceptions_all_lists_every_public_exception() -> None:
-    """``hassette.exceptions.__all__`` names exactly the public exception and warning classes it defines."""
+    """``hassette.exceptions.__all__`` names exactly the public exception and warning classes it defines or
+    re-exports from its split-out modules.
+    """
     defined = {
         name
         for name, member in vars(exceptions).items()
         if inspect.isclass(member)
         and issubclass(member, BaseException)
-        and member.__module__ == exceptions.__name__
+        and member.__module__ in EXCEPTION_MODULES
         and not name.startswith("_")
     }
     assert set(exceptions.__all__) == defined

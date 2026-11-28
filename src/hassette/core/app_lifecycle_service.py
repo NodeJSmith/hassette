@@ -83,7 +83,7 @@ class AppLifecycleService(
         # so overlapping calls could race on the "what was the world like before this change"
         # snapshot. This lock serializes reconcile_from_disk so only one reconciliation pass runs
         # at a time. An AppKeyLock, so a manual reload that mustn't wait sees a queued one as busy.
-        self._change_event_lock = AppKeyLock()
+        self._reconcile_lock = AppKeyLock()
         # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's parked
         # start_app() (waiting in _admit_start()) and a post-release start/reload of the same app_key can both
         # reach factory.create_instances(); the second registration then overwrites without tearing down the loser's

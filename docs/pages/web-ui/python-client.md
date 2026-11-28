@@ -62,6 +62,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_apps()` | `GET /api/apps` |
 | `get_app(app_key)` | `GET /api/apps/{app_key}` |
 | `action(app_key, action, *, instance=None)` | `POST /api/apps/{app_key}/{action}` or `POST /api/apps/{app_key}/instances/{instance}/{action}` |
+| `reload_all(*, wait=False)` | `POST /api/apps/reload` |
 | `set_debug_capture(app_key, enabled, *, instance=None)` | `PUT /api/apps/{app_key}/debug` or `PUT /api/apps/{app_key}/instances/{instance}/debug` |
 | `press_button(app_key, instance, key)` | `POST /api/apps/{app_key}/instances/{instance}/buttons/{key}/press` |
 | `set_switch(app_key, instance, key, on)` | `POST /api/apps/{app_key}/instances/{instance}/switches/{key}/turn_on` or `.../turn_off` |
@@ -90,6 +91,8 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_config()` | `GET /api/config` |
 
 `app_key` is the app's key from `hassette.toml`. `action` is `"start"`, `"stop"` or `"reload"`. An app configured with several instances acts on all of them unless you pass `instance=` with one instance's name.
+
+`reload_all()` reloads every app in place, as [Reload all](manage-apps.md#reload-all) does: it re-reads the config, re-imports every module loaded from your app directories, and restarts every running or failed app. It returns once every app has restarted, so give it a client with a longer `request_timeout`, as for a slow `action()`. It returns a `ReloadAllResponse` even when some apps failed; check `counts.failed` and `counts.refused`. Before stopping anything it raises `ReloadConfigInvalidError` for an invalid config or `ReloadSyntaxError` for a syntax error, and `ActionInProgressError` when another reload or app action is running. Pass `wait=True` to wait for that one to finish instead. After a timeout the outcome is unknown, and calling it again reloads every app a second time.
 
 `press_button()` and `set_switch()` send a command to a button or switch an app instance declares through `self.integration`, and return as soon as Hassette has published the command, not once the handler has run. Commands are accepted while the instance is running, and may be accepted briefly around its start and stop.
 
@@ -139,7 +142,7 @@ Each error response from Hassette carries a [problem `code`](api-errors.md), a m
 | `AuthenticationError` | 401: a missing or wrong token |
 | `ForbiddenError` → `PathTraversalError` | 403 |
 | `NotFoundError` → `AppNotFoundError`, `InstanceNotFoundError`, `SourceNotFoundError` | 404 |
-| `ConflictError` → `BootstrapNotReleasedError`, `AppBlockedError`, `ActionInProgressError`, `NeedsRestartError`, `JobNotRegisteredError`, `InstanceNotRunningError`, `EntityNotDeclaredError` | 409 |
+| `ConflictError` → `BootstrapNotReleasedError`, `AppBlockedError`, `ActionInProgressError`, `NeedsRestartError`, `ReloadConfigInvalidError`, `ReloadSyntaxError`, `JobNotRegisteredError`, `InstanceNotRunningError`, `EntityNotDeclaredError` | 409 |
 | `RequestValidationError` | 422: the server rejected a parameter |
 | `ServerError` → `ActionFailedError`, `SourceUnavailableError` | 5xx |
 | `GatewayError` | 502 or 504 from a proxy in front of Hassette |

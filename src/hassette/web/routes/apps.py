@@ -38,7 +38,7 @@ from hassette.exceptions import (
 from hassette.integration.declarations import CommandDispatchResult, IntegrationPlatform
 from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
-from hassette.schemas.app_outcomes import OutcomeResult
+from hassette.schemas.app_outcomes import OutcomeResult, worst_result
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
@@ -114,6 +114,16 @@ ENTITY_COMMAND_CODES = (
 
 ACTION_CODES = (*STOP_ACTION_CODES, ProblemCode.BOOTSTRAP_NOT_RELEASED, ProblemCode.APP_BLOCKED)
 """Codes ``_run_app_action`` raises for ``start`` and ``reload``."""
+
+BOOTSTRAP_NOT_RELEASED_DETAIL = "App bootstrap prerequisites are not ready yet; retry later"
+"""The ``bootstrap_not_released`` detail every app action route answers with."""
+
+WORST_RESULT_CODES: dict[OutcomeResult, ProblemCode | None] = {
+    OutcomeResult.FAILED: ProblemCode.ACTION_FAILED,
+    OutcomeResult.REFUSED: ProblemCode.NEEDS_RESTART,
+    OutcomeResult.SUCCEEDED: None,
+}
+"""The problem code an app action answers with for its worst instance result (``worst_result``)."""
 
 RELOAD_ALL_CODES = (
     ProblemCode.ACTION_IN_PROGRESS,
@@ -293,9 +303,7 @@ async def _await_operation(
     try:
         return await operation()
     except AppBootstrapNotReleasedError as exc:
-        raise WebApiError(
-            ProblemCode.BOOTSTRAP_NOT_RELEASED, "App bootstrap prerequisites are not ready yet; retry later"
-        ) from exc
+        raise WebApiError(ProblemCode.BOOTSTRAP_NOT_RELEASED, BOOTSTRAP_NOT_RELEASED_DETAIL) from exc
     except AppBlockedError as exc:
         raise WebApiError(
             ProblemCode.APP_BLOCKED,
@@ -315,11 +323,7 @@ def _wire_outcomes_or_none(outcomes: Sequence[CoreInstanceOutcome]) -> list[Inst
 
 def _problem_code_for(outcomes: Sequence[CoreInstanceOutcome]) -> ProblemCode | None:
     """The problem code the worst outcome calls for, or ``None`` when every instance succeeded."""
-    if any(outcome.result is OutcomeResult.FAILED for outcome in outcomes):
-        return ProblemCode.ACTION_FAILED
-    if any(outcome.result is OutcomeResult.REFUSED for outcome in outcomes):
-        return ProblemCode.NEEDS_RESTART
-    return None
+    return WORST_RESULT_CODES[worst_result(outcomes)]
 
 
 def action_detail(action: AppAction, app_key: str, outcomes: Sequence[CoreInstanceOutcome]) -> str:
@@ -466,9 +470,7 @@ async def reload_all_apps(
     except ReloadBusyError as exc:
         raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, str(exc)) from exc
     except AppBootstrapNotReleasedError as exc:
-        raise WebApiError(
-            ProblemCode.BOOTSTRAP_NOT_RELEASED, "App bootstrap prerequisites are not ready yet; retry later"
-        ) from exc
+        raise WebApiError(ProblemCode.BOOTSTRAP_NOT_RELEASED, BOOTSTRAP_NOT_RELEASED_DETAIL) from exc
     except ReloadConfigInvalidError as exc:
         raise WebApiError(ProblemCode.RELOAD_CONFIG_INVALID, str(exc)) from exc
     except ReloadSyntaxError as exc:

@@ -141,6 +141,16 @@ class TestFlagCombinations:
         assert bound.arguments["instance"] == "1"
         assert bound.arguments["yes"] is True
 
+    def test_app_reload_all_wait_and_yes(self) -> None:
+        """``--all`` makes the key optional; ``--wait`` and ``--yes`` bind alongside it."""
+        cmd, bound, _ = app.parse_args(["app", "reload", "--all", "--wait", "--yes"])
+
+        assert cmd.__name__ == "cmd_app_reload"
+        assert "key" not in bound.arguments
+        assert bound.arguments["all_apps"] is True
+        assert bound.arguments["wait"] is True
+        assert bound.arguments["yes"] is True
+
     def test_app_debug_state_and_instance(self) -> None:
         cmd, bound, _ = app.parse_args(["app", "debug", "test-app", "on", "--instance", "1"])
 

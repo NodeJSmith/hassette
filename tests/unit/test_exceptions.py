@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from hassette import exception_base, state_errors
 from hassette import exceptions as exceptions_module
 from hassette.conversion.validation import RegistryValidationIssue
 from hassette.core.websocket_reconnect import CoreShuttingDownError
@@ -46,6 +47,7 @@ from hassette.exceptions import (
     OutcomeUnknownError,
     RegistryNotReadyError,
     RegistryValidationError,
+    ReloadBusyError,
     ResponseLostError,
     ResponseTimeoutError,
     RestartRefusedError,
@@ -58,6 +60,9 @@ from hassette.exceptions import (
 from hassette.models.states.sensor_shapes import EnumSensorState, NumericSensorState
 from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
+
+EXCEPTION_MODULES = {exceptions_module.__name__, exception_base.__name__, state_errors.__name__}
+"""``hassette.exceptions`` and the modules it re-exports from."""
 
 ROUND_TRIPS: dict[str, Callable[[Any], Any]] = {
     "pickle": lambda err: pickle.loads(pickle.dumps(err)),  # noqa: S301
@@ -89,6 +94,7 @@ ROUND_TRIP_SAMPLES: list[HassetteError] = [
     ListenerNameRequiredError("a.handler", "hass.event.state_changed"),
     NoDomainAnnotationError(NumericSensorState, accessor_hint="sensor.numeric"),
     RegistryNotReadyError(),
+    ReloadBusyError("busy", app_key="kitchen"),
     RegistryValidationError(
         [
             RegistryValidationIssue(registry="STATE_REGISTRY", severity="error", message="bad"),
@@ -371,7 +377,7 @@ def test_round_trip_samples_cover_every_custom_init() -> None:
     custom_init = {
         cls
         for _, cls in inspect.getmembers(exceptions_module, inspect.isclass)
-        if issubclass(cls, HassetteError) and cls.__module__ == exceptions_module.__name__ and "__init__" in vars(cls)
+        if issubclass(cls, HassetteError) and cls.__module__ in EXCEPTION_MODULES and "__init__" in vars(cls)
     }
     # EntityShapeError can't be instantiated: subclasses supply the _build_message its __init__ calls.
     missing = custom_init - {EntityShapeError} - {type(err) for err in ROUND_TRIP_SAMPLES}

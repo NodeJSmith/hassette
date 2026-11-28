@@ -14,17 +14,18 @@ from types import ModuleType
 from typing import TYPE_CHECKING
 
 from hassette.utils.app_utils import APP_MODULES, APP_SCAN_EXCLUDE_DIRS, clear_app_module, remove_cached_bytecode
+from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 
 if TYPE_CHECKING:
     from hassette import HassetteConfig
 
 LOGGER = getLogger(__name__)
 
-HASSETTE_PACKAGE_DIR = Path(__file__).resolve().parents[1]
-"""Hassette's own package directory, never app code even when an app root contains it."""
-
-INSTALLED_DIRS = tuple({Path(sys.prefix).resolve(), Path(sys.base_prefix).resolve(), HASSETTE_PACKAGE_DIR})
-"""Locations whose modules are installed code, never app code: the interpreter prefixes and hassette itself."""
+INSTALLED_DIRS = tuple(
+    dict.fromkeys(Path(p).resolve() for p in (sys.prefix, sys.base_prefix, sys.exec_prefix, HASSETTE_PACKAGE_DIR))
+)
+"""Locations whose modules are installed code, never app code: the interpreter prefixes and hassette itself,
+the same set ``FrameClassifier`` excludes from stack-frame attribution."""
 
 
 def app_roots(config: "HassetteConfig") -> frozenset[Path]:
@@ -56,23 +57,23 @@ def module_file(module: ModuleType) -> Path | None:
     return Path(file).resolve() if isinstance(file, str) else None
 
 
-def app_code_modules(roots: Iterable[Path]) -> dict[str, ModuleType]:
-    """Every ``sys.modules`` entry whose file is app code, by module name, whatever name it was imported under.
+def app_code_modules(roots: Iterable[Path]) -> dict[str, tuple[ModuleType, Path]]:
+    """Every ``sys.modules`` entry whose file is app code, with that resolved file, by module name.
 
-    App modules import from an app root's resolved path (the loader puts that on ``sys.path``), so a module whose
-    raw ``__file__`` doesn't start with a root is skipped before the path is resolved: resolving every loaded
-    module's file costs hundreds of milliseconds.
+    A module counts whatever name it was imported under. App modules import from an app root's resolved path (the
+    loader puts that on ``sys.path``), so a module whose raw ``__file__`` doesn't start with a root is skipped before
+    the path is resolved: resolving every loaded module's file costs hundreds of milliseconds.
     """
     roots = tuple(roots)
     prefixes = tuple(str(root) for root in roots)
-    found: dict[str, ModuleType] = {}
+    found: dict[str, tuple[ModuleType, Path]] = {}
     for name, module in list(sys.modules.items()):
         raw = getattr(module, "__file__", None)
         if not isinstance(raw, str) or not raw.startswith(prefixes):
             continue
-        file = module_file(module)
-        if file is not None and is_app_code(file, roots):
-            found[name] = module
+        file = Path(raw).resolve()
+        if is_app_code(file, roots):
+            found[name] = (module, file)
     return found
 
 
@@ -90,10 +91,7 @@ def evict_apps_package(roots: Iterable[Path]) -> list[str]:
     roots = tuple(roots)
     modules = app_code_modules(roots)
     record_paths = {record.name: path for path, record in APP_MODULES.items() if record.name is not None}
-    for name, module in modules.items():
-        file = module_file(module)
-        if file is None:  # app_code_modules only returns modules with a file
-            continue
+    for name, (module, file) in modules.items():
         clear_app_module(record_paths.get(name, file), name)
         parent_name, _, child = name.rpartition(".")
         parent = sys.modules.get(parent_name) if parent_name else None
@@ -117,7 +115,7 @@ def precheck_apps_package(roots: Iterable[Path], enabled_app_files: Iterable[Pat
         The first ``SyntaxError`` (by path), carrying its file and line, or None when every file compiles.
     """
     roots = tuple(roots)
-    files = {file for module in app_code_modules(roots).values() if (file := module_file(module)) is not None}
+    files = {file for _, file in app_code_modules(roots).values()}
     files.update(path.resolve() for path in enabled_app_files)
     for path in sorted(file for file in files if file.suffix == ".py"):
         try:
@@ -150,7 +148,7 @@ def needs_reload_all(changed_paths: Iterable[Path], app_files: Iterable[Path], r
     (``importlib.import_module``) is invisible to this.
 
     Args:
-        changed_paths: The resolved paths the watcher reported.
+        changed_paths: The paths the watcher reported.
         app_files: Every configured app's own file.
         roots: Resolved app roots, from ``app_roots``.
     """
@@ -163,10 +161,10 @@ def needs_reload_all(changed_paths: Iterable[Path], app_files: Iterable[Path], r
         return False
     loaded = app_code_modules(roots)
     changed_files = {path.resolve() for path in changed}
-    changed_names = {name for name, module in loaded.items() if module_file(module) in changed_files}
+    changed_names = {name for name, (_, file) in loaded.items() if file in changed_files}
     return any(
-        module_file(module) not in changed_files and imported_module_names(name, module) & changed_names
-        for name, module in loaded.items()
+        file not in changed_files and imported_module_names(name, module) & changed_names
+        for name, (module, file) in loaded.items()
     )
 
 
@@ -205,7 +203,7 @@ def resolve_from_base(node: ast.ImportFrom, package: str) -> str | None:
     if node.level == 0:
         return node.module or ""
     parts = package.split(".") if package else []
-    if node.level - 1 > len(parts):
+    if node.level - 1 >= len(parts):
         return None
     base_parts = parts[: len(parts) - (node.level - 1)]
     if node.module:

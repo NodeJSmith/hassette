@@ -1,6 +1,7 @@
 """AppChangeReconcilerMixin — file-watcher and config-change detection and reconciliation."""
 
 import asyncio
+import functools
 import typing
 from collections.abc import Awaitable, Callable, Iterable
 from copy import deepcopy
@@ -33,7 +34,7 @@ from hassette.schemas.app_config_shape import configs_by_name, configured_instan
 from hassette.schemas.app_outcomes import OutcomeResult, ReloadAllResult
 from hassette.types import Topic
 from hassette.utils.app_modules import app_roots, describe_syntax_error, evict_apps_package, precheck_apps_package
-from hassette.utils.exception_utils import get_short_traceback
+from hassette.utils.exception_utils import get_short_traceback, validation_error_summary
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, HassetteConfig
@@ -75,7 +76,7 @@ class AppChangeReconcilerMixin:
     factory: "AppFactory"
     change_detector: "AppChangeDetector"
     bootstrap_coordinator: "AppBootstrapCoordinator"
-    _change_event_lock: "AppKeyLock"
+    _reconcile_lock: "AppKeyLock"
     _pending_reconciliation: "PendingReconciliation | None"
     _get_app_key_lock: Callable[[str], "AppKeyLock"]
     _resolve_manifest: Callable[[str], "AppManifest | None"]
@@ -112,20 +113,20 @@ class AppChangeReconcilerMixin:
     ) -> ReloadAllResult:
         """Apply detected changes by stopping, reloading, or starting apps, and return what each app's did.
 
-        Precondition: the four change buckets are disjoint, as guaranteed by
-        ``AppChangeDetector.detect_changes`` (orphans are keys absent from the
-        current config; reimport/reload/new are all keys present in it). Callers constructing a ``ChangeSet``
-        by hand (e.g. tests) must keep the buckets disjoint.
+        Precondition: the orphan, new, reimport and reload buckets are disjoint, as guaranteed by
+        ``AppChangeDetector.detect_changes`` (orphans are keys absent from the current config; reimport/reload/new
+        are all keys present in it), and ``tracked_restarts`` shares keys only with ``reimport_apps``. Callers
+        constructing a ``ChangeSet`` by hand (e.g. tests) must keep that shape.
 
-        The lock of every orphan, reimport and reload key is taken first, in sorted order, each exactly once.
+        The lock of every orphan, reimport, reload and tracked key is taken first, in sorted order, each exactly once.
         Then ``adopt`` commits the new config, the orphans stop, every restart stops, the app-code modules are
         evicted (``changes.reload_all`` only), every restart's replacements are created, and the new apps start,
         each ``start_app`` taking its own key's lock.
 
         Args:
             changes: The set of changes to apply
-            original_config: The app manifests before this change (used to diff per-instance
-                ``app_config`` entries for the ``reload_apps`` bucket — see below)
+            original_config: The app manifests before this change, diffed per instance against
+                ``current_config`` to decide which instances a ``reload_apps`` key restarts (``_plan_reload``)
             current_config: The app manifests after this change
             adopt: Commits the change's config once every lock is held, returning the change set with any
                 newly-unblocked apps folded in. None when the config is already committed.
@@ -137,11 +138,13 @@ class AppChangeReconcilerMixin:
 
         Raises:
             ReloadBusyError: ``fail_fast`` and a key is busy. Nothing was done.
+            ValueError: ``changes.reload_all`` with no ``evict_roots``, which would restart every app on its old code.
         """
+        if changes.reload_all and not evict_roots:
+            raise ValueError("A reload-all needs the app roots to evict under")
         self.logger.debug("Applying app changes: %s", changes)
-        held = await self._take_key_locks(
-            sorted(changes.orphans | changes.reimport_apps | changes.reload_apps), fail_fast
-        )
+        restart_keys = changes.reimport_apps | changes.reload_apps | changes.tracked_restarts
+        held = await self._take_key_locks(sorted(changes.orphans | restart_keys), fail_fast)
         outcomes: dict[str, tuple[InstanceOutcome, ...]] = {}
         try:
             if adopt is not None:
@@ -155,15 +158,15 @@ class AppChangeReconcilerMixin:
 
             # Each key is decided under its own lock: the decision reads registry state that a stop holding the
             # lock could change. A key with nothing to restart releases its lock as soon as it is decided.
-            tracked = set(self.registry.tracked_app_keys()) if changes.reload_all else set()
+            still_tracked = set(self.registry.tracked_app_keys())
             restarts: list[AppRestart] = []
-            for app_key in sorted(changes.reimport_apps | changes.reload_apps):
+            for app_key in sorted(restart_keys):
                 restart = self._decide_restart(
                     app_key,
+                    changes,
                     original_config,
                     current_config,
-                    reimport=app_key in changes.reimport_apps,
-                    tracked=app_key in tracked,
+                    still_tracked=app_key in still_tracked,
                 )
                 if restart is None:
                     self._get_app_key_lock(app_key).release()
@@ -245,24 +248,26 @@ class AppChangeReconcilerMixin:
     def _decide_restart(
         self,
         app_key: str,
+        changes: ChangeSet,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
         *,
-        reimport: bool,
-        tracked: bool = False,
+        still_tracked: bool,
     ) -> "AppRestart | None":
-        """Decide what one reimported or reloaded key needs: a restart, or None for nothing.
+        """Decide what one restart key needs: a restart, or None for nothing. Caller must hold the key's lock.
 
-        ``reimport`` is True for a key in ``reimport_apps`` and False for one in ``reload_apps``; the two buckets
-        are disjoint (``AppChangeDetector.detect_changes``). ``tracked`` is True for a key a reload-all restarts
-        because it has an instance entry, live or FAILED: it restarts as a full reimport whatever its autostart
-        says, so an app that failed on the old code recovers. Caller must hold the key's lock.
+        A reload-all's tracked key restarts as a full reimport whatever its autostart says, so an app that failed
+        on the old code recovers, but only while it still has an instance entry: one someone stopped while the
+        reload-all waited for its lock stays stopped (spec 162 D1). Every other key follows the watcher's rules.
         """
-        if tracked:
+        if app_key in changes.tracked_restarts and still_tracked:
             return AppRestart(app_key, force_reload=True)
+        if app_key not in changes.reimport_apps and app_key not in changes.reload_apps:
+            self.logger.debug("Not restarting app %s: it was stopped while the reload-all waited", app_key)
+            return None
         if not self._should_restart(app_key):
             return None
-        if reimport:
+        if app_key in changes.reimport_apps:
             return AppRestart(app_key, force_reload=True)
         return self._plan_reload(app_key, original_config, current_config)
 
@@ -369,7 +374,7 @@ class AppChangeReconcilerMixin:
         """Whether a restart's stop half targeted a name its app's current config doesn't have."""
         manifest = self.registry.get_manifest(app_key)
         configured = configured_instance_names(manifest.app_config) if manifest is not None else []
-        return not set(outcomes.names).issubset(configured)
+        return bool(set(outcomes.names) - set(configured))
 
     async def _stop_for_restart(self, restart: "AppRestart", outcomes: ActionOutcomes) -> None:
         # Both stop bodies catch and log their own failures, so one app's failed stop can't abort the batch.
@@ -429,7 +434,8 @@ class AppChangeReconcilerMixin:
         The one entry point for a file-watcher event and a manual reload-all. In order (spec 162 D12):
 
         0. Take the reconcile lock. A manual call that mustn't wait refuses if it's busy.
-        1. A manual call before bootstrap release refuses. A watcher event defers, as before release always.
+        1. A manual call before bootstrap release refuses. A watcher event before release commits the config and
+           queues its lifecycle work for bootstrap's replay.
         2. Build a candidate config, committing nothing. An invalid one refuses a manual call; a watcher
            event logs it and reconciles against the current config with no reload-all.
         3. Detect the changes, deciding ``reload_all``: forced for a manual call, from the changed paths for a
@@ -452,9 +458,9 @@ class AppChangeReconcilerMixin:
         """
         manual = isinstance(trigger, ManualReload)
         fail_fast = manual and not trigger.wait
-        if fail_fast and self._change_event_lock.busy:
+        if fail_fast and self._reconcile_lock.busy:
             raise ReloadBusyError("Another reload is still running")
-        async with self._change_event_lock:
+        async with self._reconcile_lock:
             if manual and not self.bootstrap_coordinator.is_released():
                 raise AppBootstrapNotReleasedError("Apps cannot be reloaded before bootstrap release")
 
@@ -469,28 +475,29 @@ class AppChangeReconcilerMixin:
 
             if not self.bootstrap_coordinator.is_released():
                 # Only a watcher event gets here (step 1). No app has started, so there is nothing to lock: commit
-                # the config now and defer the lifecycle work, as before release always has.
+                # the config now and queue the lifecycle work for bootstrap's replay.
                 await self._defer_pre_release_change(candidate, original_apps_config, changed_file_paths)
                 return ReloadAllResult()
 
-            if self._pending_reconciliation is not None:
-                # A pre-release change is still queued. Fold it into this diff's baseline so the
-                # comparison spans everything since before release, then clear the queue — otherwise
-                # bootstrap's later replay would apply that stale snapshot on top of a config it no
-                # longer matches.
+            pending = self._pending_reconciliation
+            if pending is not None:
+                # A pre-release change is still queued. Fold it into this diff's baseline so the comparison spans
+                # everything since before release. The queue is cleared only when this reconcile commits (``_adopt``),
+                # so a refusal leaves it for bootstrap's replay; otherwise the replay would apply that stale snapshot
+                # on top of a config it no longer matches.
                 self.logger.debug("Merging queued pre-release reconciliation into post-release change")
-                pending_original, _, pending_paths = self._take_pre_release_reconciliation()
-                if pending_original is not None:
-                    original_apps_config = pending_original
-                    changed_file_paths |= pending_paths
+                original_apps_config = pending.original_apps_config
+                changed_file_paths |= pending.changed_paths
 
             new_roots = app_roots(candidate) if candidate is not None else None
-            only_apps = frozenset((candidate or self.hassette.config).only_apps)
+            only_apps = frozenset((candidate if candidate is not None else self.hassette.config).only_apps)
             changes = self.change_detector.detect_changes(
                 original_apps_config,
                 current_apps_config,
                 changed_file_paths,
                 only_apps=only_apps,
+                # A manual call forces the reload-all and has no paths, so it needs no roots to classify them. A
+                # watcher event with an invalid config (no candidate) passes none, so no path reloads all.
                 app_roots=new_roots if not manual else None,
                 force_reload_all=manual,
             )
@@ -499,14 +506,15 @@ class AppChangeReconcilerMixin:
             if changes.reload_all:
                 changes = self._with_tracked_restarts(changes, current_apps_config, only_apps)
 
+            adopt = functools.partial(self._adopt, candidate, clear_pending=pending is not None)
             if not changes.has_changes:
-                changes = await self._adopt(candidate, changes)
+                # Nothing to stop or start, so no lock is needed: commit now. Folding in newly-unblocked apps can
+                # still turn this into a change with lifecycle work, applied below on the committed config.
+                changes = await adopt(changes)
                 if not changes.has_any_change:
                     self.logger.debug("%s changed but no app changes detected", changed_file_paths)
                     return ReloadAllResult()
                 adopt = None
-            else:
-                adopt = self._adopter(candidate)
 
             self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
             result = await self._reconcile_changes(
@@ -562,13 +570,15 @@ class AppChangeReconcilerMixin:
         detail = describe_syntax_error(error, roots)
         if raise_refusal:
             raise ReloadSyntaxError(detail)
-        self.logger.error("Reload-all refused, nothing was stopped: %s", detail)
+        self.logger.error(
+            "Reload-all cancelled, so no app restarts for it; apps whose own file changed still reload: %s", detail
+        )
         return replace(changes, reload_all=False)
 
     def _with_tracked_restarts(
         self, changes: ChangeSet, current_config: dict[str, "AppManifest"], only_apps: frozenset[str]
     ) -> ChangeSet:
-        """Add every tracked app key the new config still runs to the reimports (spec 162 D1).
+        """Record every tracked app key the new config still runs as a reload-all restart (spec 162 D1).
 
         A key with any instance entry, live or FAILED, restarts; one with none (someone stopped it) doesn't. A key
         the new config removes, disables or blocks with ``--app`` is left to the other buckets.
@@ -577,22 +587,18 @@ class AppChangeReconcilerMixin:
             key for key, manifest in current_config.items() if manifest.enabled and (not only_apps or key in only_apps)
         }
         tracked = (set(self.registry.tracked_app_keys()) & running) - changes.new_apps - changes.orphans
-        return replace(
-            changes,
-            reimport_apps=changes.reimport_apps | tracked,
-            reload_apps=changes.reload_apps - tracked,
-        )
+        # A tracked key restarts as a full reimport, which covers any config reload it also needed.
+        return replace(changes, tracked_restarts=frozenset(tracked), reload_apps=changes.reload_apps - tracked)
 
-    def _adopter(self, candidate: "HassetteConfig | None") -> "Callable[[ChangeSet], Awaitable[ChangeSet]]":
-        """``_adopt`` bound to ``candidate``, for ``apply_changes`` to run once it holds every lock."""
+    async def _adopt(
+        self, candidate: "HassetteConfig | None", changes: ChangeSet, *, clear_pending: bool = False
+    ) -> ChangeSet:
+        """Commit ``candidate``, reconcile the blocked state, and fold any newly-unblocked apps into ``changes``.
 
-        async def adopt(changes: ChangeSet) -> ChangeSet:
-            return await self._adopt(candidate, changes)
-
-        return adopt
-
-    async def _adopt(self, candidate: "HassetteConfig | None", changes: ChangeSet) -> ChangeSet:
-        """Commit ``candidate``, reconcile the blocked state, and fold any newly-unblocked apps into ``changes``."""
+        ``clear_pending`` also clears the queued pre-release reconciliation this reconcile folded into its diff.
+        """
+        if clear_pending:
+            self._take_pre_release_reconciliation()
         await self._commit_candidate(candidate)
         return self._fold_unblocked_apps_into_changes(changes)
 
@@ -656,7 +662,7 @@ class AppChangeReconcilerMixin:
         # Shares _pending_reconciliation state with handle_change_event(), which serializes on
         # this same lock — without it, a file-watcher event arriving as bootstrap replays could
         # race the take/clear of that state.
-        async with self._change_event_lock:
+        async with self._reconcile_lock:
             if self._pending_reconciliation is None:
                 return False
 
@@ -725,12 +731,10 @@ class AppChangeReconcilerMixin:
 def config_error_summary(exc: Exception) -> str:
     """An invalid config's errors as ``location: message`` parts, leaving out the rejected values.
 
-    A refusal's message reaches the web API, and a rejected value can be a secret (a mistyped token, say), so a
-    validation error is reduced to where and why. Any other error keeps its message.
+    A refusal's message reaches the web API, so a validation error is reduced to where and why
+    (``validation_error_summary``). Any other error keeps its message.
     """
     cause = exc.__cause__
     if not isinstance(cause, ValidationError):
         return str(exc)
-    return "; ".join(
-        f"{'.'.join(str(part) for part in error['loc']) or '(root)'}: {error['msg']}" for error in cause.errors()
-    )
+    return validation_error_summary(cause.errors())

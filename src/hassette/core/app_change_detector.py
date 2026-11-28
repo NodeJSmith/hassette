@@ -80,6 +80,11 @@ class ChangeSet:
     """Evict every app-code module and restart every tracked app, not only the apps named above: a manual
     reload-all, or a watcher change to a helper or to an app file another app module imports."""
 
+    tracked_restarts: frozenset[str] = frozenset()
+    """The keys a reload-all restarts because they had an instance entry, live or FAILED, when it was planned
+    (spec 162 D1), disjoint from ``reload_apps``; a key here may also be in ``reimport_apps``. The detector never
+    sets it: ``reconcile_from_disk`` does once ``reload_all`` is decided."""
+
     @property
     def has_changes(self) -> bool:
         """Whether this changeset requires a lifecycle action (start, stop, reload, reimport, reload-all)."""
@@ -103,7 +108,7 @@ class ChangeSet:
         return (
             f"ChangeSet(orphans={set(self.orphans)}, new={set(self.new_apps)}, "
             f"reimport={set(self.reimport_apps)}, reload={set(self.reload_apps)}, "
-            f"metadata={set(self.metadata_apps)}, reload_all={self.reload_all})"
+            f"metadata={set(self.metadata_apps)}, reload_all={self.reload_all}, tracked={set(self.tracked_restarts)})"
         )
 
 

@@ -30,6 +30,7 @@ export type AppSourceData = components["schemas"]["AppSource"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
 export type AppHealthData = components["schemas"]["AppHealth"];
 export type ActionResponse = components["schemas"]["ActionResponse"];
+export type ReloadAllResponse = components["schemas"]["ReloadAllResponse"];
 export type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "config_schema" | "config_values"> & {
   config_schema: SchemaNode;
@@ -66,6 +67,8 @@ export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(appPath(
 export const startApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/start`);
 export const stopApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/stop`);
 export const reloadApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/reload`);
+/** Reloads every app in place. Never sends `wait=true`: a busy server answers 409 at once instead. */
+export const reloadAllApps = () => apiPost<ReloadAllResponse>("/apps/reload");
 
 export const startInstance = (appKey: string, instanceName: string) =>
   apiPost<ActionResponse>(`${appPath(appKey)}/instances/${encodeURIComponent(instanceName)}/start`);

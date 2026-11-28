@@ -26,6 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.utils.exception_utils import validation_error_summary
 
 LOGGER = getLogger(__name__)
 
@@ -255,8 +256,7 @@ def problem_responses(*codes: ProblemCode) -> dict[int | str, dict[str, Any]]:
 
 def validation_detail(errors: Sequence[Any]) -> str:
     """Summarize validation errors from their ``loc`` and ``msg`` only, never the rejected input."""
-    parts = [f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in errors]
-    return f"Validation failed: {'; '.join(parts)}"
+    return f"Validation failed: {validation_error_summary(errors)}"
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> Response:  # noqa: ARG001

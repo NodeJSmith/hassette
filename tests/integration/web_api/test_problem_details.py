@@ -20,7 +20,14 @@ from fastapi import FastAPI
 from hassette_wire import MAX_SESSION_TOKEN_LENGTH
 from httpx2 import ASGITransport, AsyncClient, Response
 
-from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, JobRemovedError
+from hassette.exceptions import (
+    AppBlockedError,
+    AppBootstrapNotReleasedError,
+    JobRemovedError,
+    ReloadBusyError,
+    ReloadConfigInvalidError,
+    ReloadSyntaxError,
+)
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.web.app import create_fastapi_app
 from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES
@@ -355,6 +362,47 @@ ROUTE_CASES = {
         operation="/api/apps/{app_key}/start",
         arrange=returning("start_app", OutcomeResult.FAILED, "on_initialize blew up"),
         outcomes=wire_outcome("failed", "on_initialize blew up"),
+    ),
+    # POST /api/apps/reload
+    "reload-all-busy": ProblemCase(
+        "POST",
+        "/api/apps/reload",
+        409,
+        "action_in_progress",
+        "Another action on app 'my_app' is still running",
+        operation="/api/apps/reload",
+        arrange=raising(
+            "reload_all", ReloadBusyError("Another action on app 'my_app' is still running", app_key="my_app")
+        ),
+    ),
+    "reload-all-bootstrap-not-released": ProblemCase(
+        "POST",
+        "/api/apps/reload",
+        409,
+        "bootstrap_not_released",
+        "App bootstrap prerequisites are not ready yet; retry later",
+        operation="/api/apps/reload",
+        arrange=raising("reload_all", NOT_RELEASED),
+    ),
+    "reload-all-config-invalid": ProblemCase(
+        "POST",
+        "/api/apps/reload",
+        409,
+        "reload_config_invalid",
+        "The configuration is invalid: apps.door.filename: Field required",
+        operation="/api/apps/reload",
+        arrange=raising(
+            "reload_all", ReloadConfigInvalidError("The configuration is invalid: apps.door.filename: Field required")
+        ),
+    ),
+    "reload-all-syntax-error": ProblemCase(
+        "POST",
+        "/api/apps/reload",
+        409,
+        "reload_syntax_error",
+        "helpers/notify.py:12: invalid syntax",
+        operation="/api/apps/reload",
+        arrange=raising("reload_all", ReloadSyntaxError("helpers/notify.py:12: invalid syntax")),
     ),
     # POST /api/apps/{app_key}/instances/{instance_name}/start, /stop, /reload
     "instance-invalid-key": ProblemCase(

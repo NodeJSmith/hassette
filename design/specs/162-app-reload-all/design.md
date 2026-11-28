@@ -291,8 +291,8 @@ A watcher event without `reload_all` runs the same steps, skipping the precheck 
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
@@ -307,3 +307,8 @@ A watcher event without `reload_all` runs the same steps, skipping the precheck 
 - A manual reload-all's INFO summary is logged by the web route (with the request source, as single-app actions are); the lifecycle logs the summary only for a watcher reload-all, so each reload-all logs one line.
 - `app_code_modules` skips modules whose raw `__file__` doesn't start with a resolved root before resolving it: resolving every loaded module's path took ~375 ms per watcher event and made hot-reload tests time out. App modules are imported from the resolved root the loader puts on `sys.path`.
 - The API schema goes to 8 (`API_SCHEMA_VERSION`, `MIN_API_SCHEMA_VERSION`), because the client's `reload_all` calls a route the latest release lacks (`.claude/rules/client-schema-floor.md`).
+- The D1 restart set is recorded on `ChangeSet.tracked_restarts` when the reload-all is planned, and `apply_changes` restarts a tracked key only if it still has an instance entry once its lock is held: a `wait=true` reload-all that waited behind a user's stop would otherwise restart the stopped app through the watcher's autostart rule.
+- The queued pre-release reconciliation is read when a reconcile starts but cleared only when it commits (`_adopt`), so a manual refusal (syntax error, busy key) leaves it for bootstrap's replay (D12: every refusal before any commit).
+- `apply_changes` raises `ValueError` for `reload_all` with no `evict_roots`, which would restart every app on its old modules.
+- The validation-error summary (`location: message`, no rejected values) is one function, `validation_error_summary` in `utils/exception_utils.py`, used by the config-invalid refusal and the web API's `validation_failed` detail. The route's worst-outcome problem code reads `worst_result`, so the failed > refused > succeeded ranking has one home.
+- `_change_event_lock` is renamed `_reconcile_lock`: it serializes every reconcile, watcher, manual and replay.
