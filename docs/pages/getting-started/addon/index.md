@@ -17,7 +17,7 @@ This page needs Home Assistant OS or Supervised. On Home Assistant Container or 
 
 - **amd64 or aarch64 hardware.** The add-on ships images for these two. On other hardware, run Hassette with [Docker](../docker/index.md) on another machine.
 - **A way to edit files in the add-on's config folder.** The Samba share, File editor, or Studio Code Server add-on all work.
-- **[HACS](https://hacs.xyz)**, for Step 5 only. Hassette's integration installs through it. Steps 1 to 4 work without it.
+- **Home Assistant 2026.11 or newer**, for Step 5 only. Hassette's integration needs it. Steps 1 to 4 work on older versions.
 
 ## Step 1: Add the repository
 
@@ -89,7 +89,7 @@ To give the app settings of its own, set them in its section's `config` in `hass
 
 ## Step 5: Pair the integration
 
-The Hassette integration turns each app into a Home Assistant device you can start, stop, and reload. Follow [Step 1 of Control Apps from Home Assistant](../home-assistant-integration.md#step-1-add-the-repository-in-hacs) to install it through HACS, then return here. Skip that page's token and form steps. The add-on supplies the address and token.
+The Hassette integration turns each app into a Home Assistant device you can start, stop, and reload. Follow [Step 1 of Control Apps from Home Assistant](../home-assistant-integration.md#step-1-install-the-integration) to install it, then return here. Skip that page's token and form steps. The add-on supplies the address and token.
 
 1. Open **Settings → Devices & services**.
 2. Find the **Discovered** Hassette card.

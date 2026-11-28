@@ -38,4 +38,4 @@ I think about Hassette constantly, and I'm proud of it.
 
 ## Contributing with AI
 
-AI-assisted pull requests are welcome. The [contributing guide](https://github.com/NodeJSmith/hassette/blob/main/CONTRIBUTING.md#ai-assisted-contributions) covers what I ask of them.
+Only collaborators can open pull requests. To contribute code, open an issue (or comment on an existing one), tag @NodeJSmith, and ask for access. AI-assisted contributions are welcome once you have it. The [contributing guide](https://github.com/NodeJSmith/hassette/blob/main/CONTRIBUTING.md#ai-assisted-contributions) covers what I ask of them.

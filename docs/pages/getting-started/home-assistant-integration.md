@@ -1,6 +1,6 @@
 # Control Apps from Home Assistant
 
-The Hassette integration for Home Assistant turns each Hassette app into a Home Assistant device. You install it through HACS from [`NodeJSmith/hass-hassette`](https://github.com/NodeJSmith/hass-hassette). Then you start, stop, and reload apps from dashboards and automations.
+The Hassette integration for Home Assistant turns each Hassette app into a Home Assistant device. You install it from Home Assistant's Marketplace, or from HACS, using [`NodeJSmith/hass-hassette`](https://github.com/NodeJSmith/hass-hassette). Then you start, stop, and reload apps from dashboards and automations.
 
 ## What You'll Get
 
@@ -19,19 +19,24 @@ Run `hassette app` to see each app's key and display name. Every app device show
 ## Prerequisites
 
 - **Hassette 0.66.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
-- **HACS** installed in Home Assistant.
-- **Home Assistant 2026.11 or newer**.
+- **Home Assistant 2026.11 or newer**. Its built-in Marketplace installs the integration. [HACS](https://hacs.xyz) works too, if you already use it.
 
 !!! tip "Running the Hassette add-on?"
     Do step 1 below, then skip steps 2 and 3. The add-on announces itself, so Home Assistant shows a **Discovered** Hassette card under **Settings → Devices & services**. Choose **Configure** and confirm; the add-on supplies the address and token. See [Add-on Setup](addon/index.md#step-5-pair-the-integration).
 
-## Step 1: Add the Repository in HACS
+## Step 1: Install the Integration
 
-1. In Home Assistant, open **HACS**.
-2. Open the three-dot menu and choose **Custom repositories**.
-3. Enter `https://github.com/NodeJSmith/hass-hassette` as the repository and choose **Integration** as the type.
-4. Find **Hassette** in HACS and download it.
-5. Restart Home Assistant from **Settings → System → Restart**.
+Hassette isn't in the Marketplace catalog yet, so you add it from its GitHub link.
+
+1. In Home Assistant, go to **Settings → Marketplace → Add from link**.
+2. Enter `https://github.com/NodeJSmith/hass-hassette`. The first time you add a repository from a link, Home Assistant asks you to connect GitHub.
+3. Open **Hassette** and choose **Install**. No restart is needed. The integration's setup form opens when the install finishes. Close it for now; you'll add the integration in step 3.
+
+??? note "Installing with HACS instead"
+    1. In HACS, open the three-dot menu and choose **Custom repositories**.
+    2. Enter `https://github.com/NodeJSmith/hass-hassette` as the repository and choose **Integration** as the type.
+    3. Find **Hassette** in HACS and download it.
+    4. Restart Home Assistant from **Settings → System → Restart**.
 
 ## Step 2: Get Hassette's Web API Token
 
