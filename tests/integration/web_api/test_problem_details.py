@@ -371,9 +371,7 @@ ROUTE_CASES = {
         "action_in_progress",
         "Another action on app 'my_app' is still running",
         operation="/api/apps/reload",
-        arrange=raising(
-            "reload_all", ReloadBusyError("Another action on app 'my_app' is still running", app_key="my_app")
-        ),
+        arrange=raising("reload_all", ReloadBusyError("Another action on app 'my_app' is still running")),
     ),
     "reload-all-bootstrap-not-released": ProblemCase(
         "POST",

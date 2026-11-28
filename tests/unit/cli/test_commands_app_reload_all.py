@@ -23,21 +23,47 @@ runner = CommandRunner("hassette.cli.commands.app.make_client")
 RELOAD_ALL = "/api/apps/reload"
 
 
-def reload_all_body(*, failed: bool = False) -> dict[str, Any]:
+def reload_all_body(*, failed: bool = False, refused: bool = False, stopped: bool = False) -> dict[str, Any]:
     apps = [
         AppReloadResult(
-            app_key="lights", result="succeeded", outcomes=[InstanceOutcome(instance_name="lights", result="succeeded")]
+            app_key="lights",
+            action="reload",
+            result="succeeded",
+            outcomes=[InstanceOutcome(instance_name="lights", result="succeeded")],
         )
     ]
     if failed:
         apps.append(
             AppReloadResult(
                 app_key="door",
+                action="reload",
                 result="failed",
                 outcomes=[InstanceOutcome(instance_name="door", result="failed", reason="ImportError: no VALUE")],
             )
         )
-    counts = ReloadAllCounts(succeeded=1, failed=int(failed), refused=0)
+    if refused:
+        apps.append(
+            AppReloadResult(
+                app_key="garage",
+                action="reload",
+                result="refused",
+                outcomes=[
+                    InstanceOutcome(
+                        instance_name="garage", result="refused", needs_restart=True, reason="needs a hassette restart"
+                    )
+                ],
+            )
+        )
+    if stopped:
+        apps.append(
+            AppReloadResult(
+                app_key="old",
+                action="stop",
+                result="succeeded",
+                outcomes=[InstanceOutcome(instance_name="old", result="succeeded")],
+            )
+        )
+    counts = ReloadAllCounts(succeeded=1 + int(stopped), failed=int(failed), refused=int(refused))
     return ReloadAllResponse(apps=apps, counts=counts).model_dump(mode="json")
 
 
@@ -75,7 +101,14 @@ class TestReloadAll:
 
         output = runner.stdout(client, cmd_app_reload, all_apps=True, yes=True)
 
-        assert "Reloaded 1 apps: 1 succeeded, 0 failed, 0 refused" in output
+        assert "Reload all: 1 reloaded; 1 succeeded, 0 failed, 0 refused" in output
+
+    def test_says_which_apps_it_stopped(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes([("POST", RELOAD_ALL, 200, reload_all_body(stopped=True))])
+
+        output = runner.stdout(client, cmd_app_reload, all_apps=True, yes=True)
+
+        assert "Reload all: 1 reloaded, 1 stopped; 2 succeeded, 0 failed, 0 refused" in output
 
     def test_a_failed_app_exits_1_and_is_named_with_its_reason(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes([("POST", RELOAD_ALL, 200, reload_all_body(failed=True))])
@@ -88,7 +121,21 @@ class TestReloadAll:
             cmd_app_reload(all_apps=True, yes=True)
 
         assert exc_info.value.code == 1
-        assert "door failed: door: ImportError: no VALUE" in buf.getvalue()
+        assert "door (reload) failed: door: ImportError: no VALUE" in buf.getvalue()
+
+    def test_a_refused_app_exits_1(self, cli_client_factory: CLIClientFactory) -> None:
+        """A refused app kept its old code, so a deploy script must see the reload as not OK."""
+        client = cli_client_factory.build_with_routes([("POST", RELOAD_ALL, 200, reload_all_body(refused=True))])
+
+        with (
+            capture_stdout() as buf,
+            patch(runner.make_client_path, return_value=client),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cmd_app_reload(all_apps=True, yes=True)
+
+        assert exc_info.value.code == 1
+        assert "garage (reload) refused" in buf.getvalue()
 
     def test_json_output_is_the_response(self, cli_client_factory: CLIClientFactory) -> None:
         body = reload_all_body()

@@ -72,7 +72,7 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 
 An action finishes before it answers. When it fails on one instance, the error message names that instance with its failure, after a count of the instances it acted on.
 
-**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs [Reload all](#reload-all) or a Hassette restart. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
+**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to an app's config in `hassette.toml` needs [Reload all](#reload-all) or a Hassette restart. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
 
 These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{instance_name}/start`, `/stop`, `/reload` for a single instance. The CLI exposes the same three actions as `hassette app start|stop|reload`, with `--instance` routing to the per-instance endpoint. See [CLI Commands](../cli/commands.md) for the full command reference.
 
@@ -80,13 +80,13 @@ These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/rel
 
 **Reload all**, in the Apps page header, reloads every app from disk without restarting the Hassette process. The Home Assistant connection and the state cache stay up, so a deploy that changes shared helpers no longer leaves a gap with no listeners while the container restarts. After you confirm it, Hassette:
 
-1. Re-reads `hassette.toml`.
+1. Re-reads `hassette.toml` for the app configuration: which apps exist, their settings, and the `--app` filter. Settings outside the apps, such as the Home Assistant URL, the log level or the web API's, need a Hassette restart to take effect.
 2. Checks every Python file it is about to import for syntax errors.
 3. Stops every app that is running or `FAILED`.
 4. Forgets every module loaded from your app directories, helpers included.
 5. Starts those apps again, so each one imports the current code.
 
-It also stops apps the new config removed or disabled, and starts apps it added (unless they have `autostart = false`). An app you stopped by hand stays stopped, and it imports the new code when you start it.
+It also stops apps the new config removed or disabled, and starts apps it added (unless they have `autostart = false`). An app you stopped by hand stays stopped, and it imports the new code when you start it. While the reload runs, starting or reloading a single app answers that a reload is still running; try again once it finishes.
 
 Reload all refuses, and stops nothing, when:
 
@@ -94,9 +94,9 @@ Reload all refuses, and stops nothing, when:
 - A file it would import has a syntax error. The message gives the file, relative to its app directory, and the line: `helpers/notify.py:12: invalid syntax`.
 - Another reload, or an action on one of the apps it restarts, is still running.
 
-Once it has run, a toast gives the number of apps that succeeded, failed and were refused, and names each app that didn't succeed. An app whose import fails for any reason other than a syntax error, such as an `ImportError`, ends up `FAILED` with the error as its last error. The other apps still start.
+Once it has run, a toast says how many apps it reloaded, stopped and started, gives the number that succeeded, failed and were refused, and names each app that didn't succeed. If the request itself fails without an answer from Hassette, such as a proxy timeout, the toast says the reload may not have finished: check the app list for each app's status. An app whose import fails for any reason other than a syntax error, such as an `ImportError`, ends up `FAILED` with the error as its last error. The other apps still start.
 
-The same action is `POST /api/apps/reload` in the REST API and `hassette app reload --all` in the CLI. The API answers 200 whenever the reload ran, even if some apps failed; read `counts.failed` in the response. A refusal answers 409 with the code `reload_config_invalid`, `reload_syntax_error` or `action_in_progress` (see [API Errors](api-errors.md)). `?wait=true` waits for a running reload or app action to finish instead of answering 409. The web UI never waits.
+The same action is `POST /api/apps/reload` in the REST API and `hassette app reload --all` in the CLI. The API answers 200 whenever the reload ran, even if some apps failed; read `counts.failed` and `counts.refused` in the response. Each app in it carries an `action`: `reload`, `stop` (the config removed it) or `start` (the config added it). A refusal answers 409 with the code `reload_config_invalid`, `reload_syntax_error` or `action_in_progress` (see [API Errors](api-errors.md)). `?wait=true` waits for a running reload or app action to finish instead of answering 409. The web UI never waits.
 
 ### What Reload Re-imports
 

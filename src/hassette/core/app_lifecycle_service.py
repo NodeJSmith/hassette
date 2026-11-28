@@ -119,6 +119,10 @@ class AppLifecycleService(
     def _get_app_key_lock(self, app_key: str) -> AppKeyLock:
         return self._app_key_locks.setdefault(app_key, AppKeyLock())
 
+    def is_reload_running(self) -> bool:
+        """Whether a reconcile (a file-watcher change or a reload-all) holds or is waiting for the reconcile lock."""
+        return self._reconcile_lock.busy
+
     def is_action_in_progress(self, app_key: str) -> bool:
         """Whether a start, stop, reload, or config reconciliation holds or is waiting for ``app_key``'s lock."""
         lock = self._app_key_locks.get(app_key)

@@ -390,12 +390,8 @@ class AppRemovedError(HassetteError):
 class ReloadBusyError(HassetteError):
     """Raised when a reload-all asked not to wait finds another reload, or an action on one of its apps, running.
 
-    Nothing was done. ``app_key`` names the busy app, or is None when another reload holds the reconcile lock.
+    Nothing was done. The message names the busy app, or says another reload is running.
     """
-
-    def __init__(self, msg: str, *, app_key: str | None = None) -> None:
-        super().__init__(msg)
-        self.app_key = app_key
 
 
 class ReloadConfigInvalidError(HassetteError):

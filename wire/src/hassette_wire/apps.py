@@ -212,11 +212,14 @@ class ActionResponse(BaseModel):
 
 
 class AppReloadResult(BaseModel):
-    """One app's part of a reload-all: what it did to each of the app's instances."""
+    """One app's part of a reload-all: what it did to the app, and to each of the app's instances."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     app_key: str
+    action: OpenAppAction
+    """What the reload-all did to the app: ``reload`` (stopped and recreated on the new code), ``stop`` (the config
+    removed or disabled it, so it was stopped and not recreated), or ``start`` (the config added it)."""
     result: OpenInstanceResult
     """The app's worst instance result: ``failed`` if any instance failed, else ``refused`` if any was refused,
     else ``succeeded``. ``ReloadAllResponse.counts`` tallies apps by this."""
@@ -237,9 +240,9 @@ class ReloadAllCounts(BaseModel):
 class ReloadAllResponse(BaseModel):
     """Response for a reload-all that ran: sent with 200 even when some apps failed.
 
-    Lists every app the reload stopped, restarted or started. A caller detects a partial failure from
-    ``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran (busy,
-    invalid config, syntax error, bootstrap not released) is a problem response instead.
+    Lists every app the reload stopped, restarted or started, each with its ``action``. A caller detects a partial
+    failure from ``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran
+    (busy, invalid config, syntax error, bootstrap not released) is a problem response instead.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)

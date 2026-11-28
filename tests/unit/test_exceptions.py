@@ -94,7 +94,7 @@ ROUND_TRIP_SAMPLES: list[HassetteError] = [
     ListenerNameRequiredError("a.handler", "hass.event.state_changed"),
     NoDomainAnnotationError(NumericSensorState, accessor_hint="sensor.numeric"),
     RegistryNotReadyError(),
-    ReloadBusyError("busy", app_key="kitchen"),
+    ReloadBusyError("busy"),
     RegistryValidationError(
         [
             RegistryValidationIssue(registry="STATE_REGISTRY", severity="error", message="bad"),

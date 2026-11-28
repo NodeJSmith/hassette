@@ -29,7 +29,7 @@ if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
-    from hassette.schemas.app_outcomes import InstanceOutcome, ReloadAllResult
+    from hassette.schemas.app_outcomes import InstanceOutcome, ReconcileResult
 
 
 class AppHandler(Service):
@@ -217,6 +217,10 @@ class AppHandler(Service):
 
         return {name: registry.is_debug_captured(app_key, name) for name in targets}
 
+    def is_reload_running(self) -> bool:
+        """Whether a reconcile or reload-all is running — delegates to lifecycle service."""
+        return self.lifecycle.is_reload_running()
+
     def is_action_in_progress(self, app_key: str) -> bool:
         """Whether an action on ``app_key`` is running — delegates to lifecycle service."""
         return self.lifecycle.is_action_in_progress(app_key)
@@ -247,7 +251,7 @@ class AppHandler(Service):
         """Start a single instance by key and name — delegates to lifecycle service."""
         return await self.lifecycle.start_instance(app_key, instance_name)
 
-    async def reload_all(self, *, wait: bool = False) -> "ReloadAllResult":
+    async def reload_all(self, *, wait: bool = False) -> "ReconcileResult":
         """Reload every app from disk in place: re-read the config, evict the app-code modules, restart the apps.
 
         Restarts every app with a tracked instance (running or failed), stops apps the config removed, and

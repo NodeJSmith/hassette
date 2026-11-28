@@ -15,7 +15,6 @@ paths, and reconcile_app_registrations' degraded-mode fallbacks.
 
 import asyncio
 from collections.abc import Callable, Coroutine
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -32,7 +31,7 @@ from hassette.exceptions import (
     ReloadConfigInvalidError,
     UndefinedUserConfigError,
 )
-from hassette.schemas.app_outcomes import ReloadAllResult
+from hassette.schemas.app_outcomes import ReconcileResult
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
 from tests.support.factories import make_change_set
@@ -268,9 +267,9 @@ class TestHandleChangeEventBranches:
 
         async def capture_apply(
             changes: ChangeSet, _original_config: dict, _current_config: dict, **_kwargs: Any
-        ) -> ReloadAllResult:
+        ) -> ReconcileResult:
             applied.append(changes)
-            return ReloadAllResult()
+            return ReconcileResult()
 
         lifecycle_service.apply_changes = capture_apply  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -394,6 +393,23 @@ class TestHandleChangeEventBranches:
         assert lifecycle_service._pending_reconciliation is None
         lifecycle_service.apply_changes.assert_awaited_once()
 
+    async def test_a_queued_pre_release_path_reaches_the_reload_all_rule(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
+    ) -> None:
+        """A helper edited before release and still queued can make the first post-release event a reload-all."""
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
+        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"pre_release_app"}))
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/pre_helper.py")}))
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
+        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"post_release_app"}))
+        plan_reload_all = AsyncMock(return_value=None)
+        lifecycle_service._plan_reload_all = plan_reload_all  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/post.py")}))
+
+        changed_paths = plan_reload_all.await_args.args[1]
+        assert changed_paths == frozenset({Path("/tmp/pre_helper.py"), Path("/tmp/post.py")})
+
     async def test_a_refused_manual_reload_leaves_the_queued_reconciliation(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
     ) -> None:
@@ -405,7 +421,7 @@ class TestHandleChangeEventBranches:
         assert pending is not None
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
         stub_detected_changes(lifecycle_service, make_change_set(reload_apps={"app_a"}))
-        lifecycle_service.apply_changes = AsyncMock(side_effect=ReloadBusyError("busy", app_key="app_a"))
+        lifecycle_service.apply_changes = AsyncMock(side_effect=ReloadBusyError("busy"))
 
         with pytest.raises(ReloadBusyError):
             await lifecycle_service.reconcile_from_disk(ManualReload(wait=False))
@@ -648,39 +664,91 @@ class TestReconcileAppRegistrationsDegradedPaths:
         # dup-ignore-end
 
 
-async def run_adopt_hook(changes: ChangeSet, *_args: Any, adopt: Any = None, **_kwargs: Any) -> ReloadAllResult:
+async def run_adopt_hook(changes: ChangeSet, *_args: Any, adopt: Any = None, **_kwargs: Any) -> ReconcileResult:
     """An ``apply_changes`` stand-in that only runs the commit hook, as the real one does once it holds the locks."""
     if adopt is not None:
         await adopt(changes)
-    return ReloadAllResult()
+    return ReconcileResult()
 
 
 class TestReloadAllRestartDecision:
     """``_decide_restart`` for a reload-all's tracked keys, decided under each key's lock (spec 162 D1)."""
 
     def test_a_still_tracked_key_restarts_as_a_full_reimport(self, lifecycle_service: AppLifecycleService) -> None:
-        changes = replace(make_change_set(), reload_all=True, tracked_restarts=frozenset({"app_a"}))
-
-        restart = lifecycle_service._decide_restart("app_a", changes, {}, {}, still_tracked=True)
+        restart = lifecycle_service._decide_restart(
+            "app_a", make_change_set(), {}, {}, in_reload_all=True, still_tracked=True
+        )
 
         assert restart is not None
         assert restart.force_reload
 
     def test_a_key_stopped_while_the_reload_waited_stays_stopped(self, lifecycle_service: AppLifecycleService) -> None:
-        changes = replace(make_change_set(), reload_all=True, tracked_restarts=frozenset({"app_a"}))
+        changes = make_change_set(reload_apps={"app_a"})
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
 
-        assert lifecycle_service._decide_restart("app_a", changes, {}, {}, still_tracked=False) is None
+        assert (
+            lifecycle_service._decide_restart("app_a", changes, {}, {}, in_reload_all=True, still_tracked=False) is None
+        )
 
     def test_a_stopped_key_whose_file_changed_follows_the_watcher_rule(
         self, lifecycle_service: AppLifecycleService
     ) -> None:
-        changes = replace(
-            make_change_set(reimport_apps={"app_a"}), reload_all=True, tracked_restarts=frozenset({"app_a"})
-        )
+        changes = make_change_set(reimport_apps={"app_a"})
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
 
-        restart = lifecycle_service._decide_restart("app_a", changes, {}, {}, still_tracked=False)
+        restart = lifecycle_service._decide_restart("app_a", changes, {}, {}, in_reload_all=True, still_tracked=False)
 
         assert restart is not None
         assert restart.force_reload
+
+
+class TestReloadAllRestartKeys:
+    """``_reload_all_restart_keys``: the keys a reload-all plans to restart (spec 162 D1)."""
+
+    def config(self, *keys: str) -> dict[str, Any]:
+        return {key: MagicMock(enabled=True) for key in keys}
+
+    def test_tracked_keys_restart_and_untracked_ones_dont(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        mock_registry.tracked_app_keys = Mock(return_value=["app_a"])
+
+        keys = lifecycle_service._reload_all_restart_keys(self.config("app_a", "app_b"), frozenset(), frozenset())
+
+        assert keys == frozenset({"app_a"})
+
+    def test_a_key_the_app_filter_blocks_is_not_restarted(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        mock_registry.tracked_app_keys = Mock(return_value=["app_a", "app_b"])
+
+        keys = lifecycle_service._reload_all_restart_keys(
+            self.config("app_a", "app_b"), frozenset(), frozenset({"app_a"})
+        )
+
+        assert keys == frozenset({"app_a"})
+
+    def test_new_and_orphaned_keys_are_left_to_their_buckets(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        mock_registry.tracked_app_keys = Mock(return_value=["app_a", "app_b"])
+
+        keys = lifecycle_service._reload_all_restart_keys(
+            self.config("app_a", "app_b"), frozenset({"app_b"}), frozenset()
+        )
+
+        assert keys == frozenset({"app_a"})
+
+    async def test_a_key_with_an_action_in_flight_is_restarted(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """A start under way when the reload-all plans finishes first, then restarts onto the new code."""
+        mock_registry.tracked_app_keys = Mock(return_value=[])
+        lock = lifecycle_service._get_app_key_lock("app_b")
+        await lock.acquire()
+        try:
+            keys = lifecycle_service._reload_all_restart_keys(self.config("app_a", "app_b"), frozenset(), frozenset())
+        finally:
+            lock.release()
+
+        assert keys == frozenset({"app_b"})

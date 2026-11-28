@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 from hassette_wire import ResourceStatus
 
+import hassette.core.app_lifecycle_changes as app_lifecycle_changes
 from hassette.config.classes import AppManifest
 from hassette.exceptions import ReloadBusyError, ReloadConfigInvalidError, ReloadSyntaxError
 from hassette.schemas.app_outcomes import OutcomeResult
@@ -169,14 +170,18 @@ class TestManualReloadAll(ReloadAllTestBase):
         try:
             with pytest.raises(ReloadBusyError) as info:
                 await asyncio.wait_for(self.app_handler.reload_all(), timeout=1)
-            assert info.value.app_key is None
+            assert str(info.value) == "Another reload is still running"
         finally:
             lock.release()
         assert self.running(manifest.app_key) is before
 
     async def test_a_busy_app_refuses_naming_it(self) -> None:
+        """The refusal comes before the config is adopted, so an edit on disk leaves the config and registry as is."""
         self.write_helper("VALUE = 1\n")
         (manifest,) = await self.deploy("rabusykey")
+        added = create_app_manifest(suffix="rabusyadd", app_dir=self.app_dir)
+        write_app(self.app_dir, added.filename, APP_SOURCE.format(helper=self.helper, class_name=added.class_name))
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[manifest, added])
         lock = self.app_handler.lifecycle._get_app_key_lock(manifest.app_key)
         await lock.acquire()
         try:
@@ -185,8 +190,71 @@ class TestManualReloadAll(ReloadAllTestBase):
         finally:
             lock.release()
 
-        assert info.value.app_key == manifest.app_key
+        assert repr(manifest.app_key) in str(info.value)
         assert not self.app_handler.lifecycle._reconcile_lock.busy
+        assert set(self.harness.config.apps.manifests) == {manifest.app_key}
+        assert set(self.app_handler.registry.manifests) == {manifest.app_key}
+
+    async def test_apps_stop_before_the_eviction_and_start_after_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Evicting while an old instance still ran would let its teardown import the new code (spec 162 D12)."""
+        self.write_helper("VALUE = 1\n")
+        (manifest,) = await self.deploy("raorder")
+        self.write_helper("VALUE = 8\n")
+        at_eviction: list[object] = []
+        evict = app_lifecycle_changes.evict_apps_package
+
+        def recording_evict(roots: frozenset[Path]) -> list[str]:
+            at_eviction.append(self.app_handler.registry.get(manifest.app_key))
+            return evict(roots)
+
+        monkeypatch.setattr(app_lifecycle_changes, "evict_apps_package", recording_evict)
+
+        await self.app_handler.reload_all()
+
+        assert at_eviction == [None]
+        assert module_value(self.running(manifest.app_key)) == 8
+
+    async def test_a_failed_eviction_still_restarts_the_apps(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        self.write_helper("VALUE = 1\n")
+        (manifest,) = await self.deploy("raevictfail")
+        before = self.running(manifest.app_key)
+
+        def failing_evict(_roots: frozenset[Path]) -> list[str]:
+            raise RuntimeError("eviction broke")
+
+        monkeypatch.setattr(app_lifecycle_changes, "evict_apps_package", failing_evict)
+
+        with caplog.at_level(logging.ERROR):
+            result = await self.app_handler.reload_all()
+
+        assert self.running(manifest.app_key) is not before
+        assert result.count(OutcomeResult.SUCCEEDED) == 1
+        assert any("Evicting the app-code modules failed" in record.message for record in caplog.records)
+
+    async def test_modules_under_an_app_dir_the_edit_removed_are_evicted(self) -> None:
+        self.write_helper("VALUE = 1\n")
+        (kept,) = await self.deploy("radirkeep")
+        other_dir = self.app_dir.parent / f"other_apps_{os.urandom(4).hex()}"
+        other_helper = f"helper_{os.urandom(4).hex()}"
+        try:
+            write_app(other_dir, f"{other_helper}.py", "VALUE = 1\n")
+            away = create_app_manifest(suffix="radiraway", app_dir=other_dir)
+            write_app(other_dir, away.filename, APP_SOURCE.format(helper=other_helper, class_name=away.class_name))
+            write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[kept, away])
+            await emit_change_and_wait_for_app_status(
+                self.harness.hassette, {self.toml_file, away.full_path}, away.app_key
+            )
+            assert other_helper in sys.modules
+
+            write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[kept])
+            result = await self.app_handler.reload_all()
+
+            assert result.apps[away.app_key].action == "stop"
+            assert other_helper not in sys.modules
+        finally:
+            shutil.rmtree(other_dir, ignore_errors=True)
 
     async def test_the_config_is_reread_removed_apps_stop_and_added_ones_start(self) -> None:
         self.write_helper("VALUE = 1\n")
@@ -197,7 +265,11 @@ class TestManualReloadAll(ReloadAllTestBase):
 
         result = await self.app_handler.reload_all()
 
-        assert set(result.apps) == {kept.app_key, removed.app_key, added.app_key}
+        assert {key: app.action for key, app in result.apps.items()} == {
+            kept.app_key: "reload",
+            removed.app_key: "stop",
+            added.app_key: "start",
+        }
         assert self.app_handler.registry.get(removed.app_key) is None
         assert self.running(added.app_key) is not None
         assert result.count(OutcomeResult.FAILED) == 0
@@ -241,6 +313,25 @@ class TestWatcherReloadAll(ReloadAllTestBase):
 
         assert module_value(self.running(first.app_key)) == 6
         assert module_value(self.running(second.app_key)) == 6
+        finished = [record for record in caplog.records if "File-watcher reload-all finished" in record.message]
+        assert len(finished) == 1
+
+    async def test_one_event_with_several_helpers_reloads_once(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The watcher batches a burst of saves into one event (watchfiles' debounce); that event reloads once."""
+        self.write_helper("VALUE = 1\n")
+        (manifest,) = await self.deploy("rawburst")
+        helper = self.write_helper("VALUE = 9\n")
+        other = write_app(self.app_dir, f"other_{self.helper}.py", "OTHER = 1\n")
+
+        with caplog.at_level(logging.INFO):
+            await emit_change_and_wait_for_app_status(self.harness.hassette, {helper, other}, manifest.app_key)
+            await wait_for(
+                lambda: any("File-watcher reload-all finished" in record.message for record in caplog.records),
+                timeout=10,
+                desc="the reload-all summary line",
+            )
+
+        assert module_value(self.running(manifest.app_key)) == 9
         finished = [record for record in caplog.records if "File-watcher reload-all finished" in record.message]
         assert len(finished) == 1
 

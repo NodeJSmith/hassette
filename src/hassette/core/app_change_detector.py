@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING
 
 from deepdiff import DeepDiff
 
-from hassette.utils.app_modules import needs_reload_all
-
 if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
@@ -76,19 +74,10 @@ class ChangeSet:
     persisted manifest differs from what any connected dashboard last fetched. An order-only edit
     isn't one of these; see `has_any_change`."""
 
-    reload_all: bool = False
-    """Evict every app-code module and restart every tracked app, not only the apps named above: a manual
-    reload-all, or a watcher change to a helper or to an app file another app module imports."""
-
-    tracked_restarts: frozenset[str] = frozenset()
-    """The keys a reload-all restarts because they had an instance entry, live or FAILED, when it was planned
-    (spec 162 D1), disjoint from ``reload_apps``; a key here may also be in ``reimport_apps``. The detector never
-    sets it: ``reconcile_from_disk`` does once ``reload_all`` is decided."""
-
     @property
     def has_changes(self) -> bool:
-        """Whether this changeset requires a lifecycle action (start, stop, reload, reimport, reload-all)."""
-        return bool(self.orphans or self.new_apps or self.reimport_apps or self.reload_apps or self.reload_all)
+        """Whether this changeset requires a lifecycle action (start, stop, reload, reimport)."""
+        return bool(self.orphans or self.new_apps or self.reimport_apps or self.reload_apps)
 
     @property
     def has_any_change(self) -> bool:
@@ -108,7 +97,7 @@ class ChangeSet:
         return (
             f"ChangeSet(orphans={set(self.orphans)}, new={set(self.new_apps)}, "
             f"reimport={set(self.reimport_apps)}, reload={set(self.reload_apps)}, "
-            f"metadata={set(self.metadata_apps)}, reload_all={self.reload_all}, tracked={set(self.tracked_restarts)})"
+            f"metadata={set(self.metadata_apps)})"
         )
 
 
@@ -121,9 +110,6 @@ class AppChangeDetector:
         current_config: dict[str, "AppManifest"],
         changed_file_paths: frozenset[Path] | None = None,
         only_apps: frozenset[str] | None = None,
-        *,
-        app_roots: frozenset[Path] | None = None,
-        force_reload_all: bool = False,
     ) -> ChangeSet:
         """Calculate the difference between two configurations.
 
@@ -139,9 +125,6 @@ class AppChangeDetector:
                 reload) to these app keys only -- `metadata_apps` still reflects every manifest
                 change regardless of this scope, since it drives a dashboard refetch signal
                 rather than a lifecycle action
-            app_roots: The resolved app roots of ``current_config``'s config. When given, a changed path that
-                needs a reload-all sets ``reload_all`` (``needs_reload_all``); when None, no path does.
-            force_reload_all: Set ``reload_all`` regardless of the paths, as a manual reload-all does.
 
         Returns:
             ChangeSet with categorized changes
@@ -241,16 +224,10 @@ class AppChangeDetector:
             and app_key not in reload_apps
         }
 
-        reload_all = force_reload_all or (
-            app_roots is not None
-            and needs_reload_all(changed, (app.full_path for app in current_config.values()), app_roots)
-        )
-
         return ChangeSet(
             orphans=frozenset(orphans),
             new_apps=frozenset(new_apps),
             reimport_apps=frozenset(reimport_apps),
             reload_apps=frozenset(reload_apps),
             metadata_apps=frozenset(metadata_apps),
-            reload_all=reload_all,
         )

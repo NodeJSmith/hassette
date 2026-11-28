@@ -1,6 +1,7 @@
 """App CLI commands: the ``hassette app`` listing, instances, health, activity, config, source, actions, debug."""
 
 import sys
+from collections import Counter
 from typing import Any, Literal
 
 from hassette_wire import (
@@ -292,7 +293,7 @@ def cmd_app_reload(
 
     ``--all`` re-reads the config and re-imports every app module and the helpers they import, then restarts every
     app that is running or failed, without restarting hassette. It refuses before stopping anything on an invalid
-    config or a syntax error. It exits 1 when any app failed to restart.
+    config or a syntax error. It exits 1 when any app failed or was refused (needs a hassette restart).
     """
     if not all_apps:
         if key is None:
@@ -309,7 +310,7 @@ def cmd_app_reload(
 
 
 def run_reload_all(*, wait: bool, yes: bool, ctx: CLIContext) -> None:
-    """Confirm, POST the reload-all, and render each app's result; exit 1 when any app failed."""
+    """Confirm, POST the reload-all, and render each app's result; exit 1 when any app failed or was refused."""
     client = make_client(ctx)
     if not yes:
         confirm_or_exit(client, "reload", "Reload every app?", json_mode=ctx.json_mode)
@@ -318,15 +319,18 @@ def run_reload_all(*, wait: bool, yes: bool, ctx: CLIContext) -> None:
         cli_output.render_detail_dict(result.model_dump(mode="json"), "Reload All", json_mode=True)
     else:
         cli_output.render_detail_dict({"message": reload_all_message(result)}, "Reload All", json_mode=False)
-    if result.counts.failed:
+    if result.counts.failed or result.counts.refused:
         sys.exit(1)
 
 
 def reload_all_message(result: ReloadAllResponse) -> str:
-    """The reload-all summary: the counts, then each app that didn't succeed with its instances' reasons."""
+    """The reload-all summary: what it did to how many apps, the counts, then each app that didn't succeed."""
     counts = result.counts
+    done = Counter(str(app.action) for app in result.apps)
+    past_tense: dict[str, str] = {**ACTION_PAST_TENSE}  # an action this CLI doesn't know prints as sent
+    actions = ", ".join(f"{count} {past_tense.get(action, action)}" for action, count in done.items())
     lines = [
-        f"Reloaded {len(result.apps)} apps: {counts.succeeded} succeeded, {counts.failed} failed, "
+        f"Reload all: {actions or 'no apps affected'}; {counts.succeeded} succeeded, {counts.failed} failed, "
         f"{counts.refused} refused"
     ]
     for app in result.apps:
@@ -335,7 +339,7 @@ def reload_all_message(result: ReloadAllResponse) -> str:
         reasons = "; ".join(
             f"{outcome.instance_name}: {outcome.reason}" for outcome in app.outcomes if outcome.result != "succeeded"
         )
-        lines.append(f"  {app.app_key} {app.result}: {reasons}")
+        lines.append(f"  {app.app_key} ({app.action}) {app.result}: {reasons}")
     return "\n".join(lines)
 
 

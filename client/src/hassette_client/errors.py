@@ -302,7 +302,12 @@ class NeedsRestartError(ConflictError):
 
 
 class ActionInProgressError(ConflictError):
-    """409 ``action_in_progress``: another start, stop or reload on this app is still running. Nothing was done."""
+    """409 ``action_in_progress``: another action on this app, or a reload, is still running. Nothing was done.
+
+    On a reload-all it means another reload, or an action on an app the reload restarts, is running; on a start or
+    reload of one app, it can also mean a reload is running, a manual one or one the file watcher started.
+    ``problem.detail`` says which.
+    """
 
 
 class ReloadConfigInvalidError(ConflictError):

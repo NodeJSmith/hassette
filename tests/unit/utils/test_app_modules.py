@@ -123,6 +123,26 @@ class TestAppCodeModules:
         load(f"{prefix}outside", write(tmp_path / "outside.py"))
         assert app_code_modules([root]) == {}
 
+    def test_a_module_loaded_through_a_symlinked_directory_is_found(
+        self, root: Path, tmp_path: Path, prefix: str
+    ) -> None:
+        """Directories are resolved before they're classified, so an unresolved path on ``sys.path`` still counts."""
+        helper = write(root / "notify.py", "VALUE = 1\n")
+        link = tmp_path / "linked_apps"
+        link.symlink_to(root, target_is_directory=True)
+        module = load(f"{prefix}notify", link / "notify.py")
+
+        assert app_code_modules([root]) == {f"{prefix}notify": (module, helper)}
+
+    def test_scans_the_snapshot_it_is_given(self, root: Path, prefix: str) -> None:
+        """A worker thread scans a snapshot of ``sys.modules`` taken on the event loop, not the live mapping."""
+        helper = write(root / "notify.py", "VALUE = 1\n")
+        module = load(f"{prefix}notify", helper)
+        snapshot = {f"{prefix}notify": module}
+        sys.modules.pop(f"{prefix}notify")
+
+        assert app_code_modules([root], snapshot) == {f"{prefix}notify": (module, helper)}
+
 
 class TestEvictAppsPackage:
     def test_removes_every_app_module_and_its_parent_attribute(self, root: Path, prefix: str) -> None:
@@ -211,6 +231,23 @@ class TestPrecheckAppsPackage:
         helper.unlink()
 
         assert precheck_apps_package([root], []) is None
+
+    def test_a_file_compile_rejects_with_value_error_is_a_syntax_error(
+        self, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Before Python 3.12, ``compile`` raises ``ValueError`` for a NUL byte; the precheck still refuses."""
+        app_file = write(root / "door.py", "VALUE = 1\n")
+
+        def compile_rejecting(*_args: object, **_kwargs: object) -> None:
+            raise ValueError("source code string cannot contain null bytes")
+
+        monkeypatch.setattr("hassette.utils.app_modules.compile", compile_rejecting, raising=False)
+
+        error = precheck_apps_package([root], [app_file])
+
+        assert error is not None
+        assert error.filename == str(app_file)
+        assert describe_syntax_error(error, [root]) == "door.py:0: source code string cannot contain null bytes"
 
 
 class TestDescribeSyntaxError:

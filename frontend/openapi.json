@@ -4141,6 +4141,16 @@
             "type": "string",
             "title": "App Key"
           },
+          "action": {
+            "type": "string",
+            "enum": [
+              "start",
+              "stop",
+              "reload"
+            ],
+            "title": "Action",
+            "description": "What the reload-all did to the app: ``reload`` (stopped and recreated on the new code), ``stop`` (the config\nremoved or disabled it, so it was stopped and not recreated), or ``start`` (the config added it)."
+          },
           "result": {
             "type": "string",
             "enum": [
@@ -4163,11 +4173,12 @@
         "type": "object",
         "required": [
           "app_key",
+          "action",
           "result",
           "outcomes"
         ],
         "title": "AppReloadResult",
-        "description": "One app's part of a reload-all: what it did to each of the app's instances."
+        "description": "One app's part of a reload-all: what it did to the app, and to each of the app's instances."
       },
       "AppSource": {
         "properties": {
@@ -6582,7 +6593,7 @@
           "counts"
         ],
         "title": "ReloadAllResponse",
-        "description": "Response for a reload-all that ran: sent with 200 even when some apps failed.\n\nLists every app the reload stopped, restarted or started. A caller detects a partial failure from\n``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran (busy,\ninvalid config, syntax error, bootstrap not released) is a problem response instead."
+        "description": "Response for a reload-all that ran: sent with 200 even when some apps failed.\n\nLists every app the reload stopped, restarted or started, each with its ``action``. A caller detects a partial\nfailure from ``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran\n(busy, invalid config, syntax error, bootstrap not released) is a problem response instead."
       },
       "ResourceStatus": {
         "type": "string",

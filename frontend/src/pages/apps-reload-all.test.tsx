@@ -6,7 +6,10 @@ import { ApiError } from "../api/client";
 import type { ReloadAllResponse } from "../api/endpoints";
 import { ReloadAllButton, reloadAllSummary } from "./apps-reload-all";
 
-vi.mock("../api/endpoints", () => ({ reloadAllApps: vi.fn() }));
+vi.mock(import("../api/endpoints"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  reloadAllApps: vi.fn(),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const endpoints = await import("../api/endpoints");
@@ -20,8 +23,10 @@ function response(apps: ReloadAllResponse["apps"]): ReloadAllResponse {
 
 type AppResult = ReloadAllResponse["apps"][number];
 
-const LIGHTS: AppResult = { app_key: "lights", result: "succeeded", outcomes: [] };
-const DOOR: AppResult = { app_key: "door", result: "failed", outcomes: [] };
+const LIGHTS: AppResult = { app_key: "lights", action: "reload", result: "succeeded", outcomes: [] };
+const DOOR: AppResult = { app_key: "door", action: "reload", result: "failed", outcomes: [] };
+const OLD: AppResult = { app_key: "old", action: "stop", result: "succeeded", outcomes: [] };
+const NEW: AppResult = { app_key: "new", action: "start", result: "succeeded", outcomes: [] };
 
 async function confirmReloadAll() {
   const user = userEvent.setup();
@@ -32,13 +37,23 @@ async function confirmReloadAll() {
 
 describe("reloadAllSummary", () => {
   it("gives the counts when every app succeeded", () => {
-    expect(reloadAllSummary(response([LIGHTS]))).toBe("Reloaded 1 app: 1 succeeded, 0 failed, 0 refused");
+    expect(reloadAllSummary(response([LIGHTS]))).toBe("Reload all: 1 app reloaded; 1 succeeded, 0 failed, 0 refused");
   });
 
   it("names each app that didn't succeed", () => {
     expect(reloadAllSummary(response([DOOR, LIGHTS]))).toBe(
-      "Reloaded 2 apps: 1 succeeded, 1 failed, 0 refused. door (failed)",
+      "Reload all: 2 apps reloaded; 1 succeeded, 1 failed, 0 refused. door (failed)",
     );
+  });
+
+  it("says which apps it stopped and started, not only reloaded", () => {
+    expect(reloadAllSummary(response([LIGHTS, OLD, NEW]))).toBe(
+      "Reload all: 1 app reloaded, 1 app stopped, 1 app started; 3 succeeded, 0 failed, 0 refused",
+    );
+  });
+
+  it("says when no app was affected", () => {
+    expect(reloadAllSummary(response([]))).toBe("Reload all: no apps affected; 0 succeeded, 0 failed, 0 refused");
   });
 });
 
@@ -62,7 +77,9 @@ describe("ReloadAllButton", () => {
 
     await confirmReloadAll();
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Reloaded 1 app: 1 succeeded, 0 failed, 0 refused"));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Reload all: 1 app reloaded; 1 succeeded, 0 failed, 0 refused"),
+    );
     expect(reloadAllApps).toHaveBeenCalledOnce();
   });
 
@@ -83,6 +100,30 @@ describe("ReloadAllButton", () => {
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Reload all refused: helpers/notify.py:12: invalid syntax"),
+    );
+  });
+
+  it("says the outcome is unknown for an error that isn't a refusal", async () => {
+    reloadAllApps.mockRejectedValue(new ApiError(504, "Gateway Timeout"));
+
+    await confirmReloadAll();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Reload all may not have finished: API error: 504 Gateway Timeout. Check the app list for each app's status.",
+      ),
+    );
+  });
+
+  it("says the outcome is unknown for a network error", async () => {
+    reloadAllApps.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await confirmReloadAll();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("Reload all may not have finished: Failed to fetch"),
+      ),
     );
   });
 });

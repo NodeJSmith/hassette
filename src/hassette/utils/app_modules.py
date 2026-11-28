@@ -7,7 +7,7 @@ definition (``is_app_code``), so a module evicted is exactly a module checked an
 
 import ast
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
@@ -39,10 +39,14 @@ def is_app_code(path: Path, roots: Iterable[Path]) -> bool:
     """Whether ``path`` is app code: inside an app root, not under a skipped directory or an installed location.
 
     Args:
-        path: The file to classify. Resolved here, so a symlinked app root still matches.
+        path: The file or directory to classify. Resolved here, so a symlinked app root still matches.
         roots: Resolved app roots, from ``app_roots``.
     """
-    resolved = path.resolve()
+    return is_resolved_app_code(path.resolve(), roots)
+
+
+def is_resolved_app_code(resolved: Path, roots: Iterable[Path]) -> bool:
+    """``is_app_code`` for a path that is already resolved."""
     if any(resolved.is_relative_to(installed) for installed in INSTALLED_DIRS):
         return False
     for root in roots:
@@ -57,22 +61,36 @@ def module_file(module: ModuleType) -> Path | None:
     return Path(file).resolve() if isinstance(file, str) else None
 
 
-def app_code_modules(roots: Iterable[Path]) -> dict[str, tuple[ModuleType, Path]]:
-    """Every ``sys.modules`` entry whose file is app code, with that resolved file, by module name.
+def app_code_modules(
+    roots: Iterable[Path], modules: Mapping[str, ModuleType] | None = None
+) -> dict[str, tuple[ModuleType, Path]]:
+    """Every loaded module whose file is app code, with that resolved file, by module name.
 
-    A module counts whatever name it was imported under. App modules import from an app root's resolved path (the
-    loader puts that on ``sys.path``), so a module whose raw ``__file__`` doesn't start with a root is skipped before
-    the path is resolved: resolving every loaded module's file costs hundreds of milliseconds.
+    A module counts whatever name it was imported under. Each module directory is resolved once and classified as
+    app code or not, so only the files in an app-code directory are resolved one by one: resolving every loaded
+    module's file costs hundreds of milliseconds.
+
+    Args:
+        roots: Resolved app roots, from ``app_roots``.
+        modules: The modules to scan, by name: a snapshot of ``sys.modules`` taken on the event loop when this
+            runs in a worker thread, so the loop's imports can't change the mapping mid-scan. None reads
+            ``sys.modules`` itself.
     """
     roots = tuple(roots)
-    prefixes = tuple(str(root) for root in roots)
+    snapshot = sys.modules.copy() if modules is None else modules
+    app_dirs: dict[Path, bool] = {}
     found: dict[str, tuple[ModuleType, Path]] = {}
-    for name, module in list(sys.modules.items()):
+    for name, module in snapshot.items():
         raw = getattr(module, "__file__", None)
-        if not isinstance(raw, str) or not raw.startswith(prefixes):
+        if not isinstance(raw, str):
+            continue
+        directory = Path(raw).parent
+        if directory not in app_dirs:
+            app_dirs[directory] = is_app_code(directory, roots)
+        if not app_dirs[directory]:
             continue
         file = Path(raw).resolve()
-        if is_app_code(file, roots):
+        if is_resolved_app_code(file, roots):
             found[name] = (module, file)
     return found
 
@@ -105,17 +123,25 @@ def evict_apps_package(roots: Iterable[Path]) -> list[str]:
     return sorted(modules)
 
 
-def precheck_apps_package(roots: Iterable[Path], enabled_app_files: Iterable[Path]) -> SyntaxError | None:
+def precheck_apps_package(
+    roots: Iterable[Path], enabled_app_files: Iterable[Path], modules: Mapping[str, ModuleType] | None = None
+) -> SyntaxError | None:
     """Compile every file a reload-all is about to import, and return the first syntax error.
 
     The files are those of the loaded app-code modules plus every enabled app's own file. A file that no longer
-    exists is skipped: its importers fail at import instead, and that app goes FAILED.
+    exists is skipped: its importers fail at import instead, and that app goes FAILED. A file ``compile`` rejects
+    with ``ValueError`` (a NUL byte, before Python 3.12) is reported as a ``SyntaxError`` too.
+
+    Args:
+        roots: Resolved app roots, from ``app_roots``.
+        enabled_app_files: Every enabled app's own file.
+        modules: The loaded modules to check, as for ``app_code_modules``.
 
     Returns:
         The first ``SyntaxError`` (by path), carrying its file and line, or None when every file compiles.
     """
     roots = tuple(roots)
-    files = {file for _, file in app_code_modules(roots).values()}
+    files = {file for _, file in app_code_modules(roots, modules).values()}
     files.update(path.resolve() for path in enabled_app_files)
     for path in sorted(file for file in files if file.suffix == ".py"):
         try:
@@ -127,6 +153,8 @@ def precheck_apps_package(roots: Iterable[Path], enabled_app_files: Iterable[Pat
         except SyntaxError as exc:
             exc.filename = str(path)
             return exc
+        except ValueError as exc:
+            return SyntaxError(str(exc), (str(path), None, None, None))
     return None
 
 
@@ -137,10 +165,15 @@ def describe_syntax_error(exc: SyntaxError, roots: Iterable[Path]) -> str:
         if path.is_relative_to(root):
             path = path.relative_to(root)
             break
-    return f"{path}:{exc.lineno}: {exc.msg}"
+    return f"{path}:{exc.lineno or 0}: {exc.msg}"
 
 
-def needs_reload_all(changed_paths: Iterable[Path], app_files: Iterable[Path], roots: Iterable[Path]) -> bool:
+def needs_reload_all(
+    changed_paths: Iterable[Path],
+    app_files: Iterable[Path],
+    roots: Iterable[Path],
+    modules: Mapping[str, ModuleType] | None = None,
+) -> bool:
     """Whether a watcher change needs a reload-all rather than per-app reimports.
 
     True when a changed app-code ``.py`` file is not any app's own file (a helper), or is an app's file that
@@ -151,6 +184,7 @@ def needs_reload_all(changed_paths: Iterable[Path], app_files: Iterable[Path], r
         changed_paths: The paths the watcher reported.
         app_files: Every configured app's own file.
         roots: Resolved app roots, from ``app_roots``.
+        modules: The loaded modules to read imports from, as for ``app_code_modules``.
     """
     roots = tuple(roots)
     own_files = {path.resolve() for path in app_files}
@@ -159,7 +193,7 @@ def needs_reload_all(changed_paths: Iterable[Path], app_files: Iterable[Path], r
         return True
     if not changed:
         return False
-    loaded = app_code_modules(roots)
+    loaded = app_code_modules(roots, modules)
     changed_files = {path.resolve() for path in changed}
     changed_names = {name for name, (_, file) in loaded.items() if file in changed_files}
     return any(

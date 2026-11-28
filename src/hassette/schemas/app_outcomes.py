@@ -54,13 +54,34 @@ def worst_result(outcomes: Iterable[InstanceOutcome]) -> OutcomeResult:
     return OutcomeResult.SUCCEEDED
 
 
-@dataclass(frozen=True)
-class ReloadAllResult:
-    """What one reload-all did: each app it stopped, restarted or started, with its instances' outcomes."""
+class ReconcileAction(StrEnum):
+    """What a reconcile did to one app as a whole."""
 
-    apps: Mapping[str, tuple[InstanceOutcome, ...]] = field(default_factory=dict)
-    """Each affected app's per-instance outcomes, by app key: restarts, removed apps stopped, and new apps started."""
+    START = "start"
+    """A new app the config added, started."""
+
+    STOP = "stop"
+    """An app the config removed or disabled, stopped and not recreated."""
+
+    RELOAD = "reload"
+    """An app stopped and recreated: a reload-all's restart, a re-import, or a config change."""
+
+
+@dataclass(frozen=True)
+class AppResult:
+    """What a reconcile did to one app: the action, and each instance's outcome of it."""
+
+    action: ReconcileAction
+    outcomes: tuple[InstanceOutcome, ...]
+
+
+@dataclass(frozen=True)
+class ReconcileResult:
+    """What one reconcile (a file-watcher change or a reload-all) did to each app it stopped, reloaded or started."""
+
+    apps: Mapping[str, AppResult] = field(default_factory=dict)
+    """Each affected app's result, by app key."""
 
     def count(self, result: OutcomeResult) -> int:
         """How many apps' worst instance result is ``result`` (see ``worst_result``)."""
-        return sum(1 for outcomes in self.apps.values() if worst_result(outcomes) is result)
+        return sum(1 for app in self.apps.values() if worst_result(app.outcomes) is result)

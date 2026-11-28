@@ -88,7 +88,7 @@ CODE_DESCRIPTIONS: Mapping[ProblemCode, str] = {
     ProblemCode.INSTANCE_NOT_FOUND: "the app's current config has no instance with this name",
     ProblemCode.BOOTSTRAP_NOT_RELEASED: "app bootstrap prerequisites are not ready yet (retry later)",
     ProblemCode.APP_BLOCKED: "the app is blocked by the --app filter (not retryable)",
-    ProblemCode.ACTION_IN_PROGRESS: "another action on this app is still running; nothing was done",
+    ProblemCode.ACTION_IN_PROGRESS: "another action on this app, or a reload, is still running; nothing was done",
     ProblemCode.NEEDS_RESTART: "a targeted instance needs a hassette restart; nothing was done to it (not retryable)",
     ProblemCode.RELOAD_CONFIG_INVALID: "the configuration on disk is invalid; nothing was stopped",
     ProblemCode.RELOAD_SYNTAX_ERROR: "a file the reload would import has a syntax error; nothing was stopped",
