@@ -1,7 +1,7 @@
 # Design: In-process reload-all for apps
 
 **Date:** 2026-11-27
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #4498
 **Prior art:** design/research/2026-11-27-helper-module-reload/research.md, design/specs/162-app-reload-all/peer-check.md
