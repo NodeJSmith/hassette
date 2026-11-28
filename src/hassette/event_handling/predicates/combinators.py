@@ -7,7 +7,7 @@ from typing import Any, Self, TypeVar
 
 from hassette.event_handling.predicate_collections import ensure_tuple
 from hassette.types import EventT
-from hassette.utils.func_utils import callable_stable_name as callable_name
+from hassette.utils.func_utils import callable_stable_name
 
 if typing.TYPE_CHECKING:
     from hassette.events import AnyEvent
@@ -93,7 +93,7 @@ class Guard(_PredicateOps, typing.Generic[EventT]):
 
     fn: "Predicate[EventT]"
 
-    def __call__(self, value: "EventT", /) -> bool:
+    def __call__(self, value: EventT, /) -> bool:
         """Return the wrapped function's result for ``value``."""
         return self.fn(value)
 
@@ -111,7 +111,7 @@ def _summarize(obj: Any, non_callable_fallback: Callable[[Any], str]) -> str:
     if hasattr(obj, "summarize"):
         return obj.summarize()  # pyright: ignore[reportAttributeAccessIssue]
     if callable(obj):
-        return callable_name(obj)
+        return callable_stable_name(obj)
     return non_callable_fallback(obj)
 
 
@@ -174,6 +174,7 @@ class _PredicateCombinator(_PredicateOps):
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> Self:
+        """Build the combinator from one predicate or a (possibly nested) collection, flattened by ``ensure_tuple``."""
         return cls(ensure_tuple(where))
 
     def summarize_joined(self, separator: str) -> str:
