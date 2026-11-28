@@ -93,10 +93,11 @@ Reload all refuses, and stops nothing, when:
 - `hassette.toml` is invalid. The message names each error.
 - A file it would import has a syntax error. The message gives the file, relative to its app directory, and the line: `helpers/notify.py:12: invalid syntax`.
 - Another reload, or an action on one of the apps it restarts, is still running.
+- Hassette is still starting up and hasn't started the apps yet.
 
-Once it has run, a toast says how many apps it reloaded, stopped and started, gives the number that succeeded, failed and were refused, and names each app that didn't succeed. If the request itself fails without an answer from Hassette, such as a proxy timeout, the toast says the reload may not have finished: check the app list for each app's status. An app whose import fails for any reason other than a syntax error, such as an `ImportError`, ends up `FAILED` with the error as its last error. The other apps still start.
+Once it has run, a toast says how many apps it reloaded, stopped and started. It gives the number that succeeded, failed and were refused, and names each app that didn't succeed. If the request fails without an answer from Hassette, such as a proxy timeout, the toast says the reload may not have finished. Check the app list for each app's status. An app whose import fails for any reason other than a syntax error, such as an `ImportError`, ends up `FAILED` with the error as its last error. The other apps still start.
 
-The same action is `POST /api/apps/reload` in the REST API and `hassette app reload --all` in the CLI. The API answers 200 whenever the reload ran, even if some apps failed; read `counts.failed` and `counts.refused` in the response. Each app in it carries an `action`: `reload`, `stop` (the config removed it) or `start` (the config added it). A refusal answers 409 with the code `reload_config_invalid`, `reload_syntax_error` or `action_in_progress` (see [API Errors](api-errors.md)). `?wait=true` waits for a running reload or app action to finish instead of answering 409. The web UI never waits.
+The same action is `POST /api/apps/reload` in the REST API and `hassette app reload --all` in the CLI. The API answers 200 whenever the reload ran, even if some apps failed; read `counts.failed` and `counts.refused` in the response. Each app in it carries an `action`: `reload`, `stop` (the config removed it) or `start` (the config added it). A refusal answers 409 with the code `reload_config_invalid`, `reload_syntax_error`, `action_in_progress` or `bootstrap_not_released` (see [API Errors](api-errors.md)). `?wait=true` waits for a running reload or app action to finish instead of answering 409. The web UI never waits.
 
 ### What Reload Re-imports
 
