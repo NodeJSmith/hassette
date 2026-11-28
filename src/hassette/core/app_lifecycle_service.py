@@ -77,14 +77,13 @@ class AppLifecycleService(
         self._pending_reconciliation: PendingReconciliation | None = None
         # Bus dispatch spawns a fresh task per handler invocation rather than awaiting handlers
         # sequentially (see BusService._dispatch), so two file-watcher events arriving close
-        # together can produce two concurrently-running handle_change_event() coroutines. Each
-        # does real awaited I/O (refresh_config(), resolve_only_apps()) before touching
-        # ``_pending_reconciliation``, and refresh_config() mutates self.registry.manifests
-        # in place — so overlapping calls can race on the "what was the world like before this
-        # change" snapshot. This lock serializes handle_change_event so only one reconciliation
-        # pass runs at a time, matching the "single reconciliation in flight" model the rest of
-        # this class already assumes.
-        self._change_event_lock = asyncio.Lock()
+        # together can produce two concurrently-running reconcile_from_disk() calls, and a manual
+        # reload-all can arrive alongside them. Each does real awaited I/O before touching
+        # ``_pending_reconciliation``, and committing a config replaces self.registry.manifests,
+        # so overlapping calls could race on the "what was the world like before this change"
+        # snapshot. This lock serializes reconcile_from_disk so only one reconciliation pass runs
+        # at a time. An AppKeyLock, so a manual reload that mustn't wait sees a queued one as busy.
+        self._change_event_lock = AppKeyLock()
         # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's parked
         # start_app() (waiting in _admit_start()) and a post-release start/reload of the same app_key can both
         # reach factory.create_instances(); the second registration then overwrites without tearing down the loser's

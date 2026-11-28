@@ -45,3 +45,19 @@ def rebuild_error(cls: type[BaseException], args: tuple[Any, ...], kwargs: dict[
         The new exception instance.
     """
     return cls(*args, **kwargs)
+
+
+class HassetteError(ReconstructibleError):
+    """Base exception for all Hassette errors.
+
+    Set ``suggestion`` (as a class attribute or in ``__init__``) on user-facing errors to tell the user how to
+    resolve them; ``__str__`` appends it on its own line. Internal errors leave it ``None`` and render unchanged.
+    """
+
+    suggestion: str | None = None
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        if self.suggestion:
+            return f"{base}\n  Suggestion: {self.suggestion}"
+        return base

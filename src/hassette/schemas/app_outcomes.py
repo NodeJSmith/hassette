@@ -4,7 +4,8 @@ Produced by ``core``'s lifecycle methods (through ``ActionOutcomes``) and mapped
 ``InstanceOutcome`` by ``hassette.web``, so it lives here, below both.
 """
 
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -41,3 +42,25 @@ class InstanceOutcome:
     def is_newly_flagged(self) -> bool:
         """Whether this action flagged the instance: a failure that left it needing a restart."""
         return self.result is OutcomeResult.FAILED and self.needs_restart
+
+
+def worst_result(outcomes: Iterable[InstanceOutcome]) -> OutcomeResult:
+    """An app's batch result: ``FAILED`` if any instance failed, else ``REFUSED`` if any was, else ``SUCCEEDED``."""
+    results = {outcome.result for outcome in outcomes}
+    if OutcomeResult.FAILED in results:
+        return OutcomeResult.FAILED
+    if OutcomeResult.REFUSED in results:
+        return OutcomeResult.REFUSED
+    return OutcomeResult.SUCCEEDED
+
+
+@dataclass(frozen=True)
+class ReloadAllResult:
+    """What one reload-all did: each app it stopped, restarted or started, with its instances' outcomes."""
+
+    apps: Mapping[str, tuple[InstanceOutcome, ...]] = field(default_factory=dict)
+    """Each affected app's per-instance outcomes, by app key: restarts, removed apps stopped, and new apps started."""
+
+    def count(self, result: OutcomeResult) -> int:
+        """How many apps' worst instance result is ``result`` (see ``worst_result``)."""
+        return sum(1 for outcomes in self.apps.values() if worst_result(outcomes) is result)

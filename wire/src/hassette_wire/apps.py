@@ -211,6 +211,44 @@ class ActionResponse(BaseModel):
     """
 
 
+class AppReloadResult(BaseModel):
+    """One app's part of a reload-all: what it did to each of the app's instances."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    app_key: str
+    result: OpenInstanceResult
+    """The app's worst instance result: ``failed`` if any instance failed, else ``refused`` if any was refused,
+    else ``succeeded``. ``ReloadAllResponse.counts`` tallies apps by this."""
+    outcomes: list[InstanceOutcome]
+    """One entry per instance the reload targeted, as in ``ActionResponse.outcomes``."""
+
+
+class ReloadAllCounts(BaseModel):
+    """How many apps a reload-all left in each result, by each app's worst instance result."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    succeeded: int
+    failed: int
+    refused: int
+
+
+class ReloadAllResponse(BaseModel):
+    """Response for a reload-all that ran: sent with 200 even when some apps failed.
+
+    Lists every app the reload stopped, restarted or started. A caller detects a partial failure from
+    ``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran (busy,
+    invalid config, syntax error, bootstrap not released) is a problem response instead.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    apps: list[AppReloadResult]
+    """One entry per affected app, sorted by app key."""
+    counts: ReloadAllCounts
+
+
 class AppConfigResponse(BaseModel):
     """An app's configuration, served by ``GET /api/apps/{app_key}/config``.
 

@@ -15,7 +15,7 @@ from hassette.app.app import DEBUG_CAPTURE_ENDS
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_common import AppAdmissionMode
+from hassette.core.app_lifecycle_common import AppAdmissionMode, ManualReload
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.resources.base import Resource
@@ -29,7 +29,7 @@ if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
-    from hassette.schemas.app_outcomes import InstanceOutcome
+    from hassette.schemas.app_outcomes import InstanceOutcome, ReloadAllResult
 
 
 class AppHandler(Service):
@@ -246,6 +246,27 @@ class AppHandler(Service):
     async def start_instance(self, app_key: str, instance_name: str) -> "tuple[InstanceOutcome, ...]":
         """Start a single instance by key and name — delegates to lifecycle service."""
         return await self.lifecycle.start_instance(app_key, instance_name)
+
+    async def reload_all(self, *, wait: bool = False) -> "ReloadAllResult":
+        """Reload every app from disk in place: re-read the config, evict the app-code modules, restart the apps.
+
+        Restarts every app with a tracked instance (running or failed), stops apps the config removed, and
+        starts the apps it added. Nothing is stopped when the reload refuses.
+
+        Args:
+            wait: Wait for another reload, or an action on an app this one restarts, to finish, instead of
+                refusing at once.
+
+        Returns:
+            Each affected app's per-instance outcomes.
+
+        Raises:
+            ReloadBusyError: ``wait`` is false and another reload or app action is running.
+            AppBootstrapNotReleasedError: App bootstrap hasn't released yet.
+            ReloadConfigInvalidError: The configuration on disk is invalid.
+            ReloadSyntaxError: A file the reload would import has a syntax error.
+        """
+        return await self.lifecycle.reconcile_from_disk(ManualReload(wait=wait))
 
     async def apply_changes(
         self,

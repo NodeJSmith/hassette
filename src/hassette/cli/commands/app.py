@@ -13,20 +13,31 @@ from hassette_wire import (
     AppSummary,
     DebugCaptureRequest,
     DebugCaptureResponse,
+    ReloadAllResponse,
 )
 
 import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
 from hassette.cli.client import (
     APP_GRID_PATH,
+    HassetteCLIClient,
     app_route_path,
     make_client,
     parse_wire_list,
     query_params,
     telemetry_app_path,
 )
-from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContext, CLIContextParam
+from hassette.cli.types import (
+    AllAppsArg,
+    InstanceActionArg,
+    InstanceArg,
+    LimitArg,
+    SinceArg,
+    SourceTierArg,
+    WaitArg,
+    YesArg,
+)
 from hassette.const.misc import SECONDS_PER_HOUR
 
 #: Past-tense verb used in success messages, keyed by action. Lowercase for CLI message
@@ -203,18 +214,7 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
         client.require_known_instance(key, instance)
 
     if action in ACTIONS_REQUIRING_CONFIRMATION and not yes:
-        if ctx.json_mode:
-            # input() always writes its prompt to stdout, which would corrupt the
-            # single-JSON-document stdout contract in --json mode. Require --yes instead of
-            # ever prompting when JSON output is requested.
-            client.error_usage(f"--yes is required to {action} in --json mode")
-        try:
-            answer = input(f"{confirmation_prompt(action, key, instance)} [y/N] ")
-        except EOFError:
-            answer = ""
-        if answer.strip().lower() != "y":
-            cli_output.stderr_console.print("Aborted.")
-            sys.exit(0)
+        confirm_or_exit(client, action, confirmation_prompt(action, key, instance), json_mode=ctx.json_mode)
 
     result = client.post_with_instance_routing(key, action, instance)
     warn_on_instance_mismatch(key, instance, result.instance_name)
@@ -230,6 +230,22 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
         # The human panel stays a one-line success; scripts get what the action did to each instance.
         detail["outcomes"] = [outcome.model_dump(mode="json") for outcome in result.outcomes]
     cli_output.render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
+
+
+def confirm_or_exit(client: HassetteCLIClient, action: AppAction, prompt: str, *, json_mode: bool) -> None:
+    """Ask ``prompt`` and exit 0 unless the answer is yes. In ``--json`` mode, exit with a usage error instead."""
+    if json_mode:
+        # input() always writes its prompt to stdout, which would corrupt the
+        # single-JSON-document stdout contract in --json mode. Require --yes instead of
+        # ever prompting when JSON output is requested.
+        client.error_usage(f"--yes is required to {action} in --json mode")
+    try:
+        answer = input(f"{prompt} [y/N] ")
+    except EOFError:
+        answer = ""
+    if answer.strip().lower() != "y":
+        cli_output.stderr_console.print("Aborted.")
+        sys.exit(0)
 
 
 def warn_on_instance_mismatch(key: str, requested: str | None, confirmed: str | None) -> None:
@@ -264,14 +280,63 @@ def cmd_app_stop(
 
 
 def cmd_app_reload(
-    key: str,
+    key: str | None = None,
     instance: InstanceActionArg = None,
+    all_apps: AllAppsArg = False,
+    wait: WaitArg = False,
     yes: YesArg = False,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
-    """Reload an app or app instance (POST /api/apps/{key}/reload)."""
-    run_app_action(key, "reload", instance, yes=yes, ctx=ctx)
+    """Reload an app or app instance (POST /api/apps/{key}/reload), or every app with --all (POST /api/apps/reload).
+
+    ``--all`` re-reads the config and re-imports every app module and the helpers they import, then restarts every
+    app that is running or failed, without restarting hassette. It refuses before stopping anything on an invalid
+    config or a syntax error. It exits 1 when any app failed to restart.
+    """
+    if not all_apps:
+        if key is None:
+            make_client(ctx).error_usage("Name an app to reload, or pass --all to reload every app")
+        if wait:
+            make_client(ctx).error_usage("--wait only applies with --all")
+        run_app_action(key, "reload", instance, yes=yes, ctx=ctx)
+        return
+    if key is not None:
+        make_client(ctx).error_usage("--all reloads every app; don't name one")
+    if instance is not None:
+        make_client(ctx).error_usage("--all reloads every app; don't pass --instance")
+    run_reload_all(wait=wait, yes=yes, ctx=ctx)
+
+
+def run_reload_all(*, wait: bool, yes: bool, ctx: CLIContext) -> None:
+    """Confirm, POST the reload-all, and render each app's result; exit 1 when any app failed."""
+    client = make_client(ctx)
+    if not yes:
+        confirm_or_exit(client, "reload", "Reload every app?", json_mode=ctx.json_mode)
+    result = client.post_reload_all(wait=wait)
+    if ctx.json_mode:
+        cli_output.render_detail_dict(result.model_dump(mode="json"), "Reload All", json_mode=True)
+    else:
+        cli_output.render_detail_dict({"message": reload_all_message(result)}, "Reload All", json_mode=False)
+    if result.counts.failed:
+        sys.exit(1)
+
+
+def reload_all_message(result: ReloadAllResponse) -> str:
+    """The reload-all summary: the counts, then each app that didn't succeed with its instances' reasons."""
+    counts = result.counts
+    lines = [
+        f"Reloaded {len(result.apps)} apps: {counts.succeeded} succeeded, {counts.failed} failed, "
+        f"{counts.refused} refused"
+    ]
+    for app in result.apps:
+        if app.result == "succeeded":
+            continue
+        reasons = "; ".join(
+            f"{outcome.instance_name}: {outcome.reason}" for outcome in app.outcomes if outcome.result != "succeeded"
+        )
+        lines.append(f"  {app.app_key} {app.result}: {reasons}")
+    return "\n".join(lines)
 
 
 def cmd_app_debug(

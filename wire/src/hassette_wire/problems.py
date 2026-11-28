@@ -37,6 +37,14 @@ class ProblemCode(StrEnum):
     """409: an instance the start, stop, or reload targeted needs a hassette restart, so nothing was done to it.
     Retrying won't help until hassette restarts."""
 
+    RELOAD_CONFIG_INVALID = "reload_config_invalid"
+    """409: a reload-all found the configuration on disk invalid, so nothing was stopped. ``detail`` names the
+    error. Retry once the configuration is fixed."""
+
+    RELOAD_SYNTAX_ERROR = "reload_syntax_error"
+    """409: a file a reload-all would import has a syntax error, so nothing was stopped. ``detail`` reads
+    ``<path>:<line>: <message>``, with the path relative to the app directory that contains it."""
+
     ACTION_FAILED = "action_failed"
     """500: the start, stop, or reload failed on at least one instance it targeted."""
 

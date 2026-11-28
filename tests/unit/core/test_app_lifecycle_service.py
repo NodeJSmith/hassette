@@ -59,15 +59,18 @@ class TestAppLifecycleServiceInit:
 class TestOnlyAppRegistryAgreement:
     """Pin: registry.only_apps must equal the value passed to detect_changes."""
 
-    async def test_detect_changes_receives_registry_only_apps(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    async def test_detect_changes_receives_the_candidate_configs_only_apps(
+        self, lifecycle_service: AppLifecycleService
     ) -> None:
-        """The value passed as only_apps to detect_changes matches registry.only_apps at call time."""
-        mock_registry.only_apps = frozenset({"pinned_app"})
+        """detect_changes filters by the --app filter of the config being reconciled to, before it is committed."""
+        candidate = MagicMock(only_apps=("pinned_app",))
+        candidate.apps.manifests = {}
+        lifecycle_service._build_candidate = Mock(return_value=candidate)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._commit_candidate = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         captured_only_apps: list[frozenset[str] | None] = []
 
-        def capture_only_apps(_original, _current, _changed_paths, *, only_apps=None):
+        def capture_only_apps(_original, _current, _changed_paths, *, only_apps=None, **_kwargs):
             captured_only_apps.append(only_apps)
             return make_change_set()
 
@@ -75,8 +78,7 @@ class TestOnlyAppRegistryAgreement:
 
         await lifecycle_service.handle_change_event(frozenset())
 
-        assert len(captured_only_apps) == 1
-        assert captured_only_apps[0] == mock_registry.only_apps
+        assert captured_only_apps == [frozenset({"pinned_app"})]
 
 
 class TestBootstrapAppsAdmission:
@@ -508,7 +510,7 @@ class TestApplyChangesGating:
             ("reload_apps", False, False, "_start_app_unlocked", None),
             ("reimport_apps", False, True, "_start_app_unlocked", call("app_a", ANY, True, outcomes=ANY)),
             ("reimport_apps", False, False, "_start_app_unlocked", None),
-            ("orphans", False, False, "stop_app", call("app_a")),
+            ("orphans", False, False, "_stop_orphan_unlocked", call("app_a")),
         ],
         ids=[
             "new_autostart_false_is_skipped",

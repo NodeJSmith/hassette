@@ -4,10 +4,10 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable, Sequence
 from logging import getLogger
-from typing import Any, assert_never
+from typing import Annotated, Any, assert_never
 
 import tomli_w
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.types import DecoratedCallable
 from hassette_wire import (
     ActionResponse,
@@ -22,11 +22,19 @@ from hassette_wire import (
     InstanceDebugCapture,
     InstanceOutcome,
     ProblemCode,
+    ReloadAllResponse,
 )
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
-from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
+from hassette.exceptions import (
+    AppBlockedError,
+    AppBootstrapNotReleasedError,
+    AppRemovedError,
+    ReloadBusyError,
+    ReloadConfigInvalidError,
+    ReloadSyntaxError,
+)
 from hassette.integration.declarations import CommandDispatchResult, IntegrationPlatform
 from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
@@ -36,7 +44,12 @@ from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
-from hassette.web.mappers import app_list_response_from, app_summary_from, instance_outcome_from
+from hassette.web.mappers import (
+    app_list_response_from,
+    app_summary_from,
+    instance_outcome_from,
+    reload_all_response_from,
+)
 
 LOGGER = getLogger(__name__)
 
@@ -101,6 +114,14 @@ ENTITY_COMMAND_CODES = (
 
 ACTION_CODES = (*STOP_ACTION_CODES, ProblemCode.BOOTSTRAP_NOT_RELEASED, ProblemCode.APP_BLOCKED)
 """Codes ``_run_app_action`` raises for ``start`` and ``reload``."""
+
+RELOAD_ALL_CODES = (
+    ProblemCode.ACTION_IN_PROGRESS,
+    ProblemCode.BOOTSTRAP_NOT_RELEASED,
+    ProblemCode.RELOAD_CONFIG_INVALID,
+    ProblemCode.RELOAD_SYNTAX_ERROR,
+)
+"""Codes the reload-all route raises: each a refusal before anything was stopped."""
 
 
 router = APIRouter(tags=["apps"])
@@ -421,6 +442,46 @@ async def get_app(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) ->
         raise app_not_found(app_key)
 
     return app_summary_from(runtime.overlay_manifest_rows([db_row])[0])
+
+
+@router.post("/apps/reload", response_model=ReloadAllResponse, responses=problem_responses(*RELOAD_ALL_CODES))
+async def reload_all_apps(
+    hassette: HassetteDep,
+    request: Request,
+    wait: Annotated[
+        bool,
+        Query(description="Wait for another reload, or an action on one of the apps, instead of answering 409."),
+    ] = False,
+) -> ReloadAllResponse:
+    """Reload every app in place: re-read the config, re-import every app module and helper, restart the apps.
+
+    Restarts every app with a running or failed instance, stops apps the config removed and starts the ones it
+    added, leaving the Home Assistant connection and the process up. Answers 200 once it has run, even when some
+    apps failed (see ``counts``). Refuses with a 409 before stopping anything when another reload or app action is
+    running (unless ``wait``), apps haven't bootstrapped yet, the config is invalid, or a file it would import has a
+    syntax error.
+    """
+    try:
+        result = await hassette.app_handler.reload_all(wait=wait)
+    except ReloadBusyError as exc:
+        raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, str(exc)) from exc
+    except AppBootstrapNotReleasedError as exc:
+        raise WebApiError(
+            ProblemCode.BOOTSTRAP_NOT_RELEASED, "App bootstrap prerequisites are not ready yet; retry later"
+        ) from exc
+    except ReloadConfigInvalidError as exc:
+        raise WebApiError(ProblemCode.RELOAD_CONFIG_INVALID, str(exc)) from exc
+    except ReloadSyntaxError as exc:
+        raise WebApiError(ProblemCode.RELOAD_SYNTAX_ERROR, str(exc)) from exc
+    response = reload_all_response_from(result)
+    LOGGER.info(
+        "Reloaded all apps: %d succeeded, %d failed, %d refused (source=%s)",
+        response.counts.succeeded,
+        response.counts.failed,
+        response.counts.refused,
+        peer_address_or_unknown(request),
+    )
+    return response
 
 
 @action_route("/apps/{app_key}/start", *ACTION_CODES)

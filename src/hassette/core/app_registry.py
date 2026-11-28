@@ -442,6 +442,13 @@ class AppRegistry:
             if any(entry.holds_app for entry in entries.values())
         ]
 
+    def tracked_app_keys(self) -> list[str]:
+        """Get all app keys with any instance entry, live or FAILED: the apps a reload-all restarts.
+
+        A stopped instance has no entry, so a key someone stopped is not here.
+        """
+        return [app_key for app_key, entries in self._instances.items() if entries]
+
     def flagged_app_keys(self) -> list[str]:
         """Get all app keys with at least one instance flagged needs-restart.
 

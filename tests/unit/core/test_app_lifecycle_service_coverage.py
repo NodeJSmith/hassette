@@ -24,7 +24,8 @@ import pytest
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_common import AppAdmissionMode, PendingReconciliation
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
+from hassette.exceptions import ConfigError, InvalidInheritanceError, ReloadConfigInvalidError, UndefinedUserConfigError
+from hassette.schemas.app_outcomes import ReloadAllResult
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
 from tests.support.factories import make_change_set
@@ -258,8 +259,11 @@ class TestHandleChangeEventBranches:
 
         applied: list[ChangeSet] = []
 
-        async def capture_apply(changes: ChangeSet, _original_config: dict, _current_config: dict) -> None:
+        async def capture_apply(
+            changes: ChangeSet, _original_config: dict, _current_config: dict, **_kwargs: Any
+        ) -> ReloadAllResult:
             applied.append(changes)
+            return ReloadAllResult()
 
         lifecycle_service.apply_changes = capture_apply  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -389,20 +393,20 @@ class TestHandleChangeEventBranches:
         """Two overlapping handle_change_event() calls — as the bus's ``parallel`` dispatch
         mode produces when two file-watcher events fire close together (BusService._dispatch
         spawns one task per handler invocation rather than awaiting handlers sequentially) —
-        must not run concurrently. Without serialization, the second call's refresh_config()
-        could start (and mutate self.registry.manifests) before the first call finishes
-        reading it, tearing the "what was the world like before this change" snapshot.
+        must not run concurrently. Without serialization, the second call could commit its config
+        (and replace self.registry.manifests) before the first call finishes reading it, tearing
+        the "what was the world like before this change" snapshot.
         """
         race = ChangeEventLockRace(lifecycle_service)
         empty = make_change_set()
 
         # Wrapped rather than assigned directly (unlike the resolve_only_apps case below) only
-        # because refresh_config has to return a config pair; the gating behavior is identical.
-        async def gated_refresh_config() -> tuple[dict, dict]:
+        # because _commit_candidate takes the candidate; the gating behavior is identical.
+        async def gated_commit(_candidate: object) -> None:
             await race.gated_call()
-            return {}, {}
 
-        lifecycle_service.refresh_config = gated_refresh_config  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._build_candidate = Mock(return_value=None)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._commit_candidate = gated_commit  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.resolve_only_apps = AsyncMock()
         lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -479,13 +483,13 @@ class TestReplayPreReleaseReconciliationSerialization:
 
         lifecycle_service.resolve_only_apps = race.gated_call  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Like the real refresh_config(), re-apply the --app filter, so handle_change_event()
+        # Like the real _commit_candidate(), re-apply the --app filter, so handle_change_event()
         # reaches the gated collaborator too.
-        async def stub_refresh_config() -> tuple[dict, dict]:
+        async def stub_commit(_candidate: object) -> None:
             await lifecycle_service.resolve_only_apps()
-            return {}, {}
 
-        lifecycle_service.refresh_config = stub_refresh_config  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._build_candidate = Mock(return_value=None)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._commit_candidate = stub_commit  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.change_detector.detect_changes = Mock(return_value=empty)  # pyright: ignore[reportAttributeAccessIssue]
 
         first_task = await race.start_first(lifecycle_service._replay_pre_release_reconciliation_if_needed())
@@ -510,24 +514,25 @@ class TestTakePreReleaseReconciliation:
         assert result == (None, None, frozenset())
 
 
-class TestRefreshConfigFailure:
-    async def test_reload_failure_does_not_raise_and_still_returns_manifests(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+class TestBuildCandidateFailure:
+    async def test_a_watcher_build_failure_is_logged_and_yields_none(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
     ) -> None:
-        """config.reload() raising is caught; refresh_config still returns a valid (original, current) pair."""
-        # dup-ignore-start: single-use manifest arrange block — no third copy to extract
-        # (see .claude/rules/tests-unit-core.md).
-        manifest1 = MagicMock()
-        manifest1.enabled = True
-        mock_registry.manifests = {"app_a": manifest1}
-        mock_hassette.config.apps.manifests = {"app_a": manifest1}
-        object.__setattr__(mock_hassette.config, "reload", Mock(side_effect=RuntimeError("disk error")))
-        # dup-ignore-end
+        """An invalid config on disk doesn't raise for the watcher: there is no caller to tell, so it's logged."""
+        object.__setattr__(mock_hassette.config, "build_reload_candidate", Mock(side_effect=RuntimeError("disk error")))
 
-        original, current = await lifecycle_service.refresh_config()
+        assert lifecycle_service._build_candidate(raise_invalid=False) is None
 
-        assert "app_a" in original
-        assert "app_a" in current
+    async def test_a_manual_build_failure_raises_config_invalid(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
+    ) -> None:
+        """A manual reload-all refuses on an invalid config, naming the error."""
+        object.__setattr__(
+            mock_hassette.config, "build_reload_candidate", Mock(side_effect=ConfigError("bad toml at line 3"))
+        )
+
+        with pytest.raises(ReloadConfigInvalidError, match="bad toml at line 3"):
+            lifecycle_service._build_candidate(raise_invalid=True)
 
 
 async def reconcile_one_instance(

@@ -40,6 +40,7 @@ from hassette_wire.apps import (
     AppConfigResponse,
     AppInstance,
     AppListResponse,
+    AppReloadResult,
     AppSource,
     AppSummary,
     DebugCaptureRequest,
@@ -49,6 +50,8 @@ from hassette_wire.apps import (
     InstanceDebugCapture,
     InstanceOutcome,
     NeedsRestart,
+    ReloadAllCounts,
+    ReloadAllResponse,
 )
 from hassette_wire.auth import MAX_SESSION_TOKEN_LENGTH, SessionRequest, SessionResponse
 from hassette_wire.blocking import (
@@ -164,6 +167,7 @@ __all__ = [
     "AppHealth",
     "AppInstance",
     "AppListResponse",
+    "AppReloadResult",
     "AppSource",
     "AppStatus",
     "AppStatusChangedData",
@@ -228,6 +232,8 @@ __all__ = [
     "QueryAuthor",
     "QuerySourceTier",
     "ReadinessResponse",
+    "ReloadAllCounts",
+    "ReloadAllResponse",
     "ResourceStatus",
     "ScheduleStatus",
     "ScheduleStatusReason",

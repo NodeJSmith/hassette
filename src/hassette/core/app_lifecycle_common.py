@@ -83,6 +83,31 @@ class PendingReconciliation:
     changed_paths: frozenset[Path]
 
 
+@dataclass(frozen=True)
+class WatcherTrigger:
+    """A file-watcher event asking for a reconcile from disk: the paths it reported.
+
+    Its refusals are logged, never raised, and it always waits for busy locks: there is no caller to answer.
+    """
+
+    paths: frozenset[Path]
+
+
+@dataclass(frozen=True)
+class ManualReload:
+    """A reload-all asked for through the web API or the CLI.
+
+    Its refusals are raised to the caller. With ``wait`` false it refuses at once when another reload or an action
+    on one of its apps is running; with ``wait`` true it waits for them.
+    """
+
+    wait: bool = False
+
+
+ReconcileTrigger = WatcherTrigger | ManualReload
+"""What started a ``reconcile_from_disk`` call."""
+
+
 class ActionOutcomes:
     """One lifecycle request's outcome for each instance it targets, one slot per targeted name.
 

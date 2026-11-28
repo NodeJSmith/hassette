@@ -131,3 +131,21 @@ InstanceActionArg = Annotated[
 ]
 
 YesArg = Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])]
+
+AllAppsArg = Annotated[
+    bool,
+    Parameter(
+        name=["--all"],
+        help="Reload every app in place: re-read the config and re-import every app module and helper.",
+        negative=[],
+    ),
+]
+
+WaitArg = Annotated[
+    bool,
+    Parameter(
+        name=["--wait"],
+        help="With --all, wait for another reload or app action to finish instead of failing at once.",
+        negative=[],
+    ),
+]

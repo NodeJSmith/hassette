@@ -305,6 +305,20 @@ class ActionInProgressError(ConflictError):
     """409 ``action_in_progress``: another start, stop or reload on this app is still running. Nothing was done."""
 
 
+class ReloadConfigInvalidError(ConflictError):
+    """409 ``reload_config_invalid``: a reload-all found the server's configuration invalid. Nothing was stopped.
+
+    ``problem.detail`` names the error. Retry once the configuration is fixed.
+    """
+
+
+class ReloadSyntaxError(ConflictError):
+    """409 ``reload_syntax_error``: a file the reload-all would import has a syntax error. Nothing was stopped.
+
+    ``problem.detail`` reads ``<path>:<line>: <message>``, with the path relative to its app directory.
+    """
+
+
 class JobNotRegisteredError(ConflictError):
     """409 ``job_not_registered``: the scheduled job has no live registration."""
 
@@ -373,6 +387,8 @@ CODE_ERRORS: Mapping[ProblemCode, type[HassetteHTTPError]] = {
     ProblemCode.APP_BLOCKED: AppBlockedError,
     ProblemCode.ACTION_IN_PROGRESS: ActionInProgressError,
     ProblemCode.NEEDS_RESTART: NeedsRestartError,
+    ProblemCode.RELOAD_CONFIG_INVALID: ReloadConfigInvalidError,
+    ProblemCode.RELOAD_SYNTAX_ERROR: ReloadSyntaxError,
     ProblemCode.ACTION_FAILED: ActionFailedError,
     ProblemCode.TELEMETRY_UNAVAILABLE: TelemetryUnavailableError,
     ProblemCode.SOURCE_NOT_FOUND: SourceNotFoundError,

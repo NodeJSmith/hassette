@@ -198,6 +198,68 @@
         }
       }
     },
+    "/api/apps/reload": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Reload All Apps",
+        "description": "Reload every app in place: re-read the config, re-import every app module and helper, restart the apps.\n\nRestarts every app with a running or failed instance, stops apps the config removed and starts the ones it\nadded, leaving the Home Assistant connection and the process up. Answers 200 once it has run, even when some\napps failed (see ``counts``). Refuses with a 409 before stopping anything when another reload or app action is\nrunning (unless ``wait``), apps haven't bootstrapped yet, the config is invalid, or a file it would import has a\nsyntax error.",
+        "operationId": "reload_all_apps_api_apps_reload_post",
+        "parameters": [
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Wait for another reload, or an action on one of the apps, instead of answering 409.",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "Wait for another reload, or an action on one of the apps, instead of answering 409."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReloadAllResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `reload_config_invalid`: the configuration on disk is invalid; nothing was stopped; `reload_syntax_error`: a file the reload would import has a syntax error; nothing was stopped",
+            "x-problem-codes": [
+              "action_in_progress",
+              "bootstrap_not_released",
+              "reload_config_invalid",
+              "reload_syntax_error"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/apps/{app_key}/start": {
       "post": {
         "tags": [
@@ -4073,6 +4135,40 @@
         "title": "AppListResponse",
         "description": "Response for ``GET /api/apps``: every app with status counts.\n\n``boot_id`` and ``entity_revision`` order the declared entities it carries (``AppInstance.entities``) against\nother listings. An instance's availability follows its ``status``, ordered by ``AppSummary.status_revision``."
       },
+      "AppReloadResult": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "refused"
+            ],
+            "title": "Result",
+            "description": "The app's worst instance result: ``failed`` if any instance failed, else ``refused`` if any was refused,\nelse ``succeeded``. ``ReloadAllResponse.counts`` tallies apps by this."
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceOutcome"
+            },
+            "type": "array",
+            "title": "Outcomes",
+            "description": "One entry per instance the reload targeted, as in ``ActionResponse.outcomes``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "result",
+          "outcomes"
+        ],
+        "title": "AppReloadResult",
+        "description": "One app's part of a reload-all: what it did to each of the app's instances."
+      },
       "AppSource": {
         "properties": {
           "app_key": {
@@ -6343,6 +6439,8 @@
           "app_blocked",
           "action_in_progress",
           "needs_restart",
+          "reload_config_invalid",
+          "reload_syntax_error",
           "action_failed",
           "telemetry_unavailable",
           "source_not_found",
@@ -6439,6 +6537,52 @@
         ],
         "title": "ReadinessResponse",
         "description": "Response model for GET /api/health/ready."
+      },
+      "ReloadAllCounts": {
+        "properties": {
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "refused": {
+            "type": "integer",
+            "title": "Refused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "succeeded",
+          "failed",
+          "refused"
+        ],
+        "title": "ReloadAllCounts",
+        "description": "How many apps a reload-all left in each result, by each app's worst instance result."
+      },
+      "ReloadAllResponse": {
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/AppReloadResult"
+            },
+            "type": "array",
+            "title": "Apps",
+            "description": "One entry per affected app, sorted by app key."
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReloadAllCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "apps",
+          "counts"
+        ],
+        "title": "ReloadAllResponse",
+        "description": "Response for a reload-all that ran: sent with 200 even when some apps failed.\n\nLists every app the reload stopped, restarted or started. A caller detects a partial failure from\n``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran (busy,\ninvalid config, syntax error, bootstrap not released) is a problem response instead."
       },
       "ResourceStatus": {
         "type": "string",

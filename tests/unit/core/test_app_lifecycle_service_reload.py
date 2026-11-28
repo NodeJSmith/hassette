@@ -42,8 +42,8 @@ class TestApplyChanges:
     ) -> None:
         """Routes orphans/reimport/reload/new to correct methods when autostart gates pass."""
         stubs = stub_full_restarts(lifecycle_service, mock_registry)
-        lifecycle_service.stop_app = AsyncMock()
-        lifecycle_service.start_app = AsyncMock()
+        lifecycle_service._stop_orphan_unlocked = AsyncMock(return_value=())  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.start_app = AsyncMock(return_value=())
         # Gates are transparent for autostart=True apps — mock helpers so this test stays
         # focused on routing, not gating (gating is covered by TestApplyChangesGating).
         lifecycle_service.should_autostart = Mock(return_value=True)
@@ -58,7 +58,7 @@ class TestApplyChanges:
 
         await lifecycle_service.apply_changes(changes, {}, {})
 
-        lifecycle_service.stop_app.assert_called_once_with("orphan_app")
+        lifecycle_service._stop_orphan_unlocked.assert_called_once_with("orphan_app")  # pyright: ignore[reportAttributeAccessIssue]
         stubs.stop_app_unlocked.assert_any_call("reimport_app", outcomes=ANY)
         stubs.stop_app_unlocked.assert_any_call("reload_app", outcomes=ANY)
         stubs.start_app_unlocked.assert_any_call("reimport_app", stubs.manifest, True, outcomes=ANY)
@@ -511,14 +511,14 @@ class TestApplyChangesPerInstanceRestart:
     ) -> None:
         """Deleting a whole app block clears its rows at the reload, as removing one instance does."""
         order = MagicMock()
-        order.stop_app = AsyncMock(return_value=())
-        lifecycle_service.stop_app = order.stop_app  # pyright: ignore[reportAttributeAccessIssue]
+        order.stop_orphan = AsyncMock(return_value=())
+        lifecycle_service._stop_orphan_unlocked = order.stop_orphan  # pyright: ignore[reportAttributeAccessIssue]
         order.retire.return_value = True
         mock_hassette.database_service.enqueue_retire_unconfigured_instances = order.retire
 
         await lifecycle_service.apply_changes(make_change_set(orphans={"app_a"}), {}, {})
 
-        assert [mock_call[0] for mock_call in order.mock_calls] == ["stop_app", "retire"]
+        assert [mock_call[0] for mock_call in order.mock_calls] == ["stop_orphan", "retire"]
 
     async def test_retire_is_queued_after_every_stop_and_before_any_create(
         self,

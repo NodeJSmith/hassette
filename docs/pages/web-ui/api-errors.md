@@ -38,6 +38,8 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `app_blocked` | 409 | The app is excluded by the [`--app` option of `hassette run`](../cli/commands.md#hassette-run), which runs only the named apps. Retrying won't help: restart Hassette with this app included in `--app`, or without the option. |
 | `action_in_progress` | 409 | Another start, stop, or reload on this app is still running, so this one was rejected without running. |
 | `needs_restart` | 409 | A targeted instance needs a Hassette restart, so the start, stop, or reload did nothing to it. Retrying won't help until Hassette restarts. |
+| `reload_config_invalid` | 409 | A reload-all found `hassette.toml` (or another config source) invalid, so it stopped nothing. `detail` names the error. Fix the config and retry. |
+| `reload_syntax_error` | 409 | A file the reload-all would import has a syntax error, so it stopped nothing. `detail` reads `<path>:<line>: <message>`, with the path relative to the app directory that holds the file. |
 | `action_failed` | 500 | A start, stop, or reload failed on at least one targeted instance. `detail` names each one with its failure. |
 | `telemetry_unavailable` | 503 | The telemetry database could not be read. |
 | `source_not_found` | 404 | The app's source file doesn't exist. |
