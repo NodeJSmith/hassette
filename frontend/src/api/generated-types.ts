@@ -3113,7 +3113,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReloadAllResponse"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `reload_config_invalid`: the configuration on disk is invalid; nothing was stopped; `reload_syntax_error`: a file the reload would import has a syntax error; nothing was stopped */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `reload_config_invalid`: the configuration on disk is invalid; nothing was stopped; `reload_syntax_error`: a file the reload would import has a syntax error; nothing was stopped */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3171,7 +3171,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3238,7 +3238,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3305,7 +3305,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3373,7 +3373,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3441,7 +3441,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3509,7 +3509,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
