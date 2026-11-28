@@ -130,7 +130,7 @@ If the log has no banner, look for the line `project install: skipped`. A `pypro
 
 ### The Discovered card never appears
 
-The card needs three things: the Hassette integration installed through HACS, Hassette serving, and a successful announce. Check the log for one of these lines:
+The card needs three things: the Hassette integration installed, Hassette serving, and a successful announce. Check the log for one of these lines:
 
 ```text
 Announced hassette to Home Assistant; the hassette integration can now be set up from its Discovered card
@@ -146,7 +146,7 @@ WARNING: couldn't announce hassette to Home Assistant (reading /config/.web_api_
 
 - **No announce line at all.** The add-on announces only after Hassette serves. If Hassette is still installing dependencies or stuck, the announce waits. Fix the start first.
 - **A WARNING line.** The reason follows the colon. The add-on keeps running. Restart it to announce again, since every start announces.
-- **The announce line is there, but no card.** Install the integration through HACS and restart Home Assistant. See [Home Assistant Integration](../home-assistant-integration.md). Then check **Settings → Devices & services**.
+- **The announce line is there, but no card.** Install the integration, as in [Step 1 of Control Apps from Home Assistant](../home-assistant-integration.md#step-1-install-the-integration). If you installed it through HACS, restart Home Assistant. Then check **Settings → Devices & services**.
 
 ### The integration stops working after rotating the token
 

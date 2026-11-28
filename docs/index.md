@@ -62,7 +62,7 @@ See the [Web UI docs](pages/web-ui/index.md) for a full tour, or the [CLI docs](
 
 #### Control apps from Home Assistant
 
-The optional [Hassette integration](pages/getting-started/home-assistant-integration.md), installed through HACS (the Home Assistant Community Store), creates a Home Assistant device for each app. Each device has a switch that starts and stops the app, a reload button, and a status sensor, for your dashboards and automations. It needs Hassette 0.56.0 or newer and Home Assistant 2026.9 or newer.
+The optional [Hassette integration](pages/getting-started/home-assistant-integration.md), installed from Home Assistant's Marketplace or HACS, creates a Home Assistant device for each app. Each device has a switch that starts and stops the app, a reload button, and a status sensor, for your dashboards and automations. Its [prerequisites](pages/getting-started/home-assistant-integration.md#prerequisites) list the Hassette and Home Assistant versions it needs.
 
 ## Get Started
 
