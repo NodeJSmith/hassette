@@ -330,4 +330,3 @@ A watcher event without `reload_all` runs the same steps, skipping the precheck 
 - The UI says "Reload all refused" only for the four refusal codes; any other error says the reload may not have finished (Finding 5). `action_in_progress`'s descriptions cover a running reload (Finding 8).
 - Docs say a reload-all applies the apps configuration, and other `hassette.toml` settings need a restart (Finding 1). The root fix, adopting only the app-facing config on every reload as AppDaemon and HA do, is #4524.
 - The D5 burst test pins hassette's half: one watcher event carrying several helper paths reloads once. Grouping a burst of saves into that one event is watchfiles' debounce, which no hassette test drives.
-

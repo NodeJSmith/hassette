@@ -407,6 +407,7 @@ class TestHandleChangeEventBranches:
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/post.py")}))
 
+        assert plan_reload_all.await_args is not None
         changed_paths = plan_reload_all.await_args.args[1]
         assert changed_paths == frozenset({Path("/tmp/pre_helper.py"), Path("/tmp/post.py")})
 

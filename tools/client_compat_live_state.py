@@ -30,7 +30,7 @@ from hassette.exceptions import (
     TelemetryUnavailableError,
 )
 from hassette.integration.declarations import CommittedEntity, Declaration, EntityState, IntegrationPlatform
-from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult, ReloadAllResult
+from hassette.schemas.app_outcomes import AppResult, InstanceOutcome, OutcomeResult, ReconcileAction, ReconcileResult
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, NeedsRestartInfo
 from hassette.types.enums import BlockReason
 from hassette.utils.stack_frames import encode_frames
@@ -385,10 +385,14 @@ def wire_app_actions(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo])
             raise AppBlockedError(f"{app_key} is blocked")
         return outcomes(app_key, *args)
 
-    async def reload_all(**_kwargs: Any) -> ReloadAllResult:
+    async def reload_all(**_kwargs: Any) -> ReconcileResult:
         # Every live app that isn't blocked, so the body lists succeeded, failed and refused apps.
-        return ReloadAllResult(
-            apps={key: outcomes(key) for key, info in by_key.items() if info.status is not AppStatus.BLOCKED}
+        return ReconcileResult(
+            apps={
+                key: AppResult(action=ReconcileAction.RELOAD, outcomes=outcomes(key))
+                for key, info in by_key.items()
+                if info.status is not AppStatus.BLOCKED
+            }
         )
 
     handler = hassette._app_handler
