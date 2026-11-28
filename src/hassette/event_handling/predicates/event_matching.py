@@ -17,7 +17,7 @@ if typing.TYPE_CHECKING:
     from hassette.types import ChangeType, Predicate
 
 
-def _glob_or_literal(value: str) -> "str | Glob":
+def _glob_or_literal(value: str) -> str | Glob:
     """Wrap ``value`` in a Glob condition if it contains glob syntax, else return it as-is."""
     return Glob(value) if is_glob(value) else value
 

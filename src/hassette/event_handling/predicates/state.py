@@ -20,7 +20,7 @@ from hassette.event_handling.accessors import (
 from hassette.event_handling.conditions import ARROW
 from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils import date_utils
-from hassette.utils.func_utils import callable_stable_name as callable_name
+from hassette.utils.func_utils import callable_stable_name
 
 from .combinators import CUSTOM_CONDITION_SUMMARY, _PredicateOps, summarize_condition
 from .comparison import compare_value
@@ -41,7 +41,7 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
     """
 
     source: Callable[[EventT], V]
-    condition: "ChangeType" = ANY_VALUE
+    condition: ChangeType = ANY_VALUE
 
     def __call__(self, value: EventT, /) -> bool:
         """Return True if the value ``source`` extracts satisfies ``condition``; ANY_VALUE always matches."""
@@ -62,7 +62,7 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
             ``"custom condition from <source>"``. ``<source>`` is the extractor's callable name.
             An ``ANY_VALUE`` condition renders as a literal, e.g. ``"value is <ANY_VALUE> from <source>"``.
         """
-        source_name = callable_name(self.source)
+        source_name = callable_stable_name(self.source)
         if callable(self.condition):
             if hasattr(self.condition, "summarize"):
                 return f"value {summarize_condition(self.condition)} from {source_name}"
@@ -129,7 +129,7 @@ class IsMissing(_PredicateOps):
 class StateFrom(_PredicateOps):
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'old' value."""
 
-    condition: "ChangeType"
+    condition: ChangeType
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return True if the event's old state value satisfies ``condition``."""
@@ -144,7 +144,7 @@ class StateFrom(_PredicateOps):
 class StateTo(_PredicateOps):
     """Checks if a value extracted from a RawStateChangeEvent satisfies a condition on the 'new' value."""
 
-    condition: "ChangeType"
+    condition: ChangeType
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return True if the event's new state value satisfies ``condition``."""
@@ -178,7 +178,7 @@ class AttrFrom(_PredicateOps):
     """Checks if a specific attribute's old value in a RawStateChangeEvent satisfies a condition."""
 
     attr_name: str
-    condition: "ChangeType"
+    condition: ChangeType
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return True if attribute ``attr_name`` on the event's old state satisfies ``condition``."""
@@ -194,7 +194,7 @@ class AttrTo(_PredicateOps):
     """Checks if a specific attribute's new value in a RawStateChangeEvent satisfies a condition."""
 
     attr_name: str
-    condition: "ChangeType"
+    condition: ChangeType
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         """Return True if attribute ``attr_name`` on the event's new state satisfies ``condition``."""
