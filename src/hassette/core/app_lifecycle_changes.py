@@ -77,6 +77,7 @@ class AppChangeReconcilerMixin:
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[..., Awaitable[None]]
 
+    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
     async def apply_changes(
         self,
         changes: ChangeSet,
@@ -88,6 +89,7 @@ class AppChangeReconcilerMixin:
         fail_fast: bool = False,
         log_refused: bool = True,
     ) -> ReconcileResult:
+        # dup-ignore-end
         """Apply detected changes by stopping, reloading, or starting apps, and return what each app's did.
 
         Precondition: the orphan, new, reimport and reload buckets are disjoint, as guaranteed by
@@ -232,6 +234,7 @@ class AppChangeReconcilerMixin:
             self.registry.clear_debug_capture(app_key)
         return outcomes.finish()
 
+    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
     def _decide_restart(
         self,
         app_key: str,
@@ -242,6 +245,7 @@ class AppChangeReconcilerMixin:
         in_reload_all: bool,
         still_tracked: bool,
     ) -> "AppRestart | None":
+        # dup-ignore-end
         """Decide what one restart key needs: a restart, or None for nothing. Caller must hold the key's lock.
 
         A reload-all restart key restarts as a full reimport whatever its autostart says, so an app that failed on the

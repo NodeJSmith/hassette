@@ -368,7 +368,7 @@ class AppDiskReconcileMixin:
             await self._reconcile_changes(changes, original_apps_config, current_apps_config)
             return True
 
-    # dup-ignore-start: forwards apply_changes's parameters unchanged, so it repeats their declaration
+    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
     async def _reconcile_changes(
         self,
         changes: ChangeSet,

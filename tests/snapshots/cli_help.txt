@@ -199,7 +199,8 @@ Reload an app or app instance (POST /api/apps/{key}/reload), or every app with -
 
 --all re-reads the config and re-imports every app module and the helpers they import, then restarts
 every app that is running or failed, without restarting hassette. It refuses before stopping
-anything on an invalid config or a syntax error. It exits 1 when any app failed to restart.
+anything on an invalid config or a syntax error. It exits 1 when any app failed or was refused
+(needs a hassette restart).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ KEY --key                                                                                        │

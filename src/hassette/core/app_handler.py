@@ -272,11 +272,13 @@ class AppHandler(Service):
         """
         return await self.lifecycle.reconcile_from_disk(ManualReload(wait=wait))
 
+    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
     async def apply_changes(
         self,
         changes: ChangeSet,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
     ) -> None:
+        # dup-ignore-end
         """Apply detected changes — delegates to lifecycle service."""
         await self.lifecycle.apply_changes(changes, original_config, current_config)
