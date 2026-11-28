@@ -9,7 +9,7 @@ from hassette_wire import ResourceStatus
 
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
-from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
+from hassette.schemas.app_outcomes import OutcomeResult
 from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
 from tests.support.app_registry_helpers import seed_failed, seed_running
@@ -23,6 +23,7 @@ from .conftest import (
     CONFIG_PATH,
     HEALTH_PATH,
     get_json,
+    outcome,
     set_app_status_snapshot,
     set_websocket_state,
     telemetry_error,
@@ -50,16 +51,6 @@ def app_action_path(app_key: str, action: str) -> str:
 def instance_action_path(app_key: str, instance_name: str, action: str) -> str:
     """Build a per-instance action URL, the one place a route rename changes."""
     return f"/api/apps/{app_key}/instances/{instance_name}/{action}"
-
-
-def outcome(
-    name: str,
-    result: OutcomeResult = OutcomeResult.SUCCEEDED,
-    reason: str | None = None,
-    needs_restart: bool = False,
-) -> InstanceOutcome:
-    """One instance's outcome, as a mocked ``AppHandler`` action returns it."""
-    return InstanceOutcome(instance_name=name, result=result, needs_restart=needs_restart, reason=reason)
 
 
 class TestHealthEndpoints:

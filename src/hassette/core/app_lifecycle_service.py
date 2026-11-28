@@ -10,7 +10,7 @@ from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS
 from hassette.core.app_change_detector import AppChangeDetector
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_key_lock import AppKeyLock
-from hassette.core.app_lifecycle_changes import AppChangeReconcilerMixin
+from hassette.core.app_lifecycle_changes import AppChangeApplierMixin
 from hassette.core.app_lifecycle_common import (
     AppAdmissionMode,
     PendingReconciliation,
@@ -18,7 +18,7 @@ from hassette.core.app_lifecycle_common import (
 )
 from hassette.core.app_lifecycle_config import AppConfigStateMixin
 from hassette.core.app_lifecycle_instances import AppInstanceLifecycleMixin
-from hassette.core.app_lifecycle_reconcile import AppDiskReconcileMixin
+from hassette.core.app_lifecycle_reconcile import AppReconcilePlannerMixin
 from hassette.core.app_lifecycle_registrations import AppRegistrationReconcilerMixin
 from hassette.core.app_lifecycle_start_stop import AppStartStopMixin
 from hassette.events.hassette import HassetteSimpleEvent
@@ -37,8 +37,8 @@ if typing.TYPE_CHECKING:
 class AppLifecycleService(
     AppInstanceLifecycleMixin,
     AppStartStopMixin,
-    AppChangeReconcilerMixin,
-    AppDiskReconcileMixin,
+    AppChangeApplierMixin,
+    AppReconcilePlannerMixin,
     AppConfigStateMixin,
     AppRegistrationReconcilerMixin,
     Resource,

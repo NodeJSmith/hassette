@@ -1,6 +1,7 @@
-"""AppChangeReconcilerMixin — applies a reconcile: stops, evicts, recreates and starts the apps it names.
+"""AppChangeApplierMixin — applies a reconcile: stops, evicts, recreates and starts the apps it names.
 
-What a reconcile changes is decided in ``app_lifecycle_reconcile`` (``reconcile_from_disk``).
+``app_lifecycle_reconcile`` (``reconcile_from_disk``) plans the reconcile: the ``ChangeSet`` and any reload-all.
+Each app's restart decision (``_decide_restart``) is made here, because it needs the app's lock held.
 """
 
 import asyncio
@@ -11,7 +12,7 @@ from logging import Logger
 from pathlib import Path
 
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_common import ActionOutcomes, log_refusals
+from hassette.core.app_lifecycle_common import ActionOutcomes, ReloadAllPlan, log_refusals
 from hassette.exceptions import AppBlockedError, AppRemovedError, ReloadBusyError
 from hassette.schemas.app_config_shape import configs_by_name, configured_instance_names
 from hassette.schemas.app_outcomes import AppResult, ReconcileAction, ReconcileResult
@@ -27,22 +28,6 @@ if typing.TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class ReloadAllPlan:
-    """A reload-all: evict every app-code module under ``evict_roots``, and restart ``restart_keys`` on the new code.
-
-    ``reconcile_from_disk`` builds it once a manual call or a watcher change needs one and the syntax precheck
-    passed; a reconcile without one evicts nothing and restarts only the apps its ``ChangeSet`` names.
-    """
-
-    restart_keys: frozenset[str]
-    """Every key the new config still runs that had an instance entry, live or FAILED, or an action in flight
-    when the reload-all was planned (spec 162 D1). Each restarts as a full re-import, whatever its autostart says,
-    if it is still tracked once its lock is held."""
-    evict_roots: frozenset[Path]
-    """The old config's app roots and the new one's, so modules loaded from a root the change removed go too."""
-
-
-@dataclass(frozen=True)
 class AppRestart:
     """One app's part of a config or file change: which of its instances to stop and recreate."""
 
@@ -55,7 +40,7 @@ class AppRestart:
     a re-import always restarts every instance."""
 
 
-class AppChangeReconcilerMixin:
+class AppChangeApplierMixin:
     """Applies a reconcile's ``ChangeSet`` and reload-all plan for ``AppLifecycleService``."""
 
     # Provided by the AppLifecycleService host (its own body, Resource, or a sibling mixin);
@@ -77,7 +62,7 @@ class AppChangeReconcilerMixin:
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[..., Awaitable[None]]
 
-    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
+    # dup-ignore-start: every hop of apply_changes takes the same (changes, original, current) config parameters
     async def apply_changes(
         self,
         changes: ChangeSet,
@@ -234,7 +219,7 @@ class AppChangeReconcilerMixin:
             self.registry.clear_debug_capture(app_key)
         return outcomes.finish()
 
-    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
+    # dup-ignore-start: every hop of apply_changes takes the same (changes, original, current) config parameters
     def _decide_restart(
         self,
         app_key: str,

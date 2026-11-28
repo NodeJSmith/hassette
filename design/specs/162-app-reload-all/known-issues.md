@@ -9,7 +9,7 @@ Recorded: 2026-11-28 (4498)
 Source: ship-challenge
 Reason not fixed now: accepted-limitation
 Affected files:
-- src/hassette/core/app_lifecycle_changes.py
+- src/hassette/core/app_lifecycle_reconcile.py
 
 Issue:
 When a watcher event needs a reload-all and the syntax precheck fails, only the reload-all part is dropped (D12 step 4). Nothing remembers it, so the reload-all runs again only on the next file event that needs one, or a manual Reload all. Fixing the file normally sends that event; an edit the watcher doesn't report (an atomic save it misses) leaves the apps on the old helper until one arrives.

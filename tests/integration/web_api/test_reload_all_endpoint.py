@@ -4,17 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 from httpx2 import AsyncClient
 
-from hassette.schemas.app_outcomes import AppResult, InstanceOutcome, OutcomeResult, ReconcileAction, ReconcileResult
+from hassette.schemas.app_outcomes import AppResult, OutcomeResult, ReconcileAction, ReconcileResult
 
-
-def outcome(
-    name: str,
-    result: OutcomeResult = OutcomeResult.SUCCEEDED,
-    reason: str | None = None,
-    needs_restart: bool = False,
-) -> InstanceOutcome:
-    """One instance's outcome, as a mocked ``AppHandler.reload_all`` reports it."""
-    return InstanceOutcome(instance_name=name, result=result, needs_restart=needs_restart, reason=reason)
+from .conftest import outcome
 
 
 class TestReloadAllEndpoint:

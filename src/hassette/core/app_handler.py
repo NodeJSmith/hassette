@@ -272,7 +272,7 @@ class AppHandler(Service):
         """
         return await self.lifecycle.reconcile_from_disk(ManualReload(wait=wait))
 
-    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
+    # dup-ignore-start: every hop of apply_changes takes the same (changes, original, current) config parameters
     async def apply_changes(
         self,
         changes: ChangeSet,

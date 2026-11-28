@@ -13,6 +13,7 @@ import hassette.web.errors as web_errors  # module alias so the code check can w
 from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
@@ -182,6 +183,16 @@ async def get_json(client: AsyncClient, url: str, *, expect_status: int = 200) -
     response = await client.get(url)
     assert response.status_code == expect_status, response.text
     return response.json()
+
+
+def outcome(
+    name: str,
+    result: OutcomeResult = OutcomeResult.SUCCEEDED,
+    reason: str | None = None,
+    needs_restart: bool = False,
+) -> InstanceOutcome:
+    """One instance's outcome, as a mocked ``AppHandler`` action or reload-all returns it."""
+    return InstanceOutcome(instance_name=name, result=result, needs_restart=needs_restart, reason=reason)
 
 
 def telemetry_error(message: str = DB_LOCKED_MSG) -> AsyncMock:

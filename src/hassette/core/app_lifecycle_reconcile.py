@@ -1,8 +1,10 @@
-"""AppDiskReconcileMixin — reads the config and app files from disk and decides what a reconcile changes.
+"""AppReconcilePlannerMixin — reads the config and app files from disk and plans what a reconcile changes.
 
 ``reconcile_from_disk`` is the one entry point for a file-watcher event and a manual reload-all. It builds the
 candidate config, detects the changes, plans any reload-all, and hands the result to ``apply_changes``
-(``AppChangeReconcilerMixin``), which stops, evicts, recreates and starts the apps.
+(``AppChangeApplierMixin`` in ``app_lifecycle_changes``), which stops, evicts, recreates and starts the apps.
+Each app's own restart decision is made there, once its lock is held. ``config_error_summary`` below
+formats an invalid config's errors for a refusal.
 """
 
 import asyncio
@@ -19,8 +21,7 @@ from pydantic import ValidationError
 
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_changes import ReloadAllPlan
-from hassette.core.app_lifecycle_common import ManualReload, ReconcileTrigger, WatcherTrigger
+from hassette.core.app_lifecycle_common import ManualReload, ReconcileTrigger, ReloadAllPlan, WatcherTrigger
 from hassette.events.hassette import HassetteSimpleEvent
 from hassette.exceptions import (
     AppBootstrapNotReleasedError,
@@ -44,7 +45,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_registry import AppRegistry
 
 
-class AppDiskReconcileMixin:
+class AppReconcilePlannerMixin:
     """Reconciliation from disk for ``AppLifecycleService``: what a watcher event or a reload-all changes."""
 
     # Provided by the AppLifecycleService host (its own body, Resource, or a sibling mixin);
@@ -368,7 +369,7 @@ class AppDiskReconcileMixin:
             await self._reconcile_changes(changes, original_apps_config, current_apps_config)
             return True
 
-    # dup-ignore-start: the reconcile methods share the (changes, original_config, current_config) parameters
+    # dup-ignore-start: every hop of apply_changes takes the same (changes, original, current) config parameters
     async def _reconcile_changes(
         self,
         changes: ChangeSet,
@@ -393,7 +394,7 @@ class AppDiskReconcileMixin:
         ``bootstrap_apps()``'s own unconditional "bootstrap sequence finished" broadcast, which
         isn't driven by a ``ChangeSet`` and stays a direct ``send_event()`` call there.
 
-        The keyword arguments pass through to ``apply_changes``.
+        The keyword arguments pass through to ``apply_changes`` (``AppChangeApplierMixin``).
         """
         result = ReconcileResult()
         if changes.has_changes or reload_all is not None:
