@@ -134,10 +134,14 @@ class Event(Generic[PayloadT]):
     """The event payload."""
 
     websocket_generation: int | None = field(default=None, kw_only=True)
-    """Internal generation metadata for framework coordination."""
+    """The WebSocket connection generation this event was observed under, or None.
+
+    `Event` is frozen, but the WebSocket layer sets this once after construction via
+    `hassette.events.metadata.stamp_websocket_generation`. Nothing else should write it.
+    """
 
     def __repr__(self) -> str:
-        return f"Event({self.payload})"
+        return f"{type(self).__name__}(topic={self.topic!s}, payload={self.payload})"
 
 
 AnyEvent: TypeAlias = Event[EventPayload[Any]]
