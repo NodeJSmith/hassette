@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import typing
 from copy import deepcopy
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -54,7 +54,7 @@ class TestApps:
     ) -> None:
         """Force one reconciliation pass with `changes` and wait for APP_LOAD_COMPLETED.
 
-        When `new_manifests` is given, refresh_config is stubbed to return it — the shape the
+        When `new_manifests` is given, the candidate config is stubbed to carry it — the shape the
         file-watcher path produces — instead of re-reading hassette.toml.
         """
         event = await self.on_load_completed()
@@ -66,9 +66,12 @@ class TestApps:
             mock_detect.return_value = changes
 
             if new_manifests is not None:
-                mock_refresh_config = stack.enter_context(patch.object(self.app_handler.lifecycle, "refresh_config"))
+                lifecycle = self.app_handler.lifecycle
+                candidate = MagicMock(only_apps=lifecycle.hassette.config.only_apps)
+                candidate.apps.manifests = new_manifests
+                stack.enter_context(patch.object(lifecycle, "_build_candidate", return_value=candidate))
+                stack.enter_context(patch.object(lifecycle, "_commit_candidate", AsyncMock()))
                 self.app_handler.registry.set_manifests(new_manifests)
-                mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_manifests)
 
             await self.app_handler.lifecycle.handle_change_event(frozenset())
             await asyncio.wait_for(event.wait(), timeout=timeout)

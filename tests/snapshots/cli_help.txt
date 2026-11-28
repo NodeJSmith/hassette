@@ -44,7 +44,8 @@ List and inspect apps.
 │ debug      Turn debug capture on or off for an app or app instance (PUT /api/apps/{key}/debug).  │
 │ health     Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).        │
 │ instances  List an app's instances with status and restart flag (GET /api/apps/{key}).           │
-│ reload     Reload an app or app instance (POST /api/apps/{key}/reload).                          │
+│ reload     Reload an app or app instance (POST /api/apps/{key}/reload), or every app with --all  │
+│            (POST /api/apps/reload).                                                              │
 │ source     Show app source code (GET /api/apps/{key}/source).                                    │
 │ start      Start an app or app instance (POST /api/apps/{key}/start).                            │
 │ stop       Stop an app or app instance (POST /api/apps/{key}/stop).                              │
@@ -191,14 +192,24 @@ List an app's instances with status and restart flag (GET /api/apps/{key}).
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette app reload --help
-Usage: hassette app reload [OPTIONS] KEY [ARGS]
+Usage: hassette app reload [OPTIONS] [ARGS]
 
-Reload an app or app instance (POST /api/apps/{key}/reload).
+Reload an app or app instance (POST /api/apps/{key}/reload), or every app with --all (POST
+/api/apps/reload).
+
+--all re-reads the config and re-imports every app module and the helpers they import, then restarts
+every app that is running or failed, without restarting hassette. It refuses before stopping
+anything on an invalid config or a syntax error. It exits 1 when any app failed or was refused
+(needs a hassette restart).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
-│ *  KEY --key            [required]                                                               │
-│    INSTANCE --instance  Targets a specific app instance by name.                                 │
-│    YES --yes            Skip the confirmation prompt. [default: False]                           │
+│ KEY --key                                                                                        │
+│ INSTANCE --instance  Targets a specific app instance by name.                                    │
+│ ALL --all            Reload every app in place: re-read the config and re-import every app       │
+│                      module and helper. [default: False]                                         │
+│ WAIT --wait          With --all, wait for another reload or app action to finish instead of      │
+│                      failing at once. [default: False]                                           │
+│ YES --yes            Skip the confirmation prompt. [default: False]                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │

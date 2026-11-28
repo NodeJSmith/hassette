@@ -27,7 +27,9 @@ def registry(tmp_path: Path) -> AppRegistry:
 
 
 def hassette_with(registry: AppRegistry) -> Hassette:
-    handler = SimpleNamespace(registry=registry, is_action_in_progress=lambda _app_key: False)
+    handler = SimpleNamespace(
+        registry=registry, is_action_in_progress=lambda _app_key: False, is_reload_running=lambda: False
+    )
     return cast("Hassette", SimpleNamespace(app_handler=handler))
 
 

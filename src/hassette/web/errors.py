@@ -26,6 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.utils.exception_utils import validation_error_summary
 
 LOGGER = getLogger(__name__)
 
@@ -39,6 +40,8 @@ CODE_STATUS: Mapping[ProblemCode, int] = {
     ProblemCode.APP_BLOCKED: 409,
     ProblemCode.ACTION_IN_PROGRESS: 409,
     ProblemCode.NEEDS_RESTART: 409,
+    ProblemCode.RELOAD_CONFIG_INVALID: 409,
+    ProblemCode.RELOAD_SYNTAX_ERROR: 409,
     ProblemCode.ACTION_FAILED: 500,
     ProblemCode.TELEMETRY_UNAVAILABLE: 503,
     ProblemCode.SOURCE_NOT_FOUND: 404,
@@ -85,8 +88,10 @@ CODE_DESCRIPTIONS: Mapping[ProblemCode, str] = {
     ProblemCode.INSTANCE_NOT_FOUND: "the app's current config has no instance with this name",
     ProblemCode.BOOTSTRAP_NOT_RELEASED: "app bootstrap prerequisites are not ready yet (retry later)",
     ProblemCode.APP_BLOCKED: "the app is blocked by the --app filter (not retryable)",
-    ProblemCode.ACTION_IN_PROGRESS: "another action on this app is still running; nothing was done",
+    ProblemCode.ACTION_IN_PROGRESS: "another action on this app, or a reload, is still running; nothing was done",
     ProblemCode.NEEDS_RESTART: "a targeted instance needs a hassette restart; nothing was done to it (not retryable)",
+    ProblemCode.RELOAD_CONFIG_INVALID: "the configuration on disk is invalid; nothing was stopped",
+    ProblemCode.RELOAD_SYNTAX_ERROR: "a file the reload would import has a syntax error; nothing was stopped",
     ProblemCode.ACTION_FAILED: "the action failed on at least one targeted instance",
     ProblemCode.TELEMETRY_UNAVAILABLE: "the telemetry store could not be read",
     ProblemCode.SOURCE_NOT_FOUND: "the app's source file does not exist",
@@ -251,8 +256,7 @@ def problem_responses(*codes: ProblemCode) -> dict[int | str, dict[str, Any]]:
 
 def validation_detail(errors: Sequence[Any]) -> str:
     """Summarize validation errors from their ``loc`` and ``msg`` only, never the rejected input."""
-    parts = [f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in errors]
-    return f"Validation failed: {'; '.join(parts)}"
+    return f"Validation failed: {validation_error_summary(errors)}"
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> Response:  # noqa: ARG001

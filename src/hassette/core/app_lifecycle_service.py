@@ -10,7 +10,7 @@ from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS
 from hassette.core.app_change_detector import AppChangeDetector
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_key_lock import AppKeyLock
-from hassette.core.app_lifecycle_changes import AppChangeReconcilerMixin
+from hassette.core.app_lifecycle_changes import AppChangeApplierMixin
 from hassette.core.app_lifecycle_common import (
     AppAdmissionMode,
     PendingReconciliation,
@@ -18,6 +18,7 @@ from hassette.core.app_lifecycle_common import (
 )
 from hassette.core.app_lifecycle_config import AppConfigStateMixin
 from hassette.core.app_lifecycle_instances import AppInstanceLifecycleMixin
+from hassette.core.app_lifecycle_reconcile import AppReconcilePlannerMixin
 from hassette.core.app_lifecycle_registrations import AppRegistrationReconcilerMixin
 from hassette.core.app_lifecycle_start_stop import AppStartStopMixin
 from hassette.events.hassette import HassetteSimpleEvent
@@ -36,7 +37,8 @@ if typing.TYPE_CHECKING:
 class AppLifecycleService(
     AppInstanceLifecycleMixin,
     AppStartStopMixin,
-    AppChangeReconcilerMixin,
+    AppChangeApplierMixin,
+    AppReconcilePlannerMixin,
     AppConfigStateMixin,
     AppRegistrationReconcilerMixin,
     Resource,
@@ -77,14 +79,13 @@ class AppLifecycleService(
         self._pending_reconciliation: PendingReconciliation | None = None
         # Bus dispatch spawns a fresh task per handler invocation rather than awaiting handlers
         # sequentially (see BusService._dispatch), so two file-watcher events arriving close
-        # together can produce two concurrently-running handle_change_event() coroutines. Each
-        # does real awaited I/O (refresh_config(), resolve_only_apps()) before touching
-        # ``_pending_reconciliation``, and refresh_config() mutates self.registry.manifests
-        # in place — so overlapping calls can race on the "what was the world like before this
-        # change" snapshot. This lock serializes handle_change_event so only one reconciliation
-        # pass runs at a time, matching the "single reconciliation in flight" model the rest of
-        # this class already assumes.
-        self._change_event_lock = asyncio.Lock()
+        # together can produce two concurrently-running reconcile_from_disk() calls, and a manual
+        # reload-all can arrive alongside them. Each does real awaited I/O before touching
+        # ``_pending_reconciliation``, and committing a config replaces self.registry.manifests,
+        # so overlapping calls could race on the "what was the world like before this change"
+        # snapshot. This lock serializes reconcile_from_disk so only one reconciliation pass runs
+        # at a time. An AppKeyLock, so a manual reload that mustn't wait sees a queued one as busy.
+        self._reconcile_lock = AppKeyLock()
         # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's parked
         # start_app() (waiting in _admit_start()) and a post-release start/reload of the same app_key can both
         # reach factory.create_instances(); the second registration then overwrites without tearing down the loser's
@@ -119,6 +120,10 @@ class AppLifecycleService(
 
     def _get_app_key_lock(self, app_key: str) -> AppKeyLock:
         return self._app_key_locks.setdefault(app_key, AppKeyLock())
+
+    def is_reload_running(self) -> bool:
+        """Whether a reconcile (a file-watcher change or a reload-all) holds or is waiting for the reconcile lock."""
+        return self._reconcile_lock.busy
 
     def is_action_in_progress(self, app_key: str) -> bool:
         """Whether a start, stop, reload, or config reconciliation holds or is waiting for ``app_key``'s lock."""

@@ -159,7 +159,7 @@ class TestOnlyAppsConfigFilter(HotReloadTestBase):
             write_test_app_with_decorator(app_file=manifest.full_path, class_name=manifest.class_name)
 
         # only_apps in the file is the file form of `hassette run --app <a> --app <b>`; unlike a
-        # direct attribute set, it survives the config.reload() inside handle_change_event.
+        # direct attribute set, it survives the config rebuild from disk inside reconcile_from_disk.
         write_app_toml(
             self.toml_file,
             app_dir=self.app_dir,

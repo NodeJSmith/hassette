@@ -103,23 +103,39 @@ class TestResolveOnlyApps:
         mock_registry.set_only_apps.assert_called_with({"app_a"})
 
 
-class TestRefreshConfig:
-    async def test_reloads_config_and_returns_before_after(
+class TestCommitCandidate:
+    async def test_adopts_the_candidate_and_installs_its_manifests(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
     ) -> None:
-        """Calls config.reload() and returns original and current manifests."""
+        """Committing a candidate swaps it into the live config, then installs and persists its manifests."""
         manifest1 = MagicMock()
         manifest1.enabled = True
-        mock_registry.manifests = {"app_a": manifest1}
         mock_hassette.config.apps.manifests = {"app_a": manifest1}
-        reload_mock = Mock()
-        object.__setattr__(mock_hassette.config, "reload", reload_mock)
+        adopt_mock = Mock()
+        object.__setattr__(mock_hassette.config, "adopt", adopt_mock)
+        candidate = MagicMock()
+        lifecycle_service.persist_manifests = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        original, current = await lifecycle_service.refresh_config()
+        await lifecycle_service._commit_candidate(candidate)
 
-        reload_mock.assert_called_once()
-        assert "app_a" in original
-        assert "app_a" in current
+        adopt_mock.assert_called_once_with(candidate)
+        mock_registry.set_manifests.assert_called_once()
+        assert "app_a" in mock_registry.set_manifests.call_args.args[0]
+        lifecycle_service.persist_manifests.assert_awaited_once()
+
+    async def test_an_invalid_candidate_commits_nothing(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
+    ) -> None:
+        """None (the config on disk was invalid) leaves the config, the registry and the database alone."""
+        adopt_mock = Mock()
+        object.__setattr__(mock_hassette.config, "adopt", adopt_mock)
+        lifecycle_service.persist_manifests = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service._commit_candidate(None)
+
+        adopt_mock.assert_not_called()
+        mock_registry.set_manifests.assert_not_called()
+        lifecycle_service.persist_manifests.assert_not_awaited()
 
     async def test_only_apps_filter_is_restored_before_manifests_persist(
         self, real_registry_service: AppLifecycleService, mock_hassette: MagicMock
@@ -134,13 +150,13 @@ class TestRefreshConfig:
         registry.set_only_apps({"app_a"})
         mock_hassette.config.apps.manifests = {"app_a": manifest1}
         mock_hassette.config.only_apps = ("app_a",)
-        object.__setattr__(mock_hassette.config, "reload", Mock())
+        object.__setattr__(mock_hassette.config, "adopt", Mock())
         filters_seen_during_persist: list[frozenset[str]] = []
         real_registry_service.persist_manifests = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
             side_effect=lambda: filters_seen_during_persist.append(registry.only_apps)
         )
 
-        await real_registry_service.refresh_config()
+        await real_registry_service._commit_candidate(MagicMock())
 
         assert filters_seen_during_persist == [frozenset({"app_a"})]
         assert registry.only_apps == frozenset({"app_a"})

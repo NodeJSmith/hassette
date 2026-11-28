@@ -35,6 +35,7 @@ from hassette_wire import (
     QueryAuthor,
     QuerySourceTier,
     ReadinessResponse,
+    ReloadAllResponse,
     SystemStatusResponse,
     TelemetryStatusResponse,
     UnattributedBlockingResponse,
@@ -214,6 +215,31 @@ class HassetteClient:
         """
         path = app_target_path(app_key, instance)
         return await self._transport.request("POST", f"{path}/{path_segment(action)}", ActionResponse)
+
+    async def reload_all(self, *, wait: bool = False) -> ReloadAllResponse:
+        """Reload every app in place: re-read the config, re-import every app module and helper, restart the apps.
+
+        The server answers once every app has restarted, so this can take longer than ``request_timeout``; use a
+        second client with a longer ``request_timeout`` for it. It answers 200 even when some apps failed: read
+        ``counts.failed`` and ``counts.refused``. Before stopping anything it refuses on an invalid config or a
+        syntax error, leaving every app running.
+
+        After a timeout or connection error the outcome is unknown, and sending it again reloads every app a
+        second time.
+
+        Args:
+            wait: Wait for another reload, or an action on one of the apps, to finish instead of raising
+                ``ActionInProgressError`` at once.
+
+        Raises:
+            ActionInProgressError: ``wait`` is false and another reload or app action is running. Nothing was done.
+            BootstrapNotReleasedError: Apps can't be started yet; retry later.
+            ReloadConfigInvalidError: The server's configuration is invalid. Nothing was stopped.
+            ReloadSyntaxError: A file the reload would import has a syntax error. Nothing was stopped.
+            HassetteTimeoutError: No answer in time. The reload may still have run, or still be running.
+        """
+        params = {"wait": "true" if wait else None}
+        return await self._transport.request("POST", "/api/apps/reload", ReloadAllResponse, params=params)
 
     async def set_debug_capture(
         self, app_key: str, enabled: bool, *, instance: str | None = None

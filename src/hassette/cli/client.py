@@ -16,7 +16,7 @@ from typing import Any, Literal, NoReturn, TypeVar, overload
 from urllib.parse import quote
 
 import httpx2 as httpx
-from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstance, AppListResponse
+from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstance, AppListResponse, ReloadAllResponse
 from pydantic import BaseModel, ValidationError
 
 import hassette.cli.output as cli_output
@@ -27,8 +27,11 @@ from hassette.config.config import HassetteConfig
 from hassette.exceptions import ConfigError, FatalError
 
 DEFAULT_TIMEOUT = 10.0
+RELOAD_ALL_READ_TIMEOUT_SECONDS = 120.0
+"""Read timeout of a ``reload --all`` that doesn't wait: restarting every app takes longer than ``DEFAULT_TIMEOUT``."""
 
 APP_GRID_PATH = "/api/telemetry/app-grid"
+RELOAD_ALL_PATH = "/api/apps/reload"
 
 APPS_PATH = "/api/apps"
 
@@ -160,6 +163,7 @@ class HassetteCLIClient:
         path: str,
         params: dict[str, Any] | None = None,
         body: BaseModel | None = None,
+        timeout: httpx.Timeout | float | None = None,
     ) -> httpx.Response:
         """Perform an HTTP request, translating transport failures into a usage-error exit.
 
@@ -168,16 +172,19 @@ class HassetteCLIClient:
         target), not how connection failures become a ``SystemExit``. :meth:`try_fetch_app_list`
         is the one intentional exception: it needs failures to return ``None`` rather than exit,
         so it calls ``self._client`` directly instead of going through this method.
+
+        ``timeout`` replaces ``self.timeout`` for this request only.
         """
+        request_timeout = self.timeout if timeout is None else timeout
         try:
             if method == "GET":
-                response = self._client.get(path, params=params, timeout=self.timeout)
+                response = self._client.get(path, params=params, timeout=request_timeout)
             elif method == "PUT":
                 content = body.model_dump_json() if body is not None else None
                 headers = {"Content-Type": "application/json"}
-                response = self._client.put(path, content=content, headers=headers, timeout=self.timeout)
+                response = self._client.put(path, content=content, headers=headers, timeout=request_timeout)
             else:
-                response = self._client.post(path, timeout=self.timeout)
+                response = self._client.post(path, params=params, timeout=request_timeout)
         except httpx.ConnectError as exc:
             self.errors.handle_network_error(f"Connection refused: {self.display_url} ({exc})")
         except httpx.TimeoutException:
@@ -312,6 +319,19 @@ class HassetteCLIClient:
             The deserialized :class:`~hassette_wire.ActionResponse`.
         """
         return self.post(f"{app_route_path(app_key, instance)}/{action}", ActionResponse)
+
+    def post_reload_all(self, *, wait: bool) -> ReloadAllResponse:
+        """POST ``/api/apps/reload``, the reload-all, with a read timeout long enough for every app to restart.
+
+        Connecting still fails after ``self.timeout``. Reading waits with no limit under ``wait`` (the server may
+        hold the request behind another reload) and for ``RELOAD_ALL_READ_TIMEOUT_SECONDS`` otherwise.
+        """
+        read_timeout = None if wait else RELOAD_ALL_READ_TIMEOUT_SECONDS
+        timeout = httpx.Timeout(self.timeout, read=read_timeout)
+        params = {"wait": "true"} if wait else None
+        return self._parse_mutation(
+            self._send("POST", RELOAD_ALL_PATH, params=params, timeout=timeout), ReloadAllResponse
+        )
 
     def get_with_app_routing(
         self,

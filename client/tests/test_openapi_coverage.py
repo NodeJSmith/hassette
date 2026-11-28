@@ -75,6 +75,7 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
         lambda c: c.action("my_app", "stop", instance="instance_0"),
         lambda c: c.action("my_app", "reload", instance="instance_0"),
     ],
+    "reload_all": [lambda c: c.reload_all(), lambda c: c.reload_all(wait=True)],
     "set_debug_capture": [
         lambda c: c.set_debug_capture("my_app", True),
         lambda c: c.set_debug_capture("my_app", False, instance="instance_0"),

@@ -1,31 +1,28 @@
-"""AppChangeReconcilerMixin — file-watcher and config-change detection and reconciliation."""
+"""AppChangeApplierMixin — applies a reconcile: stops, evicts, recreates and starts the apps it names.
+
+``app_lifecycle_reconcile`` (``reconcile_from_disk``) plans the reconcile: the ``ChangeSet`` and any reload-all.
+Each app's restart decision (``_decide_restart``) is made here, because it needs the app's lock held.
+"""
 
 import asyncio
 import typing
 from collections.abc import Awaitable, Callable, Iterable
-from contextlib import AsyncExitStack
-from copy import deepcopy
 from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 
-import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_common import ActionOutcomes, log_refusals
-from hassette.events.hassette import HassetteSimpleEvent
-from hassette.exceptions import AppBlockedError, AppRemovedError, ConfigError
+from hassette.core.app_lifecycle_common import ActionOutcomes, ReloadAllPlan, log_refusals
+from hassette.exceptions import AppBlockedError, AppRemovedError, ReloadBusyError
 from hassette.schemas.app_config_shape import configs_by_name, configured_instance_names
-from hassette.types import Topic
+from hassette.schemas.app_outcomes import AppResult, ReconcileAction, ReconcileResult
+from hassette.utils.app_modules import evict_apps_package
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.config.classes import AppManifest
-    from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
-    from hassette.core.app_change_detector import AppChangeDetector
-    from hassette.core.app_factory import AppFactory
     from hassette.core.app_key_lock import AppKeyLock
-    from hassette.core.app_lifecycle_common import PendingReconciliation
     from hassette.core.app_registry import AppRegistry
     from hassette.schemas.app_outcomes import InstanceOutcome
 
@@ -43,132 +40,225 @@ class AppRestart:
     a re-import always restarts every instance."""
 
 
-class AppChangeReconcilerMixin:
-    """File-watcher and config-change detection and reconciliation for ``AppLifecycleService``."""
+class AppChangeApplierMixin:
+    """Applies a reconcile's ``ChangeSet`` and reload-all plan for ``AppLifecycleService``."""
 
     # Provided by the AppLifecycleService host (its own body, Resource, or a sibling mixin);
     # declared here for type narrowing within the mixin.
     hassette: "Hassette"
     logger: Logger
     registry: "AppRegistry"
-    factory: "AppFactory"
-    change_detector: "AppChangeDetector"
-    bootstrap_coordinator: "AppBootstrapCoordinator"
-    _change_event_lock: asyncio.Lock
-    _pending_reconciliation: "PendingReconciliation | None"
     _get_app_key_lock: Callable[[str], "AppKeyLock"]
     _resolve_manifest: Callable[[str], "AppManifest | None"]
-    _record_pre_release_reconciliation: Callable[..., None]
-    _take_pre_release_reconciliation: Callable[
-        [], tuple[dict[str, "AppManifest"] | None, dict[str, "AppManifest"] | None, frozenset[Path]]
-    ]
     should_autostart: Callable[[str], bool]
     should_auto_reconcile: Callable[[str], bool]
     start_app: Callable[..., Awaitable[tuple["InstanceOutcome", ...]]]
-    stop_app: Callable[[str], Awaitable[tuple["InstanceOutcome", ...]]]
     _start_app_unlocked: Callable[..., Awaitable[None]]
     _stop_app_unlocked: Callable[..., Awaitable[None]]
     _stop_targets: Callable[[str], set[str]]
+    _prune_stopped_debug_capture: Callable[[str], None]
     _outcomes_for: Callable[[str, Iterable[str]], ActionOutcomes]
     _instance_in_config: Callable[[str, str, "AppManifest"], bool]
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[..., Awaitable[None]]
-    persist_manifests: Callable[[], Awaitable[None]]
-    set_apps_configs: Callable[[dict[str, "AppManifest"]], None]
-    resolve_only_apps: Callable[[], Awaitable[None]]
-    _fold_unblocked_apps_into_changes: Callable[[ChangeSet], ChangeSet]
 
+    # dup-ignore-start: every hop of apply_changes takes the same (changes, original, current) config parameters
     async def apply_changes(
         self,
         changes: ChangeSet,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
-    ) -> None:
-        """Apply detected changes by stopping, reloading, or starting apps.
+        *,
+        reload_all: ReloadAllPlan | None = None,
+        adopt: "Callable[[ChangeSet], Awaitable[ChangeSet]] | None" = None,
+        fail_fast: bool = False,
+        log_refused: bool = True,
+    ) -> ReconcileResult:
+        # dup-ignore-end
+        """Apply detected changes by stopping, reloading, or starting apps, and return what each app's did.
 
-        Precondition: the four change buckets are disjoint, as guaranteed by
-        ``AppChangeDetector.detect_changes`` (orphans are keys absent from the
-        current config; reimport/reload/new are all keys present in it). Orphans
-        are processed first; a key in both ``orphans`` and a reload bucket would
-        be stopped and then skipped. Callers constructing a ``ChangeSet`` by hand
-        (e.g. tests) must keep the buckets disjoint.
+        Precondition: the orphan, new, reimport and reload buckets are disjoint, as guaranteed by
+        ``AppChangeDetector.detect_changes`` (orphans are keys absent from the current config; reimport/reload/new
+        are all keys present in it). Callers constructing a ``ChangeSet`` by hand (e.g. tests) must keep that shape.
+
+        The lock of every orphan, reimport, reload and reload-all restart key is taken first, in sorted order, each
+        exactly once. Then ``adopt`` commits the new config, the orphans stop, every restart stops, the app-code
+        modules are evicted (``reload_all`` only), every restart's replacements are created, and the new apps start,
+        each ``start_app`` taking its own key's lock.
 
         Args:
             changes: The set of changes to apply
-            original_config: The app manifests before this change (used to diff per-instance
-                ``app_config`` entries for the ``reload_apps`` bucket — see below)
+            original_config: The app manifests before this change, diffed per instance against
+                ``current_config`` to decide which instances a ``reload_apps`` key restarts (``_plan_reload``)
             current_config: The app manifests after this change
+            reload_all: The reload-all to run with these changes, or None for none.
+            adopt: Commits the change's config once every lock is held, returning the change set with any
+                newly-unblocked apps folded in. None when the config is already committed.
+            fail_fast: Raise ``ReloadBusyError`` at the first key another action holds or waits for, after
+                releasing the locks already taken, instead of waiting for it.
+            log_refused: Log each refused instance, for a caller with no response to carry the refusals.
+
+        Raises:
+            ReloadBusyError: ``fail_fast`` and a key is busy. Nothing was done.
         """
-        self.logger.debug("Applying app changes: %s", changes)
+        self.logger.debug("Applying app changes: %s (reload-all: %s)", changes, reload_all)
+        reload_all_keys = reload_all.restart_keys if reload_all is not None else frozenset()
+        restart_keys = changes.reimport_apps | changes.reload_apps | reload_all_keys
+        held = await self._take_key_locks(sorted(changes.orphans | restart_keys), fail_fast)
+        results: dict[str, AppResult] = {}
+        try:
+            if adopt is not None:
+                changes = await adopt(changes)
 
-        # AppBlockedError from the restarts and start_app() below is caught per app_key, even though it
-        # should be structurally unreachable here: AppChangeDetector.detect_changes() filters every
-        # ChangeSet bucket by only_apps before this method ever sees app_key, and
-        # _fold_unblocked_apps_into_changes() only adds apps that were *just* unblocked. That
-        # invariant spans three files and isn't enforced at this boundary, so if it's ever
-        # violated, an uncaught raise here would abort every app after the blocked one.
-        for app_key in changes.orphans:
-            self.logger.debug("Stopping orphaned app %s", app_key)
-            try:
-                await self.stop_app(app_key)
-            finally:
-                # Its debug routes now answer 404, so nothing could end a capture left behind (spec 148 D8),
-                # including on an instance the stop failed to remove or a stop cancelled partway. Instances the
-                # stop did remove were already reset by ``shutdown_instance``; this covers the ones still here.
-                for survivor in self.registry.get_live_apps(app_key).values():
-                    survivor.set_debug_capture(False)
-                self.registry.clear_debug_capture(app_key)
-        if changes.orphans:
-            self._queue_retire_unconfigured_instances()
+            for app_key in sorted(changes.orphans):
+                self.logger.debug("Stopping orphaned app %s", app_key)
+                results[app_key] = AppResult(ReconcileAction.STOP, await self._stop_orphan_unlocked(app_key))
+            if changes.orphans:
+                self._queue_retire_unconfigured_instances()
 
-        # Each key is decided under its own app-key lock: the decision reads registry state that a stop
-        # already holding the lock can change while this waits. A key with nothing to restart releases its
-        # lock as soon as it is decided; a key that restarts keeps it until the last replacement is
-        # created. Keys are taken in sorted order so two callers can't deadlock.
-        restarts: list[AppRestart] = []
-        async with AsyncExitStack() as held:
-            for app_key in sorted(changes.reimport_apps | changes.reload_apps):
-                # `decision` releases the key's lock on leaving the block (no-op plan, raise, cancellation)
-                # unless the lock is handed to `held` first, which then releases it after the restarts.
-                async with AsyncExitStack() as decision:
-                    await decision.enter_async_context(self._get_app_key_lock(app_key))
-                    restart = self._decide_restart(
-                        app_key, original_config, current_config, reimport=app_key in changes.reimport_apps
-                    )
-                    if restart is not None:
-                        restarts.append(restart)
-                        held.push_async_exit(decision.pop_all())
-            await self._restart_apps_unlocked(restarts)
+            # Each key is decided under its own lock: the decision reads registry state that a stop holding the
+            # lock could change. A key with nothing to restart releases its lock as soon as it is decided.
+            still_tracked = set(self.registry.tracked_app_keys())
+            restarts: list[AppRestart] = []
+            for app_key in sorted(restart_keys):
+                restart = self._decide_restart(
+                    app_key,
+                    changes,
+                    original_config,
+                    current_config,
+                    in_reload_all=app_key in reload_all_keys,
+                    still_tracked=app_key in still_tracked,
+                )
+                if restart is None:
+                    self._get_app_key_lock(app_key).release()
+                    held.remove(app_key)
+                else:
+                    restarts.append(restart)
 
-        for app_key in changes.new_apps:
+            restart_outcomes = await self._stop_restarts_unlocked(restarts)
+            if reload_all is not None:
+                self._evict_app_code(reload_all.evict_roots)
+            for app_key, outcomes in (await self._create_restarts_unlocked(restarts, restart_outcomes)).items():
+                results[app_key] = AppResult(ReconcileAction.RELOAD, outcomes)
+        finally:
+            for app_key in reversed(held):
+                self._get_app_key_lock(app_key).release()
+
+        # AppBlockedError from start_app() below is caught per app_key, even though it should be structurally
+        # unreachable here: AppChangeDetector.detect_changes() filters every ChangeSet bucket by only_apps
+        # before this method ever sees app_key, and _fold_unblocked_apps_into_changes() only adds apps that were
+        # *just* unblocked. That invariant spans three files and isn't enforced at this boundary, so if it's
+        # ever violated, an uncaught raise here would abort every app after the blocked one.
+        for app_key in sorted(changes.new_apps):
             if not self.should_autostart(app_key):
                 self.logger.debug("Skipping autostart of app %s (autostart=false)", app_key)
                 continue
 
             self.logger.debug("Starting new app %s", app_key)
             try:
-                log_refusals(self.logger, app_key, await self.start_app(app_key))
+                results[app_key] = AppResult(ReconcileAction.START, await self.start_app(app_key))
             except AppBlockedError:
                 self.logger.error("Skipping start of blocked app %s — this should not be reachable", app_key)
             except AppRemovedError:
                 self.logger.debug("Skipping start of app %s: its manifest is gone", app_key)
 
+        if log_refused:
+            for app_key, result in results.items():
+                log_refusals(self.logger, app_key, result.outcomes)
+        return ReconcileResult(apps=results)
+
+    def _evict_app_code(self, roots: frozenset[Path]) -> None:
+        """Evict the app-code modules between a reload-all's stops and its creates.
+
+        A failure is logged and the creates still run: the apps come back, some possibly on modules the eviction
+        missed, rather than every restarted app staying stopped.
+        """
+        try:
+            evicted = evict_apps_package(roots)
+        except Exception:
+            self.logger.exception("Evicting the app-code modules failed; apps restart, some possibly on old code")
+            return
+        self.logger.debug("Evicted %d app-code module(s): %s", len(evicted), evicted)
+
+    async def _take_key_locks(self, app_keys: list[str], fail_fast: bool) -> list[str]:
+        """Take each key's lock in the given (sorted) order, and return the keys taken.
+
+        Under ``fail_fast`` each key's ``busy`` is tested in the same synchronous step as its take: an
+        uncontended ``AppKeyLock`` is acquired without suspending, so no other task can claim it in between. A busy
+        key releases the locks already taken and raises. A cancellation while waiting releases them too.
+
+        Raises:
+            ReloadBusyError: ``fail_fast`` and a key is busy.
+        """
+        taken: list[str] = []
+        try:
+            for app_key in app_keys:
+                lock = self._get_app_key_lock(app_key)
+                if fail_fast and lock.busy:
+                    raise ReloadBusyError(f"Another action on app {app_key!r} is still running")
+                await lock.acquire()
+                taken.append(app_key)
+        except BaseException:
+            for app_key in reversed(taken):
+                self._get_app_key_lock(app_key).release()
+            raise
+        return taken
+
+    async def _stop_orphan_unlocked(self, app_key: str) -> "tuple[InstanceOutcome, ...]":
+        """Stop every instance of an app the new config removed or disabled. Caller must hold its key's lock."""
+        outcomes = self._outcomes_for(app_key, self._stop_targets(app_key))
+        try:
+            await self._stop_app_unlocked(app_key, outcomes=outcomes)
+            self._prune_stopped_debug_capture(app_key)
+        finally:
+            # Its debug routes now answer 404, so nothing could end a capture left behind (spec 148 D8),
+            # including on an instance the stop failed to remove or a stop cancelled partway. Instances the
+            # stop did remove were already reset by ``shutdown_instance``; this covers the ones still here.
+            for survivor in self.registry.get_live_apps(app_key).values():
+                survivor.set_debug_capture(False)
+            self.registry.clear_debug_capture(app_key)
+        return outcomes.finish()
+
+    # dup-ignore-start: every hop of apply_changes takes the same (changes, original, current) config parameters
     def _decide_restart(
         self,
         app_key: str,
+        changes: ChangeSet,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
         *,
-        reimport: bool,
+        in_reload_all: bool,
+        still_tracked: bool,
     ) -> "AppRestart | None":
-        """Decide what one reimported or reloaded key needs: a restart, or None for nothing.
+        # dup-ignore-end
+        """Decide what one restart key needs: a restart, or None for nothing. Caller must hold the key's lock.
 
-        ``reimport`` is True for a key in ``reimport_apps`` and False for one in ``reload_apps``; the two buckets
-        are disjoint (``AppChangeDetector.detect_changes``). Caller must hold the key's lock.
+        A reload-all restart key restarts as a full reimport whatever its autostart says, so an app that failed on the
+        old code recovers, but only while it still has an instance entry now that its lock is held (spec 162 D1). One
+        without an entry (stopped by hand, or its in-flight action was a stop) stays stopped, unless its own file
+        changed: that follows the watcher's reimport rule, as it would without the reload-all. Every other key follows
+        the watcher's rules.
+
+        Args:
+            app_key: The key to decide.
+            changes: The reconcile's change set.
+            original_config: The app manifests before the change.
+            current_config: The app manifests after the change.
+            in_reload_all: Whether ``app_key`` is one of the reload-all's restart keys.
+            still_tracked: Whether ``app_key`` has an instance entry now that its lock is held.
         """
+        if in_reload_all:
+            if still_tracked:
+                return AppRestart(app_key, force_reload=True)
+            if app_key not in changes.reimport_apps:
+                # A config reload alone would restart it through the watcher's autostart rule.
+                self.logger.debug("Not restarting app %s for the reload-all: it has no instance entry", app_key)
+                return None
+        elif app_key not in changes.reimport_apps and app_key not in changes.reload_apps:
+            return None
         if not self._should_restart(app_key):
             return None
-        if reimport:
+        if app_key in changes.reimport_apps:
             return AppRestart(app_key, force_reload=True)
         return self._plan_reload(app_key, original_config, current_config)
 
@@ -212,23 +302,24 @@ class AppChangeReconcilerMixin:
             return None
         return AppRestart(app_key, names=changed)
 
-    async def _restart_apps_unlocked(self, restarts: list["AppRestart"]) -> None:
-        """Stop every instance the restarts replace, then create every replacement.
+    async def _stop_restarts_unlocked(self, restarts: list["AppRestart"]) -> dict[str, ActionOutcomes]:
+        """Stop every instance the restarts replace; the first half of a restart, before any replacement exists.
 
         Bus/Scheduler owner registries are keyed by instance name, and a config change can hand a
         name from one instance to another, within one app or across apps (``a`` -> ``b`` while
         another instance goes ``b`` -> ``c``). Creating any replacement while the old holder of its
         name is still running would let the old one's teardown remove the new one's registrations,
-        so nothing is created until everything being replaced has stopped.
+        so nothing is created until everything being replaced has stopped. A reload-all evicts the app-code
+        modules between the two halves, so no stopped instance imports the new code during its teardown.
 
-        Caller must hold the app-key lock of every restart's key (``apply_changes`` takes them while
-        deciding the restarts, and ``asyncio.Lock`` is not reentrant).
+        Caller must hold the app-key lock of every restart's key (``asyncio.Lock`` is not reentrant).
 
         A name that left the config is gone once its stop ends, but its listeners stay active until something
         retires them, so the sweep's retire step is queued right after the stops. It runs on the database's write
         queue, which the reload doesn't wait on; if it is dropped, the next retention cycle retires them.
 
-        No response carries these outcomes, so each restart's refusals are logged here, once per instance.
+        Returns:
+            Each restart's outcomes so far, by app key, for ``_create_restarts_unlocked`` to finish.
         """
         outcomes = {
             restart.app_key: self._outcomes_for(
@@ -241,10 +332,21 @@ class AppChangeReconcilerMixin:
             await self._stop_for_restart(restart, outcomes[restart.app_key])
         if any(self._stopped_name_left_config(restart.app_key, outcomes[restart.app_key]) for restart in restarts):
             self._queue_retire_unconfigured_instances()
+        return outcomes
+
+    async def _create_restarts_unlocked(
+        self, restarts: list["AppRestart"], outcomes: dict[str, ActionOutcomes]
+    ) -> "dict[str, tuple[InstanceOutcome, ...]]":
+        """Create every restart's replacements, the second half after ``_stop_restarts_unlocked``.
+
+        Caller must hold the app-key lock of every restart's key.
+
+        Returns:
+            Each restart's final per-instance outcomes, by app key.
+        """
         for restart in restarts:
             await self._start_for_restart(restart, outcomes[restart.app_key])
-        for restart in restarts:
-            log_refusals(self.logger, restart.app_key, outcomes[restart.app_key].snapshot())
+        return {restart.app_key: outcomes[restart.app_key].finish() for restart in restarts}
 
     def _queue_retire_unconfigured_instances(self) -> None:
         """Ask the database to retire removed names' rows now, leaving a dropped request to the hourly sweep."""
@@ -263,7 +365,7 @@ class AppChangeReconcilerMixin:
         """Whether a restart's stop half targeted a name its app's current config doesn't have."""
         manifest = self.registry.get_manifest(app_key)
         configured = configured_instance_names(manifest.app_config) if manifest is not None else []
-        return not set(outcomes.names).issubset(configured)
+        return bool(set(outcomes.names) - set(configured))
 
     async def _stop_for_restart(self, restart: "AppRestart", outcomes: ActionOutcomes) -> None:
         # Both stop bodies catch and log their own failures, so one app's failed stop can't abort the batch.
@@ -304,148 +406,3 @@ class AppChangeReconcilerMixin:
         valid = [name for name in restart.names if self._instance_in_config(app_key, name, app_manifest)]
         outcomes.begin_create_half(valid)
         await asyncio.gather(*(create_one(name) for name in valid))
-
-    async def handle_change_event(
-        self,
-        changed_file_paths: typing.Annotated[frozenset[Path], A.get_path("payload.data.changed_file_paths")],
-    ) -> None:
-        """Handle changes detected by the file watcher.
-
-        Called as a Bus event handler with DI-injected ``changed_file_paths``. Serialized by
-        ``self._change_event_lock`` — this listener runs in the bus's ``parallel`` execution
-        mode (framework tier), so two file-watcher events dispatched close together would
-        otherwise run this method concurrently and race on ``_pending_reconciliation`` and on
-        ``refresh_config()``'s in-place mutation of ``self.registry.manifests``.
-        """
-        async with self._change_event_lock:
-            self.logger.debug("Handling app change event for files: %s", changed_file_paths)
-
-            original_apps_config, current_apps_config = await self.refresh_config()
-
-            if self.bootstrap_coordinator.is_released() and self._pending_reconciliation is not None:
-                # A pre-release change is still queued. Fold it into this diff's baseline so the
-                # comparison spans everything since before release, then clear the queue — otherwise
-                # bootstrap's later replay would apply that stale snapshot on top of a config it no
-                # longer matches.
-                self.logger.debug("Merging queued pre-release reconciliation into post-release change")
-                pending_original, _, pending_paths = self._take_pre_release_reconciliation()
-                if pending_original is not None:
-                    original_apps_config = pending_original
-                    changed_file_paths |= pending_paths
-
-            changes = self.change_detector.detect_changes(
-                original_apps_config, current_apps_config, changed_file_paths, only_apps=self.registry.only_apps
-            )
-
-            changes = self._fold_unblocked_apps_into_changes(changes)
-
-            if not changes.has_any_change:
-                self.logger.debug("%s changed but no app changes detected", changed_file_paths)
-                return
-
-            if not self.bootstrap_coordinator.is_released():
-                if changes.has_changes:
-                    self.logger.debug("Deferring app reconciliation until bootstrap release opens")
-                    self._record_pre_release_reconciliation(
-                        original_apps_config=original_apps_config,
-                        current_apps_config=current_apps_config,
-                        changed_file_paths=changed_file_paths,
-                    )
-                else:
-                    # A metadata-only change (e.g. display_name) has nothing for apply_changes()
-                    # to redo later, so there's no reconciliation to defer. But WebApiService can
-                    # already be serving manifests to a connected dashboard before bootstrap
-                    # release opens (see RuntimeQueryService.depends_on, which excludes
-                    # AppHandler), and release may not open for a long time -- or at all -- while
-                    # Home Assistant is unreachable. Broadcast now via _reconcile_changes(), which
-                    # skips apply_changes() since changes.has_changes is False here.
-                    self.logger.debug("%s changed (metadata-only) before bootstrap release opened", changed_file_paths)
-                    await self._reconcile_changes(changes, original_apps_config, current_apps_config)
-                return
-
-            self.logger.debug("%s changed, app changes detected - %s", changed_file_paths, changes)
-            await self._reconcile_changes(changes, original_apps_config, current_apps_config)
-
-    async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:
-        """Reload the configuration and return (original_apps_config, current_apps_config).
-
-        Both dicts include every manifest regardless of `enabled` status -- not filtered here,
-        and not by the exclusive-app filter either, so both configs stay directly comparable.
-        `AppChangeDetector.detect_changes()` derives its own enabled-only view internally for
-        lifecycle actions, but needs the full picture to also catch a metadata-only change to
-        an app that's disabled on both sides (see `ChangeSet.metadata_apps`).
-        """
-        original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
-        try:  # reload() swaps in only a valid config: on failure, config and registry stay as they are
-            self.hassette.config.reload()
-        except Exception as exc:  # an invalid config on disk (ConfigError) needs no traceback; a bug does
-            self.logger.error("Config reload rejected: %s", exc, exc_info=not isinstance(exc, ConfigError))
-            return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
-
-        self.set_apps_configs(self.hassette.config.apps.manifests)
-        # Restore the --app filter before the persist await, so status reads never see it cleared.
-        await self.resolve_only_apps()
-        await self.persist_manifests()
-        current_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
-
-        return original_apps_config, current_apps_config
-
-    async def _replay_pre_release_reconciliation_if_needed(self) -> bool:
-        """Replay a deferred pre-release reconciliation, if one is queued.
-
-        Returns:
-            True if a queued reconciliation was replayed and broadcast a manifest-refetch
-            signal via ``_reconcile_changes`` -- callers that send their own unconditional
-            "bootstrap finished" broadcast afterward should skip it when this returns True,
-            or the same signal goes out twice for one bootstrap pass.
-        """
-        # Shares _pending_reconciliation state with handle_change_event(), which serializes on
-        # this same lock — without it, a file-watcher event arriving as bootstrap replays could
-        # race the take/clear of that state.
-        async with self._change_event_lock:
-            if self._pending_reconciliation is None:
-                return False
-
-            original_apps_config, current_apps_config, changed_file_paths = self._take_pre_release_reconciliation()
-            if original_apps_config is None or current_apps_config is None:
-                return False
-            self.logger.debug("Replaying deferred app reconciliation after bootstrap release opens")
-            await self.resolve_only_apps()
-
-            changes = self.change_detector.detect_changes(
-                original_apps_config, current_apps_config, changed_file_paths, only_apps=self.registry.only_apps
-            )
-
-            changes = self._fold_unblocked_apps_into_changes(changes)
-
-            if not changes.has_any_change:
-                self.logger.debug("Deferred app reconciliation produced no changes")
-                return False
-
-            await self._reconcile_changes(changes, original_apps_config, current_apps_config)
-            return True
-
-    async def _reconcile_changes(
-        self,
-        changes: ChangeSet,
-        original_config: dict[str, "AppManifest"],
-        current_config: dict[str, "AppManifest"],
-    ) -> None:
-        """Apply a non-empty ``ChangeSet`` and broadcast a manifest-refetch signal.
-
-        The single place ``handle_change_event()`` and
-        ``_replay_pre_release_reconciliation_if_needed()`` route every ``ChangeSet``-driven
-        apply-then-broadcast decision through, rather than hand-rolling it at each call site's
-        own terminal branch -- a new branch that calls ``apply_changes()``/``send_event()``
-        directly instead of through here risks reintroducing the class of gap where one branch
-        applies changes (or persists metadata) but forgets to broadcast. Callers must already
-        have confirmed ``changes.has_any_change`` before calling. This is distinct from
-        ``bootstrap_apps()``'s own unconditional "bootstrap sequence finished" broadcast, which
-        isn't driven by a ``ChangeSet`` and stays a direct ``send_event()`` call there.
-        """
-        if changes.has_changes:
-            await self.apply_changes(changes, original_config, current_config)
-
-        await self.hassette.send_event(
-            HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
-        )

@@ -22,9 +22,15 @@ from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
 from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
 from whenever import Instant, ZonedDateTime
 
-from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
+from hassette.exceptions import (
+    AppBlockedError,
+    AppBootstrapNotReleasedError,
+    ReloadConfigInvalidError,
+    ReloadSyntaxError,
+    TelemetryUnavailableError,
+)
 from hassette.integration.declarations import CommittedEntity, Declaration, EntityState, IntegrationPlatform
-from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
+from hassette.schemas.app_outcomes import AppResult, InstanceOutcome, OutcomeResult, ReconcileAction, ReconcileResult
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, NeedsRestartInfo
 from hassette.types.enums import BlockReason
 from hassette.utils.stack_frames import encode_frames
@@ -199,6 +205,19 @@ def hold_bootstrap(hassette: MagicMock) -> None:
     not_released = AppBootstrapNotReleasedError("app bootstrap has not been released")
     hassette._app_handler.start_app.side_effect = not_released
     hassette._app_handler.reload_app.side_effect = not_released
+    hassette._app_handler.reload_all = AsyncMock(side_effect=not_released)
+
+
+def refuse_reload_config_invalid(hassette: MagicMock) -> None:
+    """A reload-all finds the config on disk invalid, so it answers ``reload_config_invalid``."""
+    hassette._app_handler.reload_all = AsyncMock(
+        side_effect=ReloadConfigInvalidError("The configuration is invalid: apps.my_app.filename: Field required")
+    )
+
+
+def refuse_reload_syntax_error(hassette: MagicMock) -> None:
+    """A reload-all finds a syntax error in a helper, so it answers ``reload_syntax_error``."""
+    hassette._app_handler.reload_all = AsyncMock(side_effect=ReloadSyntaxError("helpers/notify.py:12: invalid syntax"))
 
 
 def fail_activity_buckets(hassette: MagicMock) -> None:
@@ -339,7 +358,8 @@ def wire_app_filter(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) 
 def wire_app_actions(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
     """Each app action reports the outcome its targets' state implies.
 
-    A start or reload of a blocked app raises ``AppBlockedError`` (``app_blocked``). Otherwise each targeted
+    A reload-all reports every live app that isn't blocked. A start or reload of a blocked app raises
+    ``AppBlockedError`` (``app_blocked``). Otherwise each targeted
     instance that needs a restart is refused (``needs_restart``), each other ``FAILED`` one failed
     (``action_failed``, how the e2e fixtures' broken app reaches that code), and the rest succeeded. An app with
     no instances reports one succeeded instance, so every success body lists an outcome.
@@ -365,7 +385,18 @@ def wire_app_actions(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo])
             raise AppBlockedError(f"{app_key} is blocked")
         return outcomes(app_key, *args)
 
+    async def reload_all(**_kwargs: Any) -> ReconcileResult:
+        # Every live app that isn't blocked, so the body lists succeeded, failed and refused apps.
+        return ReconcileResult(
+            apps={
+                key: AppResult(action=ReconcileAction.RELOAD, outcomes=outcomes(key))
+                for key, info in by_key.items()
+                if info.status is not AppStatus.BLOCKED
+            }
+        )
+
     handler = hassette._app_handler
+    handler.reload_all = AsyncMock(side_effect=reload_all)
     handler.stop_app.side_effect = app_action
     handler.stop_instance.side_effect = instance_action
     for name in ("start_app", "reload_app", "start_instance", "reload_instance"):

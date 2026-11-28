@@ -114,3 +114,31 @@ async def test_busy_app_with_vanished_registry_entries_is_rejected_not_404(
 
     assert response.status_code == 409, response.text
     assert response.json()["code"] == "action_in_progress"
+
+
+@pytest.mark.parametrize(("suffix", "method"), ACTIONS, ids=[suffix for suffix, _ in ACTIONS])
+async def test_a_start_or_reload_during_a_reload_is_rejected(
+    client: AsyncClient, mock_hassette: MagicMock, suffix: str, method: str
+) -> None:
+    """A reload-all locks only the apps it restarts, so a start or reload of another app must wait it out: run during
+    the stop phase, it would import the old code just before the eviction and keep it. A stop is unaffected.
+    """
+    handler = mock_hassette.app_handler
+    handler.registry.get_manifest.return_value = make_manifest_mock()
+    handler.is_reload_running = MagicMock(return_value=True)
+    setattr(handler, method, AsyncMock(return_value=(InstanceOutcome("instance_0", OutcomeResult.SUCCEEDED),)))
+
+    response = await client.post(f"{APPS_PATH}/my_app/{suffix}")
+
+    if suffix == "stop":
+        assert response.status_code == 200, response.text
+        getattr(handler, method).assert_awaited_once()
+        return
+    if suffix.endswith("stop"):
+        # The gate doesn't apply; the mock manifest has no instance_0, so the stop's own check answers.
+        assert response.json()["code"] == "instance_not_found", response.text
+        return
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "action_in_progress"
+    assert response.json()["detail"] == "A reload is still running"
+    getattr(handler, method).assert_not_awaited()

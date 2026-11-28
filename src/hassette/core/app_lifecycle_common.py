@@ -83,6 +83,47 @@ class PendingReconciliation:
     changed_paths: frozenset[Path]
 
 
+@dataclass(frozen=True)
+class WatcherTrigger:
+    """A file-watcher event asking for a reconcile from disk: the paths it reported.
+
+    Its refusals are logged, never raised, and it always waits for busy locks: there is no caller to answer.
+    """
+
+    paths: frozenset[Path]
+
+
+@dataclass(frozen=True)
+class ManualReload:
+    """A reload-all asked for through the web API or the CLI.
+
+    Its refusals are raised to the caller. With ``wait`` false it refuses at once when another reload or an action
+    on one of its apps is running; with ``wait`` true it waits for them.
+    """
+
+    wait: bool = False
+
+
+ReconcileTrigger = WatcherTrigger | ManualReload
+"""What started a ``reconcile_from_disk`` call."""
+
+
+@dataclass(frozen=True)
+class ReloadAllPlan:
+    """A reload-all: evict every app-code module under ``evict_roots``, and restart ``restart_keys`` on the new code.
+
+    ``reconcile_from_disk`` builds it once a manual call or a watcher change needs one and the syntax precheck
+    passed; a reconcile without one evicts nothing and restarts only the apps its ``ChangeSet`` names.
+    """
+
+    restart_keys: frozenset[str]
+    """Every key the new config still runs that had an instance entry, live or FAILED, or an action in flight
+    when the reload-all was planned (spec 162 D1). Each restarts as a full re-import, whatever its autostart says,
+    if it is still tracked once its lock is held."""
+    evict_roots: frozenset[Path]
+    """The old config's app roots and the new one's, so modules loaded from a root the change removed go too."""
+
+
 class ActionOutcomes:
     """One lifecycle request's outcome for each instance it targets, one slot per targeted name.
 

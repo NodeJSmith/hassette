@@ -114,6 +114,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/apps/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reload All Apps
+         * @description Reload every app in place: re-read the config, re-import every app module and helper, restart the apps.
+         *
+         *     Restarts every app with a running or failed instance, stops apps the config removed and starts the ones it
+         *     added, leaving the Home Assistant connection and the process up. Answers 200 once it has run, even when some
+         *     apps failed (see ``counts``). Refuses with a 409 before stopping anything when another reload or app action is
+         *     running (unless ``wait``), apps haven't bootstrapped yet, the config is invalid, or a file it would import has a
+         *     syntax error.
+         */
+        post: operations["reload_all_apps_api_apps_reload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/apps/{app_key}/start": {
         parameters: {
             query?: never;
@@ -1307,6 +1333,33 @@ export interface components {
              *     order availability: that is ``AppSummary.status_revision``.
              */
             entity_revision: number;
+        };
+        /**
+         * AppReloadResult
+         * @description One app's part of a reload-all: what it did to the app, and to each of the app's instances.
+         */
+        AppReloadResult: {
+            /** App Key */
+            app_key: string;
+            /**
+             * Action
+             * @description What the reload-all did to the app: ``reload`` (stopped and recreated on the new code), ``stop`` (the config
+             *     removed or disabled it, so it was stopped and not recreated), or ``start`` (the config added it).
+             * @enum {string}
+             */
+            action: "start" | "stop" | "reload";
+            /**
+             * Result
+             * @description The app's worst instance result: ``failed`` if any instance failed, else ``refused`` if any was refused,
+             *     else ``succeeded``. ``ReloadAllResponse.counts`` tallies apps by this.
+             * @enum {string}
+             */
+            result: "succeeded" | "failed" | "refused";
+            /**
+             * Outcomes
+             * @description One entry per instance the reload targeted, as in ``ActionResponse.outcomes``.
+             */
+            outcomes: components["schemas"]["InstanceOutcome"][];
         };
         /**
          * AppSource
@@ -2557,7 +2610,7 @@ export interface components {
          *     status, is a breaking change and is flagged as one; adding a code is not.
          * @enum {string}
          */
-        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "needs_restart" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "instance_not_running" | "entity_not_declared" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
+        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "needs_restart" | "reload_config_invalid" | "reload_syntax_error" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "instance_not_running" | "entity_not_declared" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
         /**
          * ProblemDetail
          * @description RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error.
@@ -2605,6 +2658,34 @@ export interface components {
             status: "ok" | "degraded" | "starting";
             /** Ready */
             ready: boolean;
+        };
+        /**
+         * ReloadAllCounts
+         * @description How many apps a reload-all left in each result, by each app's worst instance result.
+         */
+        ReloadAllCounts: {
+            /** Succeeded */
+            succeeded: number;
+            /** Failed */
+            failed: number;
+            /** Refused */
+            refused: number;
+        };
+        /**
+         * ReloadAllResponse
+         * @description Response for a reload-all that ran: sent with 200 even when some apps failed.
+         *
+         *     Lists every app the reload stopped, restarted or started, each with its ``action``. A caller detects a partial
+         *     failure from ``counts.failed`` (and ``counts.refused``), not from the status code. A refusal before anything ran
+         *     (busy, invalid config, syntax error, bootstrap not released) is a problem response instead.
+         */
+        ReloadAllResponse: {
+            /**
+             * Apps
+             * @description One entry per affected app, sorted by app key.
+             */
+            apps: components["schemas"]["AppReloadResult"][];
+            counts: components["schemas"]["ReloadAllCounts"];
         };
         /**
          * ResourceStatus
@@ -3011,6 +3092,47 @@ export interface operations {
             };
         };
     };
+    reload_all_apps_api_apps_reload_post: {
+        parameters: {
+            query?: {
+                /** @description Wait for another reload, or an action on one of the apps, instead of answering 409. */
+                wait?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReloadAllResponse"];
+                };
+            };
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `reload_config_invalid`: the configuration on disk is invalid; nothing was stopped; `reload_syntax_error`: a file the reload would import has a syntax error; nothing was stopped */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     start_app_api_apps__app_key__start_post: {
         parameters: {
             query?: never;
@@ -3049,7 +3171,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3116,7 +3238,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3183,7 +3305,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3251,7 +3373,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3319,7 +3441,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3387,7 +3509,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app, or a reload, is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;

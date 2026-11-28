@@ -120,6 +120,7 @@ A part is `null` when the server couldn't compute it. The table shows that as a 
 | `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`                    |
 | `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`                     |
 | `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`                   |
+| `hassette app reload --all`   | Reloads every app in place. | `POST /api/apps/reload`                         |
 | `hassette app debug <key> on\|off` | Turns debug capture on or off. | `PUT /api/apps/{key}/debug`             |
 
 The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}` instead of the app-level path shown above.
@@ -153,6 +154,15 @@ Reloads an app from disk, or a specific instance with `--instance`. Prompts for 
 ```bash
 hassette app reload my-app --yes
 hassette app reload my-app --instance office --yes
+```
+
+`--all` reloads every app instead of one, without restarting Hassette. It re-reads `hassette.toml`, re-imports every module loaded from your app directories (helpers included), and restarts every app that is running or failed. It refuses, and stops nothing, when the config is invalid, a file it would import has a syntax error, or another reload or app action is running. `--all` takes no key and no `--instance`. It prompts for confirmation unless `--yes` is passed. The command prints how many apps it reloaded, stopped and started, how many succeeded, failed and were refused, then each app that didn't succeed with its reason. It exits 1 when the reload refused or any app failed or was refused. An instance that needs a Hassette restart keeps its old code. See [Reload All](../web-ui/manage-apps.md#reload-all).
+
+`--wait` (only with `--all`) waits for a running reload or app action to finish instead of failing at once. A deploy script then doesn't need to retry. Without `--wait`, the command gives up waiting for an answer after 120 seconds. A reload still running then keeps running on the server.
+
+```bash
+hassette app reload --all --yes
+hassette app reload --all --wait --yes   # in a deploy script
 ```
 
 !!! warning

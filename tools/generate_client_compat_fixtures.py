@@ -58,6 +58,8 @@ from client_compat_live_state import (  # noqa: E402
     hold_bootstrap,
     live_manifests,
     read_seed_ids,
+    refuse_reload_config_invalid,
+    refuse_reload_syntax_error,
     seed_live_state,
     wire_app_outcomes,
 )
@@ -69,6 +71,8 @@ from client_compat_requests import (  # noqa: E402
     HEALTH_READY_UNAVAILABLE_REQUEST,
     INTERNAL_ERROR_REQUEST,
     PROBLEM_REQUESTS,
+    RELOAD_CONFIG_INVALID_REQUEST,
+    RELOAD_SYNTAX_ERROR_REQUEST,
     TELEMETRY_STATUS_UNAVAILABLE_REQUEST,
     TELEMETRY_UNAVAILABLE_REQUEST,
     FixtureRequest,
@@ -176,6 +180,8 @@ class StubVariant:
 STUB_VARIANTS = (
     StubVariant(hold_bootstrap, (HEALTH_READY_UNAVAILABLE_REQUEST, BOOTSTRAP_NOT_RELEASED_REQUEST)),
     StubVariant(fail_activity_buckets, (APP_GRID_DEGRADED_REQUEST,)),
+    StubVariant(refuse_reload_config_invalid, (RELOAD_CONFIG_INVALID_REQUEST,)),
+    StubVariant(refuse_reload_syntax_error, (RELOAD_SYNTAX_ERROR_REQUEST,)),
     StubVariant(break_runtime_overlay, (INTERNAL_ERROR_REQUEST,), raise_app_exceptions=False),
 )
 """Sent to the first scenario only, over its still-open database (see :func:`serve_failure_paths`)."""

@@ -264,6 +264,7 @@ def wire_app_handler(
 
     # _run_app_action() rejects an action with 409 while this is truthy, which a bare MagicMock is.
     handler.is_action_in_progress = MagicMock(return_value=False)
+    handler.is_reload_running = MagicMock(return_value=False)
 
     # App status snapshot (AppStatusSnapshot domain object)
     handler.get_status_snapshot.return_value = old_snapshot if old_snapshot is not None else AppStatusSnapshot()

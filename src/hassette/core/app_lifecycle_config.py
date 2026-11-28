@@ -3,6 +3,7 @@
 import asyncio
 import typing
 from copy import deepcopy
+from dataclasses import replace
 from logging import Logger
 
 import anyio
@@ -31,8 +32,8 @@ class AppConfigStateMixin:
         """Upsert all current manifests into the ``app_manifests`` DB table concurrently.
 
         Called from ``bootstrap_apps()`` (initial load, after ``set_apps_configs()`` and before
-        ``start_apps()``) and ``refresh_config()`` (hot reload, after ``set_apps_configs()`` and
-        before ``apply_changes()`` in the caller). Manifests are upserted concurrently via
+        ``start_apps()``) and ``reconcile_from_disk()`` (hot reload, when it commits the new config).
+        Manifests are upserted concurrently via
         ``asyncio.gather(return_exceptions=True)``, matching ``start_apps()`` — a sequential loop
         here would serialize up to ``N * MANIFEST_UPSERT_TIMEOUT_SECONDS`` onto every boot and
         hot-reload if the DB is merely slow rather than down. Each upsert still has its own
@@ -114,7 +115,7 @@ class AppConfigStateMixin:
     def _fold_unblocked_apps_into_changes(self, changes: ChangeSet) -> ChangeSet:
         """Reconcile blocked-app state and fold any newly-unblocked apps into ``changes`` as starts.
 
-        Shared by ``handle_change_event()`` and ``_replay_pre_release_reconciliation_if_needed()``,
+        Shared by ``reconcile_from_disk()`` and ``_replay_pre_release_reconciliation_if_needed()``,
         both of which reconcile the ``--app`` filter's blocked-app state against the current
         registry before applying detected changes.
         """
@@ -131,12 +132,8 @@ class AppConfigStateMixin:
         if not to_start:
             return changes
         self.logger.debug("Starting previously-blocked apps: %s", to_start)
-        return ChangeSet(
-            orphans=changes.orphans,
-            new_apps=changes.new_apps | frozenset(to_start),
-            reimport_apps=changes.reimport_apps,
-            reload_apps=changes.reload_apps - to_start,
-            metadata_apps=changes.metadata_apps,
+        return replace(
+            changes, new_apps=changes.new_apps | frozenset(to_start), reload_apps=changes.reload_apps - to_start
         )
 
     def reconcile_blocked_apps(self) -> set[str]:

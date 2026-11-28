@@ -97,6 +97,7 @@ colored = runner.terminal_stdout(client, cmd_log)        # same, as a color term
 parsed = runner.json_output(client, cmd_log)             # --json document (ctx is injected)
 assert "No results" in runner.stderr(client, cmd_log)    # stderr, stdout suppressed
 code, stderr = runner.usage_error(client, cmd_log, instance="0")  # expects SystemExit
+code, stdout = runner.exit_stdout(client, cmd_log)        # expects SystemExit after rendering
 ```
 
 Reach for these instead of hand-rolling the `patch(...)` / `capture_*()` context-manager stack —

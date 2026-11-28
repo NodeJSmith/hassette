@@ -38,6 +38,11 @@ const ACTIONS = {
 } satisfies Record<ActionResponse["action"], ActionConfig>;
 
 type ActionName = keyof typeof ACTIONS;
+
+/** An action's past tense ("reloaded"), or undefined for an action name this build doesn't know. */
+export function actionOutcome(action: string): string | undefined {
+  return action in ACTIONS ? ACTIONS[action as ActionName].outcome : undefined;
+}
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
 
 interface ActionButtonSpec {

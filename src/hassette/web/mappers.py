@@ -20,6 +20,7 @@ from hassette_wire import (
     AppActivityStats,
     AppInstance,
     AppListResponse,
+    AppReloadResult,
     AppSummary,
     ConnectedData,
     DeclaredEntity,
@@ -29,12 +30,15 @@ from hassette_wire import (
     ListenerKind,
     ListenerSummary,
     ReadinessResponse,
+    ReloadAllCounts,
+    ReloadAllResponse,
     SystemStatusResponse,
 )
 from whenever import Date, Instant
 
 from hassette.integration.declarations import CommittedEntity
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
+from hassette.schemas.app_outcomes import OutcomeResult, ReconcileResult, worst_result
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.listener_models import ListenerSummaryRow
@@ -105,6 +109,25 @@ def instance_outcome_from(outcome: CoreInstanceOutcome) -> InstanceOutcome:
         needs_restart=outcome.needs_restart,
         reason=outcome.reason,
     )
+
+
+def reload_all_response_from(result: ReconcileResult) -> ReloadAllResponse:
+    """Map a reload-all's per-app outcomes to its wire response, apps sorted by key."""
+    apps = [
+        AppReloadResult(
+            app_key=app_key,
+            action=app.action.value,
+            result=worst_result(app.outcomes).value,
+            outcomes=[instance_outcome_from(outcome) for outcome in app.outcomes],
+        )
+        for app_key, app in sorted(result.apps.items())
+    ]
+    counts = ReloadAllCounts(
+        succeeded=result.count(OutcomeResult.SUCCEEDED),
+        failed=result.count(OutcomeResult.FAILED),
+        refused=result.count(OutcomeResult.REFUSED),
+    )
+    return ReloadAllResponse(apps=apps, counts=counts)
 
 
 def app_summary_from(manifest: AppManifestInfo) -> AppSummary:

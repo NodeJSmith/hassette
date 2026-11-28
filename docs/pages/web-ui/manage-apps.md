@@ -72,9 +72,32 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 
 An action finishes before it answers. When it fails on one instance, the error message names that instance with its failure, after a count of the instances it acted on.
 
-**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
+**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to an app's config in `hassette.toml` needs [Reload all](#reload-all) or a Hassette restart. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
 
 These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{instance_name}/start`, `/stop`, `/reload` for a single instance. The CLI exposes the same three actions as `hassette app start|stop|reload`, with `--instance` routing to the per-instance endpoint. See [CLI Commands](../cli/commands.md) for the full command reference.
+
+### Reload All
+
+**Reload all**, in the Apps page header, reloads every app from disk without restarting the Hassette process. The Home Assistant connection and the state cache stay up, so a deploy that changes shared helpers no longer leaves a gap with no listeners while the container restarts. After you confirm it, Hassette:
+
+1. Re-reads `hassette.toml` for the app configuration: which apps exist, their settings, and the `--app` filter. Settings outside the apps, such as the Home Assistant URL, the log level or the web API's, need a Hassette restart to take effect.
+2. Checks every Python file it is about to import for syntax errors.
+3. Stops every app that is running or `FAILED`.
+4. Forgets every module loaded from your app directories, helpers included.
+5. Starts those apps again, so each one imports the current code.
+
+It also stops apps the new config removed or disabled, and starts apps it added (unless they have `autostart = false`). An app you stopped by hand stays stopped, and it imports the new code when you start it. While the reload runs, starting or reloading a single app answers that a reload is still running; try again once it finishes.
+
+Reload all refuses, and stops nothing, when:
+
+- `hassette.toml` is invalid. The message names each error.
+- A file it would import has a syntax error. The message gives the file, relative to its app directory, and the line: `helpers/notify.py:12: invalid syntax`.
+- Another reload, or an action on one of the apps it restarts, is still running.
+- Hassette is still starting up and hasn't started the apps yet.
+
+Once it has run, a toast says how many apps it reloaded, stopped and started. It gives the number that succeeded, failed and were refused, and names each app that didn't succeed. If the request fails without an answer from Hassette, such as a proxy timeout, the toast says the reload may not have finished. Check the app list for each app's status. An app whose import fails for any reason other than a syntax error, such as an `ImportError`, ends up `FAILED` with the error as its last error. The other apps still start.
+
+The same action is `POST /api/apps/reload` in the REST API and `hassette app reload --all` in the CLI. The API answers 200 whenever the reload ran, even if some apps failed; read `counts.failed` and `counts.refused` in the response. Each app in it carries an `action`: `reload`, `stop` (the config removed it) or `start` (the config added it). A refusal answers 409 with the code `reload_config_invalid`, `reload_syntax_error`, `action_in_progress` or `bootstrap_not_released` (see [API Errors](api-errors.md)). `?wait=true` waits for a running reload or app action to finish instead of answering 409. The web UI never waits.
 
 ### What Reload Re-imports
 
@@ -88,15 +111,21 @@ What a reload picks up depends on what triggered it:
 
     A re-import replaces the module with a new copy. Another app module that imported it whole (`import apps.helpers as helpers`) keeps calling the old copy until that app reloads too. Names imported with `from apps.helpers import notify` keep the old code either way.
 - **Saving a change to the app's `app_config` in `hassette.toml`**: Hassette restarts the affected instances, usually only the ones whose config changed, with the code it already has loaded. Nothing is re-imported.
-- **Saving any other Python file**, such as a sibling module or a shared helper: no reload happens.
+- **[Reload all](#reload-all)**, or (with automatic reloads on) **saving any other Python file in an app directory**, such as a sibling module or a shared helper: Hassette forgets every module loaded from your app directories and restarts every running or failed app, so every app imports the current code. Saving an app's own file does the same when another app imports that file, so the two apps stay on the same version of it.
 
-!!! warning "Edits outside the app's own file need a Hassette restart"
-    Take an app at `garage_proximity/app.py` that imports `garage_proximity/models.py`. A reload never re-reads `models.py`, which causes two failures:
+!!! warning "Edits outside the app's own file need Reload all"
+    Take an app at `garage_proximity/app.py` that imports `garage_proximity/models.py`. Reloading just that app never re-reads `models.py`, which causes two failures:
 
-    - **The reload fails.** Add `NewThing` to `models.py` and `from .models import NewThing` to `app.py`, then reload. The import raises `ImportError: cannot import name 'NewThing'`. Hassette stopped the app before re-importing, so the app stays stopped with status `FAILED`. The `ImportError` appears in the log and as the app's last error.
-    - **The reload succeeds with old code.** Change only how something in `models.py` behaves, then reload. The reload reports no error, and the app keeps running the old `models.py` code.
+    - **The reload fails.** Add `NewThing` to `models.py` and `from .models import NewThing` to `app.py`, then reload the app. The import raises `ImportError: cannot import name 'NewThing'`. Hassette stopped the app before re-importing, so the app stays stopped with status `FAILED`. The `ImportError` appears in the log and as the app's last error.
+    - **The reload succeeds with old code.** Change only how something in `models.py` behaves, then reload the app. The reload reports no error, and the app keeps running the old `models.py` code.
 
-    Restart the Hassette process or container whenever anything other than the app's own file changed. With Docker Compose, run `docker compose restart hassette`.
+    Use **Reload all** (or `hassette app reload --all`) whenever anything other than the app's own file changed. With automatic reloads on, saving `models.py` runs it for you.
+
+Reload all has limits of its own:
+
+- **Module-level code runs again.** Each app module and helper is imported fresh, so code at the top level of a file runs on every Reload all. A helper that starts a thread, opens a session or registers an `atexit` hook at import time does it again, and the copy from the previous import isn't cleaned up. Do that work in an app's `on_initialize` instead, where `on_shutdown` can undo it.
+- **Dynamic imports aren't seen by the file watcher.** The watcher reads `import` statements to tell whether a saved app file is imported by another app. An app that loads another with `importlib.import_module` isn't counted, so saving the imported file reloads only that app. Run Reload all by hand in that case.
+- **Code outside your app directories stays loaded.** Installed packages, including a copy of your own package installed with `pip`, keep the code from their first import. Restart Hassette after upgrading one.
 
 ## Understand App States
 

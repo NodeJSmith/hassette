@@ -2,12 +2,13 @@
 
 import asyncio
 import re
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from logging import getLogger
-from typing import Any, assert_never
+from typing import Annotated, Any, assert_never
 
 import tomli_w
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.types import DecoratedCallable
 from hassette_wire import (
     ActionResponse,
@@ -22,21 +23,34 @@ from hassette_wire import (
     InstanceDebugCapture,
     InstanceOutcome,
     ProblemCode,
+    ReloadAllResponse,
 )
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
-from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
+from hassette.exceptions import (
+    AppBlockedError,
+    AppBootstrapNotReleasedError,
+    AppRemovedError,
+    ReloadBusyError,
+    ReloadConfigInvalidError,
+    ReloadSyntaxError,
+)
 from hassette.integration.declarations import CommandDispatchResult, IntegrationPlatform
 from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
-from hassette.schemas.app_outcomes import OutcomeResult
+from hassette.schemas.app_outcomes import OutcomeResult, worst_result
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
-from hassette.web.mappers import app_list_response_from, app_summary_from, instance_outcome_from
+from hassette.web.mappers import (
+    app_list_response_from,
+    app_summary_from,
+    instance_outcome_from,
+    reload_all_response_from,
+)
 
 LOGGER = getLogger(__name__)
 
@@ -102,6 +116,24 @@ ENTITY_COMMAND_CODES = (
 ACTION_CODES = (*STOP_ACTION_CODES, ProblemCode.BOOTSTRAP_NOT_RELEASED, ProblemCode.APP_BLOCKED)
 """Codes ``_run_app_action`` raises for ``start`` and ``reload``."""
 
+BOOTSTRAP_NOT_RELEASED_DETAIL = "App bootstrap prerequisites are not ready yet; retry later"
+"""The ``bootstrap_not_released`` detail every app action route answers with."""
+
+WORST_RESULT_CODES: dict[OutcomeResult, ProblemCode | None] = {
+    OutcomeResult.FAILED: ProblemCode.ACTION_FAILED,
+    OutcomeResult.REFUSED: ProblemCode.NEEDS_RESTART,
+    OutcomeResult.SUCCEEDED: None,
+}
+"""The problem code an app action answers with for its worst instance result (``worst_result``)."""
+
+RELOAD_ALL_CODES = (
+    ProblemCode.ACTION_IN_PROGRESS,
+    ProblemCode.BOOTSTRAP_NOT_RELEASED,
+    ProblemCode.RELOAD_CONFIG_INVALID,
+    ProblemCode.RELOAD_SYNTAX_ERROR,
+)
+"""Codes the reload-all route raises: each a refusal before anything was stopped."""
+
 
 router = APIRouter(tags=["apps"])
 
@@ -131,8 +163,12 @@ def _validate_app_key(app_key: str) -> None:
         raise WebApiError(ProblemCode.INVALID_APP_KEY, f"Invalid app_key: {app_key!r}")
 
 
-def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
+def _require_no_action_in_progress(app_key: str, hassette: HassetteDep, action: AppAction) -> None:
     """Raise ``ACTION_IN_PROGRESS`` when another action holds or is queued for ``app_key``'s lock.
+
+    A start or reload also refuses while a reload is running: a reload-all locks only the apps it restarts, so an
+    app started during its stop phase would import the old code just before the eviction and keep it. A stop
+    needs no such check.
 
     Runs before any existence or instance-range check: an in-flight action can mutate the
     registry those checks read (a stop in flight removes each instance's entry as its teardown ends),
@@ -141,6 +177,8 @@ def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
     """
     if hassette.app_handler.is_action_in_progress(app_key):
         raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, f"Another action on app {app_key!r} is still running")
+    if action != "stop" and hassette.app_handler.is_reload_running():
+        raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, "A reload is still running")
 
 
 def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction) -> bool:
@@ -204,7 +242,7 @@ def _require_addressable_instance(app_key: str, instance_name: str, hassette: Ha
     whose config block was removed (see ``_orphan_instance_permitted``).
     """
     _validate_app_key(app_key)
-    _require_no_action_in_progress(app_key, hassette)
+    _require_no_action_in_progress(app_key, hassette, action)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None and not _orphan_app_permitted(app_key, hassette, action):
         raise app_not_found(app_key)
@@ -252,7 +290,7 @@ async def _run_app_action(
     the server acted on the instance it intended.
     """
     _validate_app_key(app_key)
-    _require_no_action_in_progress(app_key, hassette)
+    _require_no_action_in_progress(app_key, hassette, action)
     _require_known_app(app_key, hassette, action)
     outcomes = await _await_operation(app_key, operation)
     wire_outcomes = [instance_outcome_from(outcome) for outcome in outcomes]
@@ -272,9 +310,7 @@ async def _await_operation(
     try:
         return await operation()
     except AppBootstrapNotReleasedError as exc:
-        raise WebApiError(
-            ProblemCode.BOOTSTRAP_NOT_RELEASED, "App bootstrap prerequisites are not ready yet; retry later"
-        ) from exc
+        raise WebApiError(ProblemCode.BOOTSTRAP_NOT_RELEASED, BOOTSTRAP_NOT_RELEASED_DETAIL) from exc
     except AppBlockedError as exc:
         raise WebApiError(
             ProblemCode.APP_BLOCKED,
@@ -294,11 +330,7 @@ def _wire_outcomes_or_none(outcomes: Sequence[CoreInstanceOutcome]) -> list[Inst
 
 def _problem_code_for(outcomes: Sequence[CoreInstanceOutcome]) -> ProblemCode | None:
     """The problem code the worst outcome calls for, or ``None`` when every instance succeeded."""
-    if any(outcome.result is OutcomeResult.FAILED for outcome in outcomes):
-        return ProblemCode.ACTION_FAILED
-    if any(outcome.result is OutcomeResult.REFUSED for outcome in outcomes):
-        return ProblemCode.NEEDS_RESTART
-    return None
+    return WORST_RESULT_CODES[worst_result(outcomes)]
 
 
 def action_detail(action: AppAction, app_key: str, outcomes: Sequence[CoreInstanceOutcome]) -> str:
@@ -421,6 +453,48 @@ async def get_app(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) ->
         raise app_not_found(app_key)
 
     return app_summary_from(runtime.overlay_manifest_rows([db_row])[0])
+
+
+@router.post("/apps/reload", response_model=ReloadAllResponse, responses=problem_responses(*RELOAD_ALL_CODES))
+async def reload_all_apps(
+    hassette: HassetteDep,
+    request: Request,
+    wait: Annotated[
+        bool,
+        Query(description="Wait for another reload, or an action on one of the apps, instead of answering 409."),
+    ] = False,
+) -> ReloadAllResponse:
+    """Reload every app in place: re-read the config, re-import every app module and helper, restart the apps.
+
+    Restarts every app with a running or failed instance, stops apps the config removed and starts the ones it
+    added, leaving the Home Assistant connection and the process up. Answers 200 once it has run, even when some
+    apps failed (see ``counts``). Refuses with a 409 before stopping anything when another reload or app action is
+    running (unless ``wait``), apps haven't bootstrapped yet, the config is invalid, or a file it would import has a
+    syntax error.
+    """
+    started = time.perf_counter()
+    try:
+        result = await hassette.app_handler.reload_all(wait=wait)
+    except ReloadBusyError as exc:
+        raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, str(exc)) from exc
+    except AppBootstrapNotReleasedError as exc:
+        raise WebApiError(ProblemCode.BOOTSTRAP_NOT_RELEASED, BOOTSTRAP_NOT_RELEASED_DETAIL) from exc
+    except ReloadConfigInvalidError as exc:
+        raise WebApiError(ProblemCode.RELOAD_CONFIG_INVALID, str(exc)) from exc
+    except ReloadSyntaxError as exc:
+        raise WebApiError(ProblemCode.RELOAD_SYNTAX_ERROR, str(exc)) from exc
+    response = reload_all_response_from(result)
+    duration_s = time.perf_counter() - started
+    LOGGER.info(
+        "Reloaded all apps in %.1fs: %d succeeded, %d failed, %d refused (source=%s)",
+        duration_s,
+        response.counts.succeeded,
+        response.counts.failed,
+        response.counts.refused,
+        peer_address_or_unknown(request),
+        extra={"duration_s": duration_s},
+    )
+    return response
 
 
 @action_route("/apps/{app_key}/start", *ACTION_CODES)

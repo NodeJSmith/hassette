@@ -299,6 +299,18 @@ class CommandRunner:
             func(*args, **kwargs)
         return exc_info.value.code, err_buf.getvalue()
 
+    def exit_stdout(
+        self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any
+    ) -> tuple[Any, str]:
+        """Run ``func`` expecting it to exit after rendering a result; return the exit code and its stdout."""
+        with (
+            capture_stdout() as buf,
+            patch(self.make_client_path, return_value=client),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            func(*args, **kwargs)
+        return exc_info.value.code, buf.getvalue()
+
     def json_output(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> Any:
         """Run ``func`` in JSON mode and return its parsed stdout document.
 

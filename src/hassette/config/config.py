@@ -60,6 +60,7 @@ from hassette.exceptions import ConfigError
 from hassette.schemas.app_config_shape import configured_instance_names, normalize_app_config
 from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
+from hassette.utils.app_modules import app_roots
 from hassette.utils.app_utils import clean_app
 
 LOGGER = getLogger(__name__)
@@ -290,12 +291,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     def get_watchable_files(self) -> set[Path]:
         """Return a set of files to watch for changes."""
         files = self.env_files | self.toml_files
-        files.add(self.apps.directory.resolve())
+        files.update(app_roots(self))
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
-        for app_manifest in self.apps.manifests.values():
-            files.add(app_manifest.full_path)
-            files.add(app_manifest.app_dir)
+        files.update(app_manifest.full_path for app_manifest in self.apps.manifests.values())
 
         return filter_paths_to_unique_existing(files)
 
@@ -464,13 +463,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     def reload(self) -> None:
         """Reload the configuration from all sources, replacing this config only if the new one is valid.
 
-        A candidate is built and its app manifests validated first; if either step raises, this
-        config is untouched. Init kwargs are replayed because they are the highest-priority source:
-        they carry the `hassette run` flags, and a file-watcher reload that dropped them would
-        silently undo `--app` on the first save.
-
         Raises:
             ConfigError: The configuration on disk is invalid; the running config is unchanged.
+        """
+        self.adopt(self.build_reload_candidate())
+
+    def build_reload_candidate(self) -> "HassetteConfig":
+        """Build and validate a fresh config from this config's sources, without changing this one.
+
+        Init kwargs are replayed because they are the highest-priority source: they carry the `hassette run`
+        flags, and a file-watcher reload that dropped them would silently undo `--app` on the first save.
+
+        Raises:
+            ConfigError: The configuration on disk is invalid.
         """
         inputs = self._load_inputs
         candidate = type(self)(
@@ -482,9 +487,15 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             **inputs.init_kwargs,
         )
         candidate.set_validated_app_manifests()
-        # Become the candidate in place, so every holder of this config sees the reload. The private
-        # state (_load_inputs, _locations) moves with it. object.__setattr__ bypasses validate_assignment.
-        # Sub-model objects read from the old config (e.g. a saved `config.websocket`) keep the old values.
+        return candidate
+
+    def adopt(self, candidate: "HassetteConfig") -> None:
+        """Become ``candidate`` in place, so every holder of this config sees the reload.
+
+        The private state (_load_inputs, _locations) moves with it. object.__setattr__ bypasses
+        validate_assignment. Sub-model objects read from the old config (e.g. a saved `config.websocket`) keep the
+        old values.
+        """
         for attr in PYDANTIC_INSTANCE_STATE:
             object.__setattr__(self, attr, getattr(candidate, attr))
 
